@@ -20,13 +20,14 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.14'
 
       - name: Build with Gradle
-        run: gradle build --no-daemon
+        run: ./gradlew build --no-daemon
 
       - name: Upload Fabric artifact
         uses: actions/upload-artifact@v4
