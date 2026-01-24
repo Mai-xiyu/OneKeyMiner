@@ -1,0 +1,86 @@
+{
+  "config.onekeyminer.title": "OneKeyMiner 配置",
+  "config.onekeyminer.info": "请编辑配置文件来修改设置",
+  "config.onekeyminer.openFolder": "打开配置文件夹",
+  "config.onekeyminer.reload": "重新加载配置",
+
+  "config.onekeyminer.option.enabled": "启用模组",
+  "config.onekeyminer.option.enabled.tooltip": "是否启用连锁挖矿功能",
+
+  "config.onekeyminer.option.activation_mode": "激活模式",
+  "config.onekeyminer.option.activation_mode.tooltip": "选择如何激活连锁挖矿",
+  "onekeyminer.activation_mode.always": "始终开启",
+  "onekeyminer.activation_mode.keybind_hold": "按住按键",
+
+  "config.onekeyminer.option.require_sneak": "需要潜行",
+  "config.onekeyminer.option.require_sneak.tooltip": "开启后需要同时按住潜行键才能激活连锁",
+
+  "config.onekeyminer.option.shape_mode": "搜索形状",
+  "config.onekeyminer.option.shape_mode.tooltip": "选择连锁挖矿的搜索形状",
+  "onekeyminer.shape_mode.connected": "相邻连接",
+  "onekeyminer.shape_mode.cube": "立方体范围",
+  "onekeyminer.shape_mode.column": "垂直柱状",
+
+  "config.onekeyminer.option.max_blocks": "最大方块数",
+  "config.onekeyminer.option.max_blocks.tooltip": "单次连锁挖矿的最大方块数量",
+
+  "config.onekeyminer.option.max_distance": "最大距离",
+  "config.onekeyminer.option.max_distance.tooltip": "连锁挖矿的最大搜索距离",
+
+  "config.onekeyminer.option.allow_diagonal": "对角线连锁",
+  "config.onekeyminer.option.allow_diagonal.tooltip": "是否允许对角线方向的连锁挖矿",
+
+  "config.onekeyminer.option.consume_durability": "消耗耐久",
+  "config.onekeyminer.option.consume_durability.tooltip": "连锁挖矿是否消耗工具耐久度",
+
+  "config.onekeyminer.option.stop_low_durability": "低耐久保护",
+  "config.onekeyminer.option.stop_low_durability.tooltip": "工具耐久度过低时自动停止",
+
+  "config.onekeyminer.option.preserve_durability": "保留耐久",
+  "config.onekeyminer.option.preserve_durability.tooltip": "停止挖矿前保留的最低耐久值",
+
+  "config.onekeyminer.option.consume_hunger": "消耗饥饿",
+  "config.onekeyminer.option.consume_hunger.tooltip": "连锁挖矿是否消耗饥饿值",
+
+  "config.onekeyminer.option.min_hunger": "最低饥饿",
+  "config.onekeyminer.option.min_hunger.tooltip": "当饥饿值低于此值时停止连锁",
+
+  "config.onekeyminer.option.mine_all": "连锁任意方块",
+  "config.onekeyminer.option.mine_all.tooltip": "开启后除黑名单外所有方块都可以连锁（白名单失效）",
+
+  "config.onekeyminer.option.allow_bare_hand": "允许空手",
+  "config.onekeyminer.option.allow_bare_hand.tooltip": "是否允许不持有工具时触发连锁",
+
+  "config.onekeyminer.option.enable_interaction": "启用连锁交互",
+  "config.onekeyminer.option.enable_interaction.tooltip": "启用剪羊毛、耕地等右键连锁功能",
+
+  "config.onekeyminer.option.enable_planting": "启用连锁种植",
+  "config.onekeyminer.option.enable_planting.tooltip": "启用作物连锁种植功能",
+
+  "config.onekeyminer.option.teleport_drops": "传送掉落物",
+  "config.onekeyminer.option.teleport_drops.tooltip": "连锁挖掘的掉落物直接进入玩家背包",
+
+  "config.onekeyminer.option.teleport_exp": "传送经验",
+  "config.onekeyminer.option.teleport_exp.tooltip": "连锁挖掘的经验直接给予玩家",
+
+  "config.onekeyminer.option.show_preview": "显示预览框",
+  "config.onekeyminer.option.show_preview.tooltip": "是否显示将要挖掘的方块预览",
+
+  "config.onekeyminer.option.play_sound": "播放音效",
+  "config.onekeyminer.option.play_sound.tooltip": "连锁挖矿时是否播放音效",
+
+  "config.onekeyminer.option.strict_match": "严格元数据匹配",
+  "config.onekeyminer.option.strict_match.tooltip": "是否要求方块数据完全相同才能连锁",
+
+  "key.onekeyminer.hold": "连锁挖矿按键（按住）",
+  "key.onekeyminer.config": "打开配置菜单",
+  "key.categories.onekeyminer": "OneKeyMiner",
+  "category.onekeyminer": "OneKeyMiner",
+
+  "message.onekeyminer.chain_action.mining": "连锁挖矿: %d 个方块",
+  "message.onekeyminer.chain_action.interaction": "连锁交互: %d 个方块",
+  "message.onekeyminer.chain_action.planting": "连锁种植: %d 个方块",
+  "message.onekeyminer.mode_enabled": "连锁挖矿已启用",
+  "message.onekeyminer.mode_disabled": "连锁挖矿已禁用",
+  "message.onekeyminer.config_reloaded": "配置已重新加载"
+}

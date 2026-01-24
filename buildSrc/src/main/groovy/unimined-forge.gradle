@@ -1,0 +1,13 @@
+plugins {
+    id 'minecraft'
+}
+
+unimined.minecraft {
+    forge {
+        loader gradle.ext.forge_loader
+        useToolchains = false // Disable toolchains so modern java can be used
+        // mixinConfig removed - project does not use mixins
+    }
+}
+runClient.javaLauncher = null
+runServer.javaLauncher = null
