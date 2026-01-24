@@ -21,8 +21,6 @@ repositories {
 dependencies {
     annotationProcessor(manifold.module("preprocessor"))
     annotationProcessor(manifold.module("strings"))
-    testAnnotationProcessor(manifold.module("preprocessor"))
-    testAnnotationProcessor(manifold.module("strings"))
 }
 
 processResources {
