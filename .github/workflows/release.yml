@@ -133,3 +133,32 @@ jobs:
           loaders: neoforge
           game-versions: 1.21.9
           java: 21
+
+      # Publish Forgix Merged JAR to Modrinth & CurseForge
+      - name: Publish Universal (Forgix) to Modrinth & CurseForge
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          
+          files: build/libs/!(*-sources).jar
+          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Universal)
+          version: ${{ steps.get_version.outputs.VERSION }}-universal
+          version-type: release
+          changelog: |
+            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Universal)
+            
+            此为 Forgix 合并版本，支持 Fabric、Forge 和 NeoForge。
+            
+            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+          loaders: |
+            fabric
+            forge
+            neoforge
+          game-versions: 1.21.9
+          dependencies: |
+            fabric-api | depends | * | fabric
+          java: 21
