@@ -65,3 +65,71 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish Fabric to Modrinth & CurseForge
+      - name: Publish Fabric to Modrinth & CurseForge
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          
+          files: fabric/build/libs/!(*-sources).jar
+          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Fabric)
+          version: ${{ steps.get_version.outputs.VERSION }}
+          version-type: release
+          changelog: |
+            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
+            
+            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+          loaders: fabric
+          game-versions: 1.21.9
+          dependencies: |
+            fabric-api | depends | *
+          java: 21
+
+      # Publish Forge to Modrinth & CurseForge
+      - name: Publish Forge to Modrinth & CurseForge
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          
+          files: forge/build/libs/!(*-sources).jar
+          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Forge)
+          version: ${{ steps.get_version.outputs.VERSION }}-forge
+          version-type: release
+          changelog: |
+            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
+            
+            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+          loaders: forge
+          game-versions: 1.21.9
+          java: 21
+
+      # Publish NeoForge to Modrinth & CurseForge
+      - name: Publish NeoForge to Modrinth & CurseForge
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          
+          files: neoforge/build/libs/!(*-sources).jar
+          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (NeoForge)
+          version: ${{ steps.get_version.outputs.VERSION }}-neoforge
+          version-type: release
+          changelog: |
+            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
+            
+            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+          loaders: neoforge
+          game-versions: 1.21.9
+          java: 21
