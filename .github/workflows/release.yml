@@ -83,7 +83,7 @@ jobs:
           changelog: |
             ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
             
-            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
           loaders: fabric
           game-versions: 1.21.9
           dependencies: |
@@ -107,7 +107,7 @@ jobs:
           changelog: |
             ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
             
-            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
           loaders: forge
           game-versions: 1.21.9
           java: 21
@@ -129,7 +129,7 @@ jobs:
           changelog: |
             ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
             
-            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
           loaders: neoforge
           game-versions: 1.21.9
           java: 21
@@ -148,9 +148,9 @@ jobs:
           changelog: |
             ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Universal)
             
-            此为 Forgix 合并版本，支持 Fabric、Forge 和 NeoForge。
+            This is the Forgix merged version, supporting Fabric, Forge, and NeoForge.
             
-            请查看 [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) 了解详情。
+            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
           loaders: |
             fabric
             forge
