@@ -76,9 +76,9 @@ jobs:
           curseforge-id: 1078620
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           
-          files: fabric/build/libs/!(*-sources).jar
+          files: fabric/build/libs/!(*-sources|*-dev|*-dev-shadow).jar
           name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Fabric)
-          version: ${{ steps.get_version.outputs.VERSION }}
+          version: ${{ steps.get_version.outputs.VERSION }}-fabric
           version-type: release
           changelog: |
             ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
@@ -100,7 +100,7 @@ jobs:
           curseforge-id: 1078620
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           
-          files: forge/build/libs/!(*-sources).jar
+          files: forge/build/libs/!(*-sources|*-dev|*-dev-shadow).jar
           name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Forge)
           version: ${{ steps.get_version.outputs.VERSION }}-forge
           version-type: release
@@ -122,7 +122,7 @@ jobs:
           curseforge-id: 1078620
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           
-          files: neoforge/build/libs/!(*-sources).jar
+          files: neoforge/build/libs/!(*-sources|*-dev|*-dev-shadow).jar
           name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (NeoForge)
           version: ${{ steps.get_version.outputs.VERSION }}-neoforge
           version-type: release
@@ -134,13 +134,10 @@ jobs:
           game-versions: 1.21.9
           java: 21
 
-      # Publish Forgix Merged JAR to Modrinth & CurseForge
-      - name: Publish Universal (Forgix) to Modrinth & CurseForge
+      # Publish Forgix Merged JAR to CurseForge only (Modrinth doesn't support merged JARs)
+      - name: Publish Universal (Forgix) to CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
         with:
-          modrinth-id: LZu4H9cp
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          
           curseforge-id: 1078620
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           
@@ -159,6 +156,4 @@ jobs:
             forge
             neoforge
           game-versions: 1.21.9
-          dependencies: |
-            fabric-api | depends | * | fabric
           java: 21
