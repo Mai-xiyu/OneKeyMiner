@@ -1,16 +1,22 @@
 package org.xiyu.onekeyminer.api;
 
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.event.MiningEvents;
+import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.registry.TagResolver;
 
 import java.util.*;
 
@@ -113,6 +119,26 @@ public final class OneKeyMinerAPI {
         // 加载工具黑名单
         for (String entry : config.toolBlacklist) {
             blacklistTool(entry);
+        }
+
+        // 加载交互工具白名单
+        for (String entry : config.interactionToolWhitelist) {
+            registerInteractionTool(entry);
+        }
+
+        // 加载交互工具黑名单
+        for (String entry : config.interactionToolBlacklist) {
+            blacklistInteractionTool(entry);
+        }
+
+        // 加载种子/树苗白名单
+        for (String entry : config.seedWhitelist) {
+            registerPlantableItem(entry);
+        }
+
+        // 加载种子/树苗黑名单
+        for (String entry : config.seedBlacklist) {
+            blacklistSeed(entry);
         }
     }
     
@@ -349,6 +375,265 @@ public final class OneKeyMinerAPI {
         }
         return INTERACTION_TOOL_WHITELIST.add(loc);
     }
+
+    /**
+     * 交互工具白名单（别名）
+     */
+    public static boolean whitelistInteractionTool(String itemId) {
+        return registerInteractionTool(itemId);
+    }
+
+    /**
+     * 将交互工具加入黑名单
+     *
+     * @param itemId 物品 ID（支持标签格式 "#c:shears"）
+     * @return 如果添加成功返回 true
+     */
+    public static boolean blacklistInteractionTool(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        if (loc == null) {
+            OneKeyMiner.LOGGER.warn("无效的交互工具 ID: {}", itemId);
+            return false;
+        }
+        return INTERACTION_TOOL_BLACKLIST.add(loc);
+    }
+
+    // ==================== 自定义工具动作规则 ====================
+
+    /** 自定义工具动作规则 */
+    private static final List<ToolActionRule> TOOL_ACTION_RULES = new ArrayList<>();
+
+    /**
+     * 目标类型（方块或实体）
+     */
+    public enum ToolTargetType {
+        BLOCK,
+        ENTITY
+    }
+
+    /**
+     * 交互动作类型（用于 INTERACTION）
+     */
+    public enum InteractionRule {
+        SHEARING,
+        TILLING,
+        STRIPPING,
+        PATH_MAKING,
+        BRUSHING,
+        GENERIC
+    }
+
+    /**
+     * 自定义工具动作规则
+     */
+    public record ToolActionRule(
+            ToolSelector toolSelector,
+            ToolTargetType targetType,
+            ChainActionType actionType,
+            InteractionRule interactionRule,
+            List<String> targets
+    ) {
+    }
+
+    private record ToolSelector(ResourceLocation itemId, TagKey<Item> itemTag) {
+        boolean matches(ItemStack stack) {
+            if (itemTag != null) {
+                return stack.is(itemTag);
+            }
+            if (itemId != null) {
+                ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                return itemId.equals(id);
+            }
+            return false;
+        }
+    }
+
+    /**
+     * 注册自定义工具动作规则
+     *
+     * @param toolSelector 工具 ID 或标签（如 "mymod:tool" 或 "#c:hoes"）
+     * @param targetType 目标类型（方块/实体）
+     * @param actionType 触发的连锁类型（MINING/INTERACTION/PLANTING）
+     * @param interactionRule 交互类型（仅 INTERACTION 有效）
+     * @param targets 目标列表（方块/实体 ID 或标签；为空表示任意目标）
+     * @return 注册成功返回 true
+     */
+    public static boolean registerToolAction(
+            String toolSelector,
+            ToolTargetType targetType,
+            ChainActionType actionType,
+            InteractionRule interactionRule,
+            List<String> targets
+    ) {
+        if (toolSelector == null || toolSelector.isBlank()) {
+            OneKeyMiner.LOGGER.warn("无效的工具选择器: {}", toolSelector);
+            return false;
+        }
+
+        ToolSelector selector = parseToolSelector(toolSelector);
+        if (selector == null) {
+            OneKeyMiner.LOGGER.warn("无效的工具选择器: {}", toolSelector);
+            return false;
+        }
+
+        List<String> normalizedTargets = targets == null ? List.of() : new ArrayList<>(targets);
+        TOOL_ACTION_RULES.add(new ToolActionRule(selector, targetType, actionType, interactionRule, normalizedTargets));
+        return true;
+    }
+
+    /**
+     * 注册交互工具规则（方块/实体）
+     */
+    public static boolean registerInteractionToolRule(
+            String toolSelector,
+            ToolTargetType targetType,
+            InteractionRule interactionRule,
+            String... targets
+    ) {
+        return registerToolAction(toolSelector, targetType, ChainActionType.INTERACTION, interactionRule,
+                targets == null ? List.of() : Arrays.asList(targets));
+    }
+
+    /**
+     * 注册挖掘工具规则（方块）
+     */
+    public static boolean registerMiningToolRule(String toolSelector, String... targets) {
+        return registerToolAction(toolSelector, ToolTargetType.BLOCK, ChainActionType.MINING, null,
+                targets == null ? List.of() : Arrays.asList(targets));
+    }
+
+    /**
+     * 注册实体剪羊毛规则
+     */
+    public static boolean registerEntityShearingRule(String toolSelector, String... targets) {
+        return registerToolAction(toolSelector, ToolTargetType.ENTITY, ChainActionType.INTERACTION, InteractionRule.SHEARING,
+                targets == null ? List.of() : Arrays.asList(targets));
+    }
+
+    /**
+     * 查询工具在指定方块上的自定义规则
+     */
+    public static Optional<ToolActionRule> findToolActionForBlock(ItemStack stack, BlockState state) {
+        if (stack == null || state == null) {
+            return Optional.empty();
+        }
+        for (ToolActionRule rule : TOOL_ACTION_RULES) {
+            if (rule.targetType != ToolTargetType.BLOCK) {
+                continue;
+            }
+            if (!rule.toolSelector.matches(stack)) {
+                continue;
+            }
+            if (matchesBlockTargets(state, rule.targets)) {
+                return Optional.of(rule);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * 查询工具在指定实体上的自定义规则
+     */
+    public static Optional<ToolActionRule> findToolActionForEntity(ItemStack stack, Entity entity) {
+        if (stack == null || entity == null) {
+            return Optional.empty();
+        }
+        for (ToolActionRule rule : TOOL_ACTION_RULES) {
+            if (rule.targetType != ToolTargetType.ENTITY) {
+                continue;
+            }
+            if (!rule.toolSelector.matches(stack)) {
+                continue;
+            }
+            if (matchesEntityTargets(entity, rule.targets)) {
+                return Optional.of(rule);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * 检查工具是否存在任意自定义动作规则
+     */
+    public static boolean hasToolActionRule(ItemStack stack, ChainActionType actionType) {
+        if (stack == null) {
+            return false;
+        }
+        for (ToolActionRule rule : TOOL_ACTION_RULES) {
+            if (rule.actionType != actionType) {
+                continue;
+            }
+            if (rule.toolSelector.matches(stack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static ToolSelector parseToolSelector(String selector) {
+        if (selector.startsWith("#")) {
+            ResourceLocation loc = ResourceLocation.tryParse(selector.substring(1));
+            if (loc == null) {
+                return null;
+            }
+            TagKey<Item> tag = TagKey.create(BuiltInRegistries.ITEM.key(), loc);
+            return new ToolSelector(null, tag);
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(selector);
+        if (loc == null) {
+            return null;
+        }
+        return new ToolSelector(loc, null);
+    }
+
+    private static boolean matchesBlockTargets(BlockState state, List<String> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return true;
+        }
+        Block block = state.getBlock();
+        for (String entry : targets) {
+            if (entry == null || entry.isBlank()) {
+                continue;
+            }
+            if ("*".equals(entry)) {
+                return true;
+            }
+            if (TagResolver.matchesBlock(block, entry)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean matchesEntityTargets(Entity entity, List<String> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return true;
+        }
+        EntityType<?> type = entity.getType();
+        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        for (String entry : targets) {
+            if (entry == null || entry.isBlank()) {
+                continue;
+            }
+            if ("*".equals(entry)) {
+                return true;
+            }
+            if (entry.startsWith("#")) {
+                ResourceLocation tagId = ResourceLocation.tryParse(entry.substring(1));
+                if (tagId != null) {
+                    TagKey<EntityType<?>> tag = TagKey.create(Registries.ENTITY_TYPE, tagId);
+                    if (type.is(tag)) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+            if (typeId != null && typeId.toString().equals(entry)) {
+                return true;
+            }
+        }
+        return false;
+    }
     
     /**
      * 检查物品是否为允许的交互工具
@@ -398,6 +683,13 @@ public final class OneKeyMinerAPI {
         }
         return PLANTABLE_WHITELIST.add(loc);
     }
+
+    /**
+     * 可种植物品白名单（别名）
+     */
+    public static boolean whitelistPlantable(String itemId) {
+        return registerPlantableItem(itemId);
+    }
     
     /**
      * 将种子添加到黑名单
@@ -412,6 +704,13 @@ public final class OneKeyMinerAPI {
             return false;
         }
         return PLANTABLE_BLACKLIST.add(loc);
+    }
+
+    /**
+     * 可种植物品黑名单（别名）
+     */
+    public static boolean blacklistPlantable(String itemId) {
+        return blacklistSeed(itemId);
     }
     
     /**

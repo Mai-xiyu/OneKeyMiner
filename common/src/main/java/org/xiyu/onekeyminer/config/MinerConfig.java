@@ -189,17 +189,6 @@ public class MinerConfig {
     public boolean requireExactMatch = false;
     
     /**
-     * 是否渲染连锁预览轮廓
-     * <p>客户端设置，显示将要挖掘的方块范围</p>
-     */
-    public boolean showPreview = true;
-    
-    /**
-     * 预览轮廓颜色（ARGB 格式）
-     */
-    public int previewColor = 0x8000FF00;
-    
-    /**
      * 是否播放连锁挖矿音效
      */
     public boolean playSound = true;
@@ -289,8 +278,6 @@ public class MinerConfig {
         copy.teleportDrops = this.teleportDrops;
         copy.teleportExp = this.teleportExp;
         copy.requireExactMatch = this.requireExactMatch;
-        copy.showPreview = this.showPreview;
-        copy.previewColor = this.previewColor;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
         copy.customWhitelist = new ArrayList<>(this.customWhitelist);

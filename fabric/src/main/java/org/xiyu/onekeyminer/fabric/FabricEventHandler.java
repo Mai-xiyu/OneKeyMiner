@@ -3,17 +3,24 @@ package org.xiyu.onekeyminer.fabric;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.chain.ChainActionContext;
 import org.xiyu.onekeyminer.chain.ChainActionLogic;
 import org.xiyu.onekeyminer.chain.ChainActionResult;
@@ -51,6 +58,9 @@ public class FabricEventHandler {
         
         // 注册右键方块事件（连锁交互/种植）
         UseBlockCallback.EVENT.register(FabricEventHandler::onUseBlock);
+
+        // 注册右键实体事件（剪羊毛）
+        UseEntityCallback.EVENT.register(FabricEventHandler::onUseEntity);
         
         // 注册玩家断开连接事件（清理状态）
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
@@ -118,11 +128,18 @@ public class FabricEventHandler {
             
             if (result.isSuccess()) {
                 // 发送操作完成消息
-                PlatformServices.getInstance().sendChainActionMessage(
-                        serverPlayer,
-                        "mining",
-                        result.totalCount()
-                );
+                if (config.showStats) {
+                    PlatformServices.getInstance().sendChainActionMessage(
+                            serverPlayer,
+                            "mining",
+                            result.totalCount()
+                    );
+                }
+
+                if (config.playSound) {
+                    level.playSound(null, serverPlayer.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
+                            SoundSource.PLAYERS, 0.6f, 1.0f);
+                }
                 
                 OneKeyMiner.LOGGER.debug("连锁挖掘完成: {}", result.getSummary());
             }
@@ -176,8 +193,23 @@ public class FabricEventHandler {
         BlockPos pos = hitResult.getBlockPos();
         BlockState state = level.getBlockState(pos);
         
-        // 确定操作类型（交互还是种植）
-        ChainActionType actionType = determineActionType(serverPlayer, hand, state);
+        var heldItem = serverPlayer.getItemInHand(hand);
+        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForBlock(heldItem, state).orElse(null);
+        ChainActionContext.InteractionOverride interactionOverride = null;
+
+        // 确定操作类型（交互、种植或自定义）
+        ChainActionType actionType;
+        if (customRule != null) {
+            actionType = customRule.actionType();
+            if (actionType == ChainActionType.INTERACTION) {
+                interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
+                if (interactionOverride == null) {
+                    return InteractionResult.PASS;
+                }
+            }
+        } else {
+            actionType = determineActionType(serverPlayer, hand, state);
+        }
         if (actionType == null) {
             return InteractionResult.PASS;
         }
@@ -194,14 +226,15 @@ public class FabricEventHandler {
             IS_CHAIN_INTERACTING.set(true);
             
             // 构建上下文
-            ChainActionContext context = ChainActionContext.builder()
+                ChainActionContext context = ChainActionContext.builder()
                     .player(serverPlayer)
                     .level(level)
                     .originPos(pos)
                     .originState(state)
                     .actionType(actionType)
-                    .heldItem(serverPlayer.getItemInHand(hand))
+                    .heldItem(heldItem)
                     .hand(hand)
+                    .interactionOverride(interactionOverride)
                     .build();
             
             // 执行链式操作
@@ -209,11 +242,18 @@ public class FabricEventHandler {
             
             if (result.isSuccess()) {
                 // 发送操作完成消息
-                PlatformServices.getInstance().sendChainActionMessage(
+                if (config.showStats) {
+                    PlatformServices.getInstance().sendChainActionMessage(
                         serverPlayer,
                         actionType.getId(),
                         result.totalCount()
-                );
+                    );
+                }
+
+                if (config.playSound) {
+                    level.playSound(null, serverPlayer.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
+                        SoundSource.PLAYERS, 0.6f, 1.0f);
+                }
                 
                 OneKeyMiner.LOGGER.debug("{} 完成: {}", 
                         actionType.getDisplayName(), 
@@ -227,6 +267,99 @@ public class FabricEventHandler {
             IS_CHAIN_INTERACTING.set(false);
         }
         
+        return InteractionResult.PASS;
+    }
+
+    private static InteractionResult onUseEntity(
+            Player player,
+            Level level,
+            InteractionHand hand,
+            Entity entity,
+            EntityHitResult hitResult
+    ) {
+        if (IS_CHAIN_INTERACTING.get()) {
+            return InteractionResult.PASS;
+        }
+
+        if (level.isClientSide()) {
+            return InteractionResult.PASS;
+        }
+
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return InteractionResult.PASS;
+        }
+
+        MinerConfig config = ConfigManager.getConfig();
+        if (!config.enabled || !config.enableInteraction) {
+            return InteractionResult.PASS;
+        }
+
+        if (!PlatformServices.getInstance().isChainModeActive(serverPlayer)) {
+            return InteractionResult.PASS;
+        }
+
+        var heldItem = serverPlayer.getItemInHand(hand);
+        if (heldItem.isEmpty()) {
+            return InteractionResult.PASS;
+        }
+
+        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForEntity(heldItem, entity).orElse(null);
+        ChainActionContext.InteractionOverride interactionOverride = null;
+
+        if (customRule != null) {
+            if (customRule.actionType() != ChainActionType.INTERACTION) {
+                return InteractionResult.PASS;
+            }
+            interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
+            if (interactionOverride == null) {
+                return InteractionResult.PASS;
+            }
+            if (interactionOverride != ChainActionContext.InteractionOverride.SHEARING) {
+                return InteractionResult.PASS;
+            }
+        } else {
+            if (!(entity instanceof Shearable shearable) || !shearable.readyForShearing()) {
+                return InteractionResult.PASS;
+            }
+            interactionOverride = ChainActionContext.InteractionOverride.SHEARING;
+        }
+
+        try {
+            IS_CHAIN_INTERACTING.set(true);
+
+            ChainActionContext context = ChainActionContext.builder()
+                    .player(serverPlayer)
+                    .level(level)
+                    .originPos(entity.blockPosition())
+                    .originState(level.getBlockState(entity.blockPosition()))
+                    .actionType(ChainActionType.INTERACTION)
+                    .heldItem(heldItem)
+                    .hand(hand)
+                    .interactionOverride(interactionOverride)
+                    .build();
+
+            ChainActionResult result = ChainActionLogic.execute(context);
+
+            if (result.isSuccess()) {
+                if (config.showStats) {
+                    PlatformServices.getInstance().sendChainActionMessage(
+                        serverPlayer,
+                        ChainActionType.INTERACTION.getId(),
+                        result.totalCount()
+                    );
+                }
+
+                if (config.playSound) {
+                    level.playSound(null, serverPlayer.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
+                        SoundSource.PLAYERS, 0.6f, 1.0f);
+                }
+
+                return InteractionResult.SUCCESS;
+            }
+        } finally {
+            IS_CHAIN_INTERACTING.set(false);
+        }
+
         return InteractionResult.PASS;
     }
     
@@ -249,8 +382,6 @@ public class FabricEventHandler {
             return null;
         }
         
-        var item = heldItem.getItem();
-        
         // 检查是否是种植操作 - 使用统一的可种植物品检查
         // 只有符合条件的物品才会触发连锁种植，否则正常放行放置事件
         if (ChainActionLogic.isPlantableItem(heldItem)) {
@@ -258,12 +389,7 @@ public class FabricEventHandler {
         }
         
         // 检查是否是交互操作
-        // 工具类物品（锄头、斧头、铲子、剪刀等）
-        if (item instanceof net.minecraft.world.item.HoeItem ||
-            item instanceof net.minecraft.world.item.AxeItem ||
-            item instanceof net.minecraft.world.item.ShovelItem ||
-            item instanceof net.minecraft.world.item.ShearsItem ||
-            item instanceof net.minecraft.world.item.BrushItem) {
+        if (ChainActionLogic.isValidInteractionTarget(heldItem, targetState)) {
             return ChainActionType.INTERACTION;
         }
         

@@ -2,7 +2,12 @@ package org.xiyu.onekeyminer.neoforge;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.EventPriority;
@@ -11,6 +16,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.chain.ChainActionContext;
 import org.xiyu.onekeyminer.chain.ChainActionLogic;
 import org.xiyu.onekeyminer.chain.ChainActionResult;
@@ -84,11 +90,18 @@ public class NeoForgeEventHandler {
             
             if (result.isSuccess()) {
                 // 发送操作完成消息
-                PlatformServices.getInstance().sendChainActionMessage(
-                        player,
-                        "mining",
-                        result.totalCount()
-                );
+                if (config.showStats) {
+                    PlatformServices.getInstance().sendChainActionMessage(
+                            player,
+                            "mining",
+                            result.totalCount()
+                    );
+                }
+
+                if (config.playSound) {
+                    level.playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
+                            SoundSource.PLAYERS, 0.6f, 1.0f);
+                }
                 
                 OneKeyMiner.LOGGER.debug("连锁挖掘完成: {}", result.getSummary());
             }
@@ -136,8 +149,23 @@ public class NeoForgeEventHandler {
         InteractionHand hand = event.getHand();
         BlockState state = level.getBlockState(pos);
         
-        // 确定操作类型（交互还是种植）
-        ChainActionType actionType = determineActionType(player, hand, state);
+        var heldItem = player.getItemInHand(hand);
+        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForBlock(heldItem, state).orElse(null);
+        ChainActionContext.InteractionOverride interactionOverride = null;
+
+        // 确定操作类型（交互、种植或自定义）
+        ChainActionType actionType;
+        if (customRule != null) {
+            actionType = customRule.actionType();
+            if (actionType == ChainActionType.INTERACTION) {
+                interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
+                if (interactionOverride == null) {
+                    return;
+                }
+            }
+        } else {
+            actionType = determineActionType(player, hand, state);
+        }
         if (actionType == null) {
             return;
         }
@@ -154,14 +182,15 @@ public class NeoForgeEventHandler {
             IS_CHAIN_INTERACTING.set(true);
             
             // 构建上下文
-            ChainActionContext context = ChainActionContext.builder()
+                ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
                     .originPos(pos)
                     .originState(state)
                     .actionType(actionType)
-                    .heldItem(player.getItemInHand(hand))
+                    .heldItem(heldItem)
                     .hand(hand)
+                    .interactionOverride(interactionOverride)
                     .build();
             
             // 执行链式操作
@@ -169,17 +198,118 @@ public class NeoForgeEventHandler {
             
             if (result.isSuccess()) {
                 // 发送操作完成消息
-                PlatformServices.getInstance().sendChainActionMessage(
+                if (config.showStats) {
+                    PlatformServices.getInstance().sendChainActionMessage(
                         player,
                         actionType.getId(),
                         result.totalCount()
-                );
+                    );
+                }
+
+                if (config.playSound) {
+                    level.playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
+                        SoundSource.PLAYERS, 0.6f, 1.0f);
+                }
                 
                 OneKeyMiner.LOGGER.debug("{} 完成: {}", 
                         actionType.getDisplayName(), 
                         result.getSummary());
             }
             
+        } finally {
+            IS_CHAIN_INTERACTING.set(false);
+        }
+    }
+
+    /**
+     * 处理右键实体事件 - 触发剪羊毛连锁
+     *
+     * @param event 右键实体事件
+     */
+    @SubscribeEvent(priority = EventPriority.LOW)
+    public static void onRightClickEntity(PlayerInteractEvent.EntityInteract event) {
+        if (IS_CHAIN_INTERACTING.get()) {
+            return;
+        }
+
+        if (event.getLevel().isClientSide()) {
+            return;
+        }
+
+        if (!(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        MinerConfig config = ConfigManager.getConfig();
+        if (!config.enabled || !config.enableInteraction) {
+            return;
+        }
+
+        if (!PlatformServices.getInstance().isChainModeActive(player)) {
+            return;
+        }
+
+        Entity target = event.getTarget();
+        InteractionHand hand = event.getHand();
+        var heldItem = player.getItemInHand(hand);
+        if (heldItem.isEmpty()) {
+            return;
+        }
+
+        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForEntity(heldItem, target).orElse(null);
+        ChainActionContext.InteractionOverride interactionOverride = null;
+
+        if (customRule != null) {
+            if (customRule.actionType() != ChainActionType.INTERACTION) {
+                return;
+            }
+            interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
+            if (interactionOverride == null) {
+                return;
+            }
+            if (interactionOverride != ChainActionContext.InteractionOverride.SHEARING) {
+                return;
+            }
+        } else {
+            if (!(target instanceof Shearable shearable) || !shearable.readyForShearing()) {
+                return;
+            }
+            interactionOverride = ChainActionContext.InteractionOverride.SHEARING;
+        }
+
+        try {
+            IS_CHAIN_INTERACTING.set(true);
+
+            ChainActionContext context = ChainActionContext.builder()
+                    .player(player)
+                    .level(event.getLevel())
+                    .originPos(target.blockPosition())
+                    .originState(event.getLevel().getBlockState(target.blockPosition()))
+                    .actionType(ChainActionType.INTERACTION)
+                    .heldItem(heldItem)
+                    .hand(hand)
+                    .interactionOverride(interactionOverride)
+                    .build();
+
+            ChainActionResult result = ChainActionLogic.execute(context);
+
+            if (result.isSuccess()) {
+                if (config.showStats) {
+                    PlatformServices.getInstance().sendChainActionMessage(
+                            player,
+                            ChainActionType.INTERACTION.getId(),
+                            result.totalCount()
+                    );
+                }
+
+                if (config.playSound) {
+                    event.getLevel().playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
+                            SoundSource.PLAYERS, 0.6f, 1.0f);
+                }
+
+                event.setCancellationResult(InteractionResult.SUCCESS);
+                event.setCanceled(true);
+            }
         } finally {
             IS_CHAIN_INTERACTING.set(false);
         }
@@ -204,8 +334,6 @@ public class NeoForgeEventHandler {
             return null;
         }
         
-        var item = heldItem.getItem();
-        
         // 检查是否是种植操作 - 使用统一的可种植物品检查
         // 只有符合条件的物品才会触发连锁种植，否则正常放行放置事件
         if (ChainActionLogic.isPlantableItem(heldItem)) {
@@ -213,12 +341,7 @@ public class NeoForgeEventHandler {
         }
         
         // 检查是否是交互操作
-        // 工具类物品（锄头、斧头、铲子、剪刀等）
-        if (item instanceof net.minecraft.world.item.HoeItem ||
-            item instanceof net.minecraft.world.item.AxeItem ||
-            item instanceof net.minecraft.world.item.ShovelItem ||
-            item instanceof net.minecraft.world.item.ShearsItem ||
-            item instanceof net.minecraft.world.item.BrushItem) {
+        if (ChainActionLogic.isValidInteractionTarget(heldItem, targetState)) {
             return ChainActionType.INTERACTION;
         }
         

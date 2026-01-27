@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - '*-*'
 
 jobs:
   build:
@@ -30,130 +30,80 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build --no-daemon -x test -x compileTestJava
 
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Parse tag
+        id: version
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          BRANCH_NAME="${TAG_NAME%-*}"
+          MOD_VERSION="${TAG_NAME##*-}"
+          if [ "$BRANCH_NAME" = "master" ]; then
+            MC_VERSION="$(grep '^mc_ver=' gradle.properties | cut -d= -f2 | tr -d '\r')"
+          else
+            MC_VERSION="$BRANCH_NAME"
+          fi
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "MOD_VERSION=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "MC_VERSION=$MC_VERSION" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
+          name: OneKeyMiner ${{ steps.version.outputs.TAG_NAME }}
           body: |
-            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
+            ## OneKeyMiner ${{ steps.version.outputs.TAG_NAME }}
+            
+            - Minecraft: ${{ steps.version.outputs.MC_VERSION }}
+            - Mod Version: ${{ steps.version.outputs.MOD_VERSION }}
             
             ### 下载 / Downloads
             
             | 平台 / Platform | 文件 / File |
             |-----------------|-------------|
-            | Fabric | `onekeyminer-fabric-*.jar` |
-            | Forge | `onekeyminer-forge-*.jar` |
-            | NeoForge | `onekeyminer-neoforge-*.jar` |
-            | 通用 / Universal | `onekeyminer-*.jar` (merged) |
+            | Fabric | `onekeyminer-fabric-*.jar` (含 dev) |
+            | Forge | `onekeyminer-forge-*.jar` (含 dev) |
+            | NeoForge | `onekeyminer-neoforge-*.jar` (含 dev) |
+            | 通用 / Universal | `onekeyminer-*.jar` (Forgix merged) |
             
             ### 环境要求 / Requirements
-            - Minecraft 1.21.9
+            - Minecraft ${{ steps.version.outputs.MC_VERSION }}
             - Java 21+
             
             ### 更新日志 / Changelog
-            请查看 [commits](https://github.com/Mai-xiyu/OneKeyMiner/commits/main) 了解详情。
+            请查看 [commits](https://github.com/Mai-xiyu/OneKeyMiner/commits/${{ steps.version.outputs.BRANCH_NAME }}) 了解详情。
           files: |
-            fabric/build/libs/*[!-sources].jar
-            forge/build/libs/*[!-sources].jar
-            neoforge/build/libs/*[!-sources].jar
-            build/libs/*[!-sources].jar
+            fabric/build/libs/!(*-sources).jar
+            forge/build/libs/!(*-sources).jar
+            neoforge/build/libs/!(*-sources).jar
+            build/libs/!(*-sources).jar
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish Fabric to Modrinth & CurseForge
-      - name: Publish Fabric to Modrinth & CurseForge
+      # Publish Forgix Merged JAR to Modrinth & CurseForge
+      - name: Publish Universal (Forgix) to Modrinth & CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           modrinth-id: LZu4H9cp
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           
-          curseforge-id: 1078620
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          
-          files: fabric/build/libs/!(*-sources|*-dev|*-dev-shadow).jar
-          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Fabric)
-          version: ${{ steps.get_version.outputs.VERSION }}-fabric
-          version-type: release
-          changelog: |
-            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
-            
-            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
-          loaders: fabric
-          game-versions: 1.21.9
-          dependencies: |
-            fabric-api | depends | *
-          java: 21
-
-      # Publish Forge to Modrinth & CurseForge
-      - name: Publish Forge to Modrinth & CurseForge
-        uses: Kir-Antipov/mc-publish@v3.3
-        with:
-          modrinth-id: LZu4H9cp
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          
-          curseforge-id: 1078620
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          
-          files: forge/build/libs/!(*-sources|*-dev|*-dev-shadow).jar
-          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Forge)
-          version: ${{ steps.get_version.outputs.VERSION }}-forge
-          version-type: release
-          changelog: |
-            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
-            
-            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
-          loaders: forge
-          game-versions: 1.21.9
-          java: 21
-
-      # Publish NeoForge to Modrinth & CurseForge
-      - name: Publish NeoForge to Modrinth & CurseForge
-        uses: Kir-Antipov/mc-publish@v3.3
-        with:
-          modrinth-id: LZu4H9cp
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-          
-          curseforge-id: 1078620
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-          
-          files: neoforge/build/libs/!(*-sources|*-dev|*-dev-shadow).jar
-          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (NeoForge)
-          version: ${{ steps.get_version.outputs.VERSION }}-neoforge
-          version-type: release
-          changelog: |
-            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }}
-            
-            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
-          loaders: neoforge
-          game-versions: 1.21.9
-          java: 21
-
-      # Publish Forgix Merged JAR to CurseForge only (Modrinth doesn't support merged JARs)
-      - name: Publish Universal (Forgix) to CurseForge
-        uses: Kir-Antipov/mc-publish@v3.3
-        with:
           curseforge-id: 1078620
           curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
           
           files: build/libs/!(*-sources).jar
-          name: OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Universal)
-          version: ${{ steps.get_version.outputs.VERSION }}-universal
+          name: OneKeyMiner ${{ steps.version.outputs.TAG_NAME }} (Universal)
+          version: ${{ steps.version.outputs.MOD_VERSION }}-universal
           version-type: release
           changelog: |
-            ## OneKeyMiner v${{ steps.get_version.outputs.VERSION }} (Universal)
+            ## OneKeyMiner ${{ steps.version.outputs.TAG_NAME }} (Universal)
             
             This is the Forgix merged version, supporting Fabric, Forge, and NeoForge.
             
-            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/v${{ steps.get_version.outputs.VERSION }}) for details.
+            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/${{ steps.version.outputs.TAG_NAME }}) for details.
           loaders: |
             fabric
             forge
             neoforge
-          game-versions: 1.21.9
+          game-versions: ${{ steps.version.outputs.MC_VERSION }}
           java: 21
