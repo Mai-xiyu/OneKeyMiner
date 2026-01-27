@@ -3,7 +3,7 @@ package org.xiyu.onekeyminer.registry;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
@@ -44,10 +44,10 @@ public final class TagResolver {
     private static final Map<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
     
     /** 方块匹配结果缓存 */
-    private static final Map<String, Set<ResourceLocation>> BLOCK_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Set<Identifier>> BLOCK_CACHE = new ConcurrentHashMap<>();
     
     /** 物品匹配结果缓存 */
-    private static final Map<String, Set<ResourceLocation>> ITEM_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Set<Identifier>> ITEM_CACHE = new ConcurrentHashMap<>();
     
     private TagResolver() {
         // 工具类，禁止实例化
@@ -80,7 +80,7 @@ public final class TagResolver {
         
         if (entry.startsWith(TAG_PREFIX)) {
             String tagId = entry.substring(1);
-            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            Identifier loc = Identifier.tryParse(tagId);
             if (loc != null) {
                 return TagKey.create(Registries.BLOCK, loc);
             }
@@ -93,14 +93,14 @@ public final class TagResolver {
      * 解析单个方块 ID
      * 
      * @param entry 配置条目
-     * @return 方块的 ResourceLocation，如果是标签则返回 null
+    * @return 方块的 Identifier，如果是标签则返回 null
      */
-    public static ResourceLocation parseBlockId(String entry) {
+    public static Identifier parseBlockId(String entry) {
         if (entry == null || entry.isEmpty() || entry.startsWith(TAG_PREFIX)) {
             return null;
         }
         
-        return ResourceLocation.tryParse(entry);
+        return Identifier.tryParse(entry);
     }
     
     /**
@@ -115,7 +115,7 @@ public final class TagResolver {
             return false;
         }
         
-        ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
         
         // 检查是否是标签
         if (entry.startsWith(TAG_PREFIX)) {
@@ -133,7 +133,7 @@ public final class TagResolver {
         }
         
         // 精确匹配
-        ResourceLocation entryLoc = ResourceLocation.tryParse(entry);
+        Identifier entryLoc = Identifier.tryParse(entry);
         return entryLoc != null && entryLoc.equals(blockId);
     }
     
@@ -174,7 +174,7 @@ public final class TagResolver {
         
         if (entry.startsWith(TAG_PREFIX)) {
             String tagId = entry.substring(1);
-            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            Identifier loc = Identifier.tryParse(tagId);
             if (loc != null) {
                 return TagKey.create(Registries.ITEM, loc);
             }
@@ -187,14 +187,14 @@ public final class TagResolver {
      * 解析单个物品 ID
      * 
      * @param entry 配置条目
-     * @return 物品的 ResourceLocation，如果是标签则返回 null
+    * @return 物品的 Identifier，如果是标签则返回 null
      */
-    public static ResourceLocation parseItemId(String entry) {
+    public static Identifier parseItemId(String entry) {
         if (entry == null || entry.isEmpty() || entry.startsWith(TAG_PREFIX)) {
             return null;
         }
         
-        return ResourceLocation.tryParse(entry);
+        return Identifier.tryParse(entry);
     }
     
     /**
@@ -209,7 +209,7 @@ public final class TagResolver {
             return false;
         }
         
-        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(item);
+        Identifier itemId = BuiltInRegistries.ITEM.getKey(item);
         
         // 检查是否是标签
         if (entry.startsWith(TAG_PREFIX)) {
@@ -227,7 +227,7 @@ public final class TagResolver {
         }
         
         // 精确匹配
-        ResourceLocation entryLoc = ResourceLocation.tryParse(entry);
+        Identifier entryLoc = Identifier.tryParse(entry);
         return entryLoc != null && entryLoc.equals(itemId);
     }
     
@@ -290,8 +290,8 @@ public final class TagResolver {
             return false;
         }
         
-        // 尝试解析为 ResourceLocation
-        return ResourceLocation.tryParse(checkEntry.replace("*", "a")) != null;
+        // 尝试解析为 Identifier
+        return Identifier.tryParse(checkEntry.replace("*", "a")) != null;
     }
     
     /**
@@ -320,16 +320,16 @@ public final class TagResolver {
      * 获取所有匹配指定标签的方块
      * 
      * @param tagEntry 标签条目（必须以 # 开头）
-     * @return 匹配的方块 ResourceLocation 集合
+    * @return 匹配的方块 Identifier 集合
      */
-    public static Set<ResourceLocation> getBlocksInTag(String tagEntry) {
+    public static Set<Identifier> getBlocksInTag(String tagEntry) {
         return BLOCK_CACHE.computeIfAbsent(tagEntry, entry -> {
-            Set<ResourceLocation> result = new HashSet<>();
+            Set<Identifier> result = new HashSet<>();
             
             TagKey<Block> tag = parseBlockTag(entry);
             if (tag != null) {
                 for (Holder<Block> holder : BuiltInRegistries.BLOCK.getTagOrEmpty(tag)) {
-                    result.add(holder.unwrapKey().orElseThrow().location());
+                    result.add(holder.unwrapKey().orElseThrow().identifier());
                 }
             }
             
@@ -341,16 +341,16 @@ public final class TagResolver {
      * 获取所有匹配指定标签的物品
      * 
      * @param tagEntry 标签条目（必须以 # 开头）
-     * @return 匹配的物品 ResourceLocation 集合
+    * @return 匹配的物品 Identifier 集合
      */
-    public static Set<ResourceLocation> getItemsInTag(String tagEntry) {
+    public static Set<Identifier> getItemsInTag(String tagEntry) {
         return ITEM_CACHE.computeIfAbsent(tagEntry, entry -> {
-            Set<ResourceLocation> result = new HashSet<>();
+            Set<Identifier> result = new HashSet<>();
             
             TagKey<Item> tag = parseItemTag(entry);
             if (tag != null) {
                 for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
-                    result.add(holder.unwrapKey().orElseThrow().location());
+                    result.add(holder.unwrapKey().orElseThrow().identifier());
                 }
             }
             

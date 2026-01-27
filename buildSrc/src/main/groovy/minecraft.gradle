@@ -8,10 +8,18 @@ unimined.minecraft(sourceSets.main, true) {
 
     mappings {
         mojmap()
+        devNamespace "mojmap"
+        devFallbackNamespace "mojmap"
     }
 }
 
 if (project.name == "common") return // Don't apply the code below to the common project
+
+def minecraftConfig = configurations.findByName("minecraft")
+if (minecraftConfig != null) {
+    configurations.compileClasspath.extendsFrom(minecraftConfig)
+    configurations.runtimeClasspath.extendsFrom(minecraftConfig)
+}
 
 unimined.minecraft(sourceSets.main, true) {
     mods.modImplementation {

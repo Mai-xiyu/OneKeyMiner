@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
@@ -87,7 +88,7 @@ public class ForgePlatformServices implements PlatformServices {
         }
         
         // 检查玩家是否在创造模式或有管理员权限
-        if (player.isCreative() || player.hasPermissions(2)) {
+        if (player.isCreative() || player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
             return true;
         }
         

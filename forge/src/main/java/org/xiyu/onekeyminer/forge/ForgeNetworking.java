@@ -3,7 +3,7 @@ package org.xiyu.onekeyminer.forge;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.network.CustomPayloadEvent;
 import net.minecraftforge.network.ChannelBuilder;
@@ -26,7 +26,7 @@ public class ForgeNetworking {
     
     /** 网络通道 */
     private static final SimpleChannel CHANNEL = ChannelBuilder
-            .named(ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
+            .named(Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
             .optional()
             .simpleChannel();
     
