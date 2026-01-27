@@ -215,10 +215,6 @@ public class ForgeConfigScreen {
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_exp", 
                 () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
             
-            // 显示预览
-            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.show_preview", 
-                () -> configCopy.showPreview, v -> configCopy.showPreview = v);
-            
             // 播放音效
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.play_sound", 
                 () -> configCopy.playSound, v -> configCopy.playSound = v);

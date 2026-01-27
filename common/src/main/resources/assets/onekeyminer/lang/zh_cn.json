@@ -10,10 +10,6 @@
   "config.onekeyminer.option.activation_mode": "激活模式",
   "config.onekeyminer.option.activation_mode.tooltip": "选择如何激活连锁挖矿",
   "onekeyminer.activation_mode.always": "始终开启",
-  "onekeyminer.activation_mode.keybind_hold": "按住按键",
-
-  "config.onekeyminer.option.require_sneak": "需要潜行",
-  "config.onekeyminer.option.require_sneak.tooltip": "开启后需要同时按住潜行键才能激活连锁",
 
   "config.onekeyminer.option.shape_mode": "搜索形状",
   "config.onekeyminer.option.shape_mode.tooltip": "选择连锁挖矿的搜索形状",
@@ -62,9 +58,6 @@
 
   "config.onekeyminer.option.teleport_exp": "传送经验",
   "config.onekeyminer.option.teleport_exp.tooltip": "连锁挖掘的经验直接给予玩家",
-
-  "config.onekeyminer.option.show_preview": "显示预览框",
-  "config.onekeyminer.option.show_preview.tooltip": "是否显示将要挖掘的方块预览",
 
   "config.onekeyminer.option.play_sound": "播放音效",
   "config.onekeyminer.option.play_sound.tooltip": "连锁挖矿时是否播放音效",

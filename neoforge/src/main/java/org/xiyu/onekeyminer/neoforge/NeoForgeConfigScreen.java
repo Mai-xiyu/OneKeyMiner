@@ -144,7 +144,6 @@ public class NeoForgeConfigScreen {
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting", () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops", () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_exp", () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
-            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.show_preview", () -> configCopy.showPreview, v -> configCopy.showPreview = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.play_sound", () -> configCopy.playSound, v -> configCopy.playSound = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.strict_match", () -> configCopy.requireExactMatch, v -> configCopy.requireExactMatch = v);
         }

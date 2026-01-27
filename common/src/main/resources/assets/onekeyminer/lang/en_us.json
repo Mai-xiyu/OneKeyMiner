@@ -96,9 +96,6 @@
   "config.onekeyminer.requireExactMatch": "Exact Match",
   "config.onekeyminer.requireExactMatch.tooltip": "Require exact block type match for chaining",
   
-  "config.onekeyminer.showPreview": "Show Preview",
-  "config.onekeyminer.showPreview.tooltip": "Show preview of blocks to be mined",
-  
   "config.onekeyminer.showStats": "Show Stats",
   "config.onekeyminer.showStats.tooltip": "Show statistics after mining",
   

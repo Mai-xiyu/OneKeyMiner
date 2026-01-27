@@ -41,6 +41,9 @@ public final class ChainActionContext {
     
     /** 交互使用的手 */
     private final InteractionHand hand;
+
+    /** 交互类型覆盖（仅用于交互操作） */
+    private final InteractionOverride interactionOverride;
     
     // ========== 可选参数 ==========
     
@@ -67,6 +70,7 @@ public final class ChainActionContext {
         this.actionType = builder.actionType;
         this.heldItem = builder.heldItem;
         this.hand = builder.hand;
+        this.interactionOverride = builder.interactionOverride;
         this.maxCount = builder.maxCount;
         this.maxDistance = builder.maxDistance;
         this.allowDiagonal = builder.allowDiagonal;
@@ -101,6 +105,10 @@ public final class ChainActionContext {
     
     public InteractionHand getHand() {
         return hand;
+    }
+
+    public InteractionOverride getInteractionOverride() {
+        return interactionOverride;
     }
     
     public int getMaxCount() {
@@ -228,6 +236,7 @@ public final class ChainActionContext {
         private ChainActionType actionType = ChainActionType.MINING;
         private ItemStack heldItem = ItemStack.EMPTY;
         private InteractionHand hand = InteractionHand.MAIN_HAND;
+        private InteractionOverride interactionOverride;
         private int maxCount = -1;  // -1 表示使用配置值
         private int maxDistance = -1;
         private boolean allowDiagonal = true;
@@ -265,6 +274,11 @@ public final class ChainActionContext {
         
         public Builder hand(InteractionHand hand) {
             this.hand = hand;
+            return this;
+        }
+
+        public Builder interactionOverride(InteractionOverride override) {
+            this.interactionOverride = override;
             return this;
         }
         
@@ -306,5 +320,17 @@ public final class ChainActionContext {
             }
             return new ChainActionContext(this);
         }
+    }
+
+    /**
+     * 交互类型覆盖枚举（用于自定义工具规则）
+     */
+    public enum InteractionOverride {
+        SHEARING,
+        TILLING,
+        STRIPPING,
+        PATH_MAKING,
+        BRUSHING,
+        GENERIC
     }
 }
