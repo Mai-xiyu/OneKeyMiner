@@ -11,7 +11,7 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${gradle.ext.fabric_api_version}"
     
     // ModMenu 和 ClothConfig 是可选依赖
-    // 当前 Minecraft 1.21.9 版本还没有兼容的 ModMenu/ClothConfig
+    // 当前 Minecraft 1.21.10 版本还没有兼容的 ModMenu/ClothConfig
     // 一旦有兼容版本发布，取消下面的注释即可启用
     
     // ModMenu - 配置界面入口（可选依赖）

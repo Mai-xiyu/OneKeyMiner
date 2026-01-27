@@ -2,7 +2,7 @@ package org.xiyu.onekeyminer.api;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
@@ -55,22 +55,22 @@ import java.util.*;
 public final class OneKeyMinerAPI {
     
     /** 运行时方块白名单 */
-    private static final Set<ResourceLocation> BLOCK_WHITELIST = new HashSet<>();
+    private static final Set<Identifier> BLOCK_WHITELIST = new HashSet<>();
     
     /** 运行时方块黑名单 */
-    private static final Set<ResourceLocation> BLOCK_BLACKLIST = new HashSet<>();
+    private static final Set<Identifier> BLOCK_BLACKLIST = new HashSet<>();
     
     /** 运行时方块标签白名单 */
     private static final Set<TagKey<Block>> BLOCK_TAG_WHITELIST = new HashSet<>();
     
     /** 运行时工具白名单 */
-    private static final Set<ResourceLocation> TOOL_WHITELIST = new HashSet<>();
+    private static final Set<Identifier> TOOL_WHITELIST = new HashSet<>();
     
     /** 运行时工具黑名单 */
-    private static final Set<ResourceLocation> TOOL_BLACKLIST = new HashSet<>();
+    private static final Set<Identifier> TOOL_BLACKLIST = new HashSet<>();
     
     /** 方块分组映射（用于宽松匹配） */
-    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new HashMap<>();
+    private static final Map<Identifier, String> BLOCK_GROUPS = new HashMap<>();
     
     private OneKeyMinerAPI() {
         // 私有构造函数，防止实例化
@@ -151,7 +151,7 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true，如果已存在返回 false
      */
     public static boolean registerBlock(String blockId) {
-        ResourceLocation loc = ResourceLocation.tryParse(blockId);
+        Identifier loc = Identifier.tryParse(blockId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的方块 ID: {}", blockId);
             return false;
@@ -166,7 +166,7 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true
      */
     public static boolean registerBlock(Block block) {
-        ResourceLocation loc = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier loc = BuiltInRegistries.BLOCK.getKey(block);
         return BLOCK_WHITELIST.add(loc);
     }
     
@@ -179,7 +179,7 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true
      */
     public static boolean registerBlockTag(String tagId) {
-        ResourceLocation loc = ResourceLocation.tryParse(tagId);
+        Identifier loc = Identifier.tryParse(tagId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的标签 ID: {}", tagId);
             return false;
@@ -195,7 +195,7 @@ public final class OneKeyMinerAPI {
      * @return 如果移除成功返回 true
      */
     public static boolean unregisterBlock(String blockId) {
-        ResourceLocation loc = ResourceLocation.tryParse(blockId);
+        Identifier loc = Identifier.tryParse(blockId);
         if (loc == null) return false;
         return BLOCK_WHITELIST.remove(loc);
     }
@@ -207,7 +207,7 @@ public final class OneKeyMinerAPI {
      * @return 如果移除成功返回 true
      */
     public static boolean unregisterBlockTag(String tagId) {
-        ResourceLocation loc = ResourceLocation.tryParse(tagId);
+        Identifier loc = Identifier.tryParse(tagId);
         if (loc == null) return false;
         TagKey<Block> tag = TagKey.create(BuiltInRegistries.BLOCK.key(), loc);
         return BLOCK_TAG_WHITELIST.remove(tag);
@@ -224,7 +224,7 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistBlock(String blockId) {
-        ResourceLocation loc = ResourceLocation.tryParse(blockId);
+        Identifier loc = Identifier.tryParse(blockId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的方块 ID: {}", blockId);
             return false;
@@ -239,7 +239,7 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistBlock(Block block) {
-        ResourceLocation loc = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier loc = BuiltInRegistries.BLOCK.getKey(block);
         return BLOCK_BLACKLIST.add(loc);
     }
     
@@ -250,7 +250,7 @@ public final class OneKeyMinerAPI {
      * @return 如果移除成功返回 true
      */
     public static boolean unblacklistBlock(String blockId) {
-        ResourceLocation loc = ResourceLocation.tryParse(blockId);
+        Identifier loc = Identifier.tryParse(blockId);
         if (loc == null) return false;
         return BLOCK_BLACKLIST.remove(loc);
     }
@@ -264,7 +264,7 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean whitelistTool(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        Identifier loc = Identifier.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的物品 ID: {}", itemId);
             return false;
@@ -279,7 +279,7 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistTool(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        Identifier loc = Identifier.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的物品 ID: {}", itemId);
             return false;
@@ -298,7 +298,7 @@ public final class OneKeyMinerAPI {
      * @param groupId 分组 ID（任意字符串）
      */
     public static void addBlockToGroup(String blockId, String groupId) {
-        ResourceLocation loc = ResourceLocation.tryParse(blockId);
+        Identifier loc = Identifier.tryParse(blockId);
         if (loc != null) {
             BLOCK_GROUPS.put(loc, groupId);
         }
@@ -312,8 +312,8 @@ public final class OneKeyMinerAPI {
      * @return 如果在同一分组返回 true
      */
     public static boolean areBlocksInSameGroup(Block block1, Block block2) {
-        ResourceLocation loc1 = BuiltInRegistries.BLOCK.getKey(block1);
-        ResourceLocation loc2 = BuiltInRegistries.BLOCK.getKey(block2);
+        Identifier loc1 = BuiltInRegistries.BLOCK.getKey(block1);
+        Identifier loc2 = BuiltInRegistries.BLOCK.getKey(block2);
         
         String group1 = BLOCK_GROUPS.get(loc1);
         String group2 = BLOCK_GROUPS.get(loc2);
@@ -356,10 +356,10 @@ public final class OneKeyMinerAPI {
     // ==================== 交互工具 API ====================
     
     /** 交互工具白名单 */
-    private static final Set<ResourceLocation> INTERACTION_TOOL_WHITELIST = new HashSet<>();
+    private static final Set<Identifier> INTERACTION_TOOL_WHITELIST = new HashSet<>();
     
     /** 交互工具黑名单 */
-    private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
+    private static final Set<Identifier> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
     
     /**
      * 注册交互工具到白名单
@@ -368,7 +368,7 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true
      */
     public static boolean registerInteractionTool(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        Identifier loc = Identifier.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的交互工具 ID: {}", itemId);
             return false;
@@ -390,7 +390,7 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistInteractionTool(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        Identifier loc = Identifier.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的交互工具 ID: {}", itemId);
             return false;
@@ -435,13 +435,13 @@ public final class OneKeyMinerAPI {
     ) {
     }
 
-    private record ToolSelector(ResourceLocation itemId, TagKey<Item> itemTag) {
+    private record ToolSelector(Identifier itemId, TagKey<Item> itemTag) {
         boolean matches(ItemStack stack) {
             if (itemTag != null) {
                 return stack.is(itemTag);
             }
             if (itemId != null) {
-                ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
                 return itemId.equals(id);
             }
             return false;
@@ -572,14 +572,14 @@ public final class OneKeyMinerAPI {
 
     private static ToolSelector parseToolSelector(String selector) {
         if (selector.startsWith("#")) {
-            ResourceLocation loc = ResourceLocation.tryParse(selector.substring(1));
+            Identifier loc = Identifier.tryParse(selector.substring(1));
             if (loc == null) {
                 return null;
             }
             TagKey<Item> tag = TagKey.create(BuiltInRegistries.ITEM.key(), loc);
             return new ToolSelector(null, tag);
         }
-        ResourceLocation loc = ResourceLocation.tryParse(selector);
+        Identifier loc = Identifier.tryParse(selector);
         if (loc == null) {
             return null;
         }
@@ -610,7 +610,7 @@ public final class OneKeyMinerAPI {
             return true;
         }
         EntityType<?> type = entity.getType();
-        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(type);
+        Identifier typeId = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         for (String entry : targets) {
             if (entry == null || entry.isBlank()) {
                 continue;
@@ -619,7 +619,7 @@ public final class OneKeyMinerAPI {
                 return true;
             }
             if (entry.startsWith("#")) {
-                ResourceLocation tagId = ResourceLocation.tryParse(entry.substring(1));
+                Identifier tagId = Identifier.tryParse(entry.substring(1));
                 if (tagId != null) {
                     TagKey<EntityType<?>> tag = TagKey.create(Registries.ENTITY_TYPE, tagId);
                     if (type.is(tag)) {
@@ -646,7 +646,7 @@ public final class OneKeyMinerAPI {
             return false;
         }
         
-        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        Identifier loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
         
         // 检查黑名单
         if (INTERACTION_TOOL_BLACKLIST.contains(loc)) {
@@ -664,10 +664,10 @@ public final class OneKeyMinerAPI {
     // ==================== 种植物品 API ====================
     
     /** 种植物品白名单 */
-    private static final Set<ResourceLocation> PLANTABLE_WHITELIST = new HashSet<>();
+    private static final Set<Identifier> PLANTABLE_WHITELIST = new HashSet<>();
     
     /** 种植物品黑名单 */
-    private static final Set<ResourceLocation> PLANTABLE_BLACKLIST = new HashSet<>();
+    private static final Set<Identifier> PLANTABLE_BLACKLIST = new HashSet<>();
     
     /**
      * 注册可种植物品
@@ -676,7 +676,7 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true
      */
     public static boolean registerPlantableItem(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        Identifier loc = Identifier.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的种植物品 ID: {}", itemId);
             return false;
@@ -698,7 +698,7 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistSeed(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        Identifier loc = Identifier.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的种子 ID: {}", itemId);
             return false;
@@ -720,7 +720,7 @@ public final class OneKeyMinerAPI {
      * @return 如果在黑名单中返回 true
      */
     public static boolean isSeedBlacklisted(Item item) {
-        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(item);
+        Identifier loc = BuiltInRegistries.ITEM.getKey(item);
         return PLANTABLE_BLACKLIST.contains(loc);
     }
     
@@ -735,7 +735,7 @@ public final class OneKeyMinerAPI {
             return false;
         }
         
-        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        Identifier loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
         
         // 检查黑名单
         if (PLANTABLE_BLACKLIST.contains(loc)) {
@@ -759,7 +759,7 @@ public final class OneKeyMinerAPI {
      * @return 如果允许返回 true
      */
     public static boolean isBlockAllowed(Block block) {
-        ResourceLocation loc = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier loc = BuiltInRegistries.BLOCK.getKey(block);
         MinerConfig config = ConfigManager.getConfig();
         
         // 检查黑名单（优先）
@@ -794,7 +794,7 @@ public final class OneKeyMinerAPI {
      * @return 如果在黑名单中返回 true
      */
     public static boolean isBlockBlacklisted(Block block) {
-        ResourceLocation loc = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier loc = BuiltInRegistries.BLOCK.getKey(block);
         return BLOCK_BLACKLIST.contains(loc);
     }
     
@@ -812,7 +812,7 @@ public final class OneKeyMinerAPI {
             return config.allowBareHand;
         }
         
-        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(tool.getItem());
+        Identifier loc = BuiltInRegistries.ITEM.getKey(tool.getItem());
         
         // 检查黑名单（优先）
         if (TOOL_BLACKLIST.contains(loc)) {
@@ -833,7 +833,7 @@ public final class OneKeyMinerAPI {
      * 
      * @return 方块白名单的不可变集合
      */
-    public static Set<ResourceLocation> getBlockWhitelist() {
+    public static Set<Identifier> getBlockWhitelist() {
         return Collections.unmodifiableSet(BLOCK_WHITELIST);
     }
     
@@ -842,7 +842,7 @@ public final class OneKeyMinerAPI {
      * 
      * @return 方块黑名单的不可变集合
      */
-    public static Set<ResourceLocation> getBlockBlacklist() {
+    public static Set<Identifier> getBlockBlacklist() {
         return Collections.unmodifiableSet(BLOCK_BLACKLIST);
     }
     

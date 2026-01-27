@@ -1,5 +1,28 @@
-plugins {
-    id 'unimined-common'
+buildscript {
+    repositories {
+        maven { url "https://repo.spongepowered.org/repository/maven-public/" }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath "org.spongepowered:vanillagradle:0.2.2"
+    }
+}
+
+if (gradle.ext.minecraft_version == "1.21.11") {
+    apply plugin: "java"
+    apply plugin: "org.spongepowered.gradle.vanilla"
+
+    minecraft {
+        version gradle.ext.minecraft_version
+    }
+
+    def mcConfig = configurations.findByName("minecraft")
+    if (mcConfig != null) {
+        configurations.compileOnly.extendsFrom(mcConfig)
+    }
+} else {
+    apply plugin: "unimined-common"
 }
 
 repositories {

@@ -2,14 +2,13 @@ package org.xiyu.onekeyminer.forge;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.client.settings.IKeyConflictContext;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -32,23 +31,28 @@ public class ForgeKeyBindings {
     
     /** 按键分类 */
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
-            ResourceLocation.parse("key.categories.onekeyminer"));
+            Identifier.parse("key.categories.onekeyminer"));
     
     /** 连锁挖矿激活按键（默认：波浪键/反引号键）- 静态初始化 */
     public static final KeyMapping CHAIN_MINING_KEY = new KeyMapping(
             "key.onekeyminer.hold",
-            (IKeyConflictContext) KeyConflictContext.IN_GAME,
-            InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_GRAVE_ACCENT),
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_GRAVE_ACCENT,
             CATEGORY
     );
     
     /** 打开配置界面的按键（默认：无）- 静态初始化 */
     public static final KeyMapping OPEN_CONFIG = new KeyMapping(
             "key.onekeyminer.config",
-            (IKeyConflictContext) KeyConflictContext.IN_GAME,
-            InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_UNKNOWN),
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_UNKNOWN,
             CATEGORY
     );
+
+        static {
+        CHAIN_MINING_KEY.setKeyConflictContext(KeyConflictContext.IN_GAME);
+        OPEN_CONFIG.setKeyConflictContext(KeyConflictContext.IN_GAME);
+        }
     
     /** 连锁模式状态（客户端记录） */
     private static boolean chainModeActive = false;

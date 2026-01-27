@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Mai-xiyu/OneKeyMiner?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/Minecraft-1.21.9-green?style=flat-square" alt="Minecraft Version">
+  <img src="https://img.shields.io/badge/Minecraft-1.21.11-green?style=flat-square" alt="Minecraft Version">
   <img src="https://img.shields.io/badge/Java-21+-orange?style=flat-square" alt="Java Version">
 </p>
 
@@ -42,7 +42,7 @@
 
 | Component | Version |
 |-----------|---------|
-| Minecraft | 1.21.9 |
+| Minecraft | 1.21.11 |
 | Java | 21+ |
 | Fabric Loader | 0.15.0+ |
 | NeoForge | 21.0+ |
@@ -53,10 +53,10 @@
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-x.x.x-1.21.9.jar` for Fabric
-- `onekeyminer-neoforge-x.x.x-1.21.9.jar` for NeoForge  
-- `onekeyminer-forge-x.x.x-1.21.9.jar` for Forge
-- `onekeyminer-x.x.x-1.21.9.jar` for universal (auto-detect)
+- `onekeyminer-fabric-x.x.x-1.21.11.jar` for Fabric
+- `onekeyminer-neoforge-x.x.x-1.21.11.jar` for NeoForge  
+- `onekeyminer-forge-x.x.x-1.21.11.jar` for Forge
+- `onekeyminer-x.x.x-1.21.11.jar` for universal (auto-detect)
 
 ---
 
@@ -178,9 +178,9 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 ## 🌿 Branching & Releases
 
-- **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.9`).
+- **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.11`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.9-1.6.0`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.21.11-1.6.0`).
 
 
 ## 🐛 Issues & Contributions

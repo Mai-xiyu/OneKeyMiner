@@ -1,7 +1,9 @@
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.util.Util;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -22,6 +24,8 @@ import java.util.function.Supplier;
  * @since Minecraft 1.21.9
  */
 public class ForgeConfigScreen {
+
+    private static final String DISCORD_URL = "https://discord.com/invite/h88UDxwUHm";
     
     public static void register(ModLoadingContext context) {
         context.registerExtensionPoint(
@@ -54,6 +58,21 @@ public class ForgeConfigScreen {
         protected void init() {
             super.init();
             this.clearWidgets();
+
+            int discordButtonWidth = 90;
+            int discordButtonHeight = 20;
+            int discordButtonX = this.width - discordButtonWidth - 10;
+            int discordButtonY = 10;
+
+            this.addRenderableWidget(Button.builder(
+                    Component.literal("Discord"),
+                    button -> this.minecraft.setScreen(new ConfirmLinkScreen(confirmed -> {
+                        if (confirmed) {
+                            Util.getPlatform().openUri(DISCORD_URL);
+                        }
+                        this.minecraft.setScreen(this);
+                    }, DISCORD_URL, true))
+            ).bounds(discordButtonX, discordButtonY, discordButtonWidth, discordButtonHeight).build());
             
             int centerX = this.width / 2;
             int startY = 40;

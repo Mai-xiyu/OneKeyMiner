@@ -57,3 +57,9 @@ tasks.withType(GenerateModuleMetadata).configureEach {
 tasks.withType(Sign).configureEach {
     enabled = false
 }
+
+// 禁用测试相关任务（避免 Manifold 插件缺失导致的测试编译失败）
+tasks.matching { it.name == "compileTestJava" || it.name == "processTestResources" || it.name == "testClasses" || it.name == "test" }
+        .configureEach {
+            enabled = false
+        }
