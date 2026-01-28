@@ -33,14 +33,14 @@ public class OneKeyMinerForge {
         // 初始化通用模块
         OneKeyMiner.init();
         
-        var modBusGroup = context.getModBusGroup();
+        var modEventBus = context.getModEventBus();
         
         // 注册生命周期事件
-        FMLCommonSetupEvent.getBus(modBusGroup).addListener(this::onCommonSetup);
+        modEventBus.addListener(this::onCommonSetup);
         
         // 客户端专用事件
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            FMLClientSetupEvent.getBus(modBusGroup).addListener(this::onClientSetup);
+            modEventBus.addListener(this::onClientSetup);
             // 按键映射通过 @Mod.EventBusSubscriber 注解自动注册
         }
         

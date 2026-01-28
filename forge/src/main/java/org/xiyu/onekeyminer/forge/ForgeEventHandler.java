@@ -13,8 +13,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.eventbus.api.listener.Priority;
-import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.chain.ChainActionContext;
@@ -50,7 +50,7 @@ public class ForgeEventHandler {
      * 
      * @param event 方块破坏事件
      */
-    @SubscribeEvent(priority = Priority.LOW)
+    @SubscribeEvent(priority = EventPriority.LOW)
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         // 防止重入（链式挖掘时不触发新的链式操作）
         if (IS_CHAIN_BREAKING.get()) {
@@ -116,7 +116,7 @@ public class ForgeEventHandler {
      * 
      * @param event 右键方块事件
      */
-    @SubscribeEvent(priority = Priority.LOW)
+    @SubscribeEvent(priority = EventPriority.LOW)
     public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         // 防止重入
         if (IS_CHAIN_INTERACTING.get()) {
@@ -226,7 +226,7 @@ public class ForgeEventHandler {
      *
      * @param event 右键实体事件
      */
-    @SubscribeEvent(priority = Priority.LOW)
+    @SubscribeEvent(priority = EventPriority.LOW)
     public void onRightClickEntity(PlayerInteractEvent.EntityInteract event) {
         if (IS_CHAIN_INTERACTING.get()) {
             return;
