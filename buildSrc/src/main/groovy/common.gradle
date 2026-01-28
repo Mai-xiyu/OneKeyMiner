@@ -15,6 +15,7 @@ manifold {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
