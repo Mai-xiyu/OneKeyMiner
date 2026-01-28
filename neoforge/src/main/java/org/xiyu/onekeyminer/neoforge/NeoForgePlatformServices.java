@@ -62,8 +62,6 @@ public class NeoForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean canPlayerBreakBlock(ServerPlayer player, Level level, BlockPos pos, BlockState state) {
-        // NeoForge 使用 BlockEvent.BreakEvent 进行权限检查
-        // 该事件可被取消，所以如果我们到达这里，权限检查已通过
         
         // 基础检查
         if (player.isSpectator()) {
@@ -112,7 +110,7 @@ public class NeoForgePlatformServices implements PlatformServices {
         try {
             return player.gameMode.destroyBlock(pos);
         } catch (Exception e) {
-            OneKeyMiner.LOGGER.error("NeoForge 模拟方块破坏失败: {}", e.getMessage());
+            OneKeyMiner.LOGGER.error("NeoForge 方块破坏失败: {}", e.getMessage());
             return false;
         }
     }
@@ -176,22 +174,13 @@ public class NeoForgePlatformServices implements PlatformServices {
         // 同时更新 MiningStateManager 的按键状态（用于 MiningLogic 检查）
         org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
         
-        // 可选：发送消息给玩家
-        OneKeyMiner.LOGGER.debug("玩家 {} 的链式模式已{}",
-                player.getName().getString(),
-                active ? "激活" : "关闭");
     }
     
     @Override
     public void sendChainActionMessage(ServerPlayer player, String actionType, int count) {
         // 向玩家发送链式操作完成消息
         // 使用 Action Bar 显示
-        String key = switch (actionType) {
-            case "mining" -> "message.onekeyminer.chain_mining";
-            case "interaction" -> "message.onekeyminer.chain_interaction";
-            case "planting" -> "message.onekeyminer.chain_planting";
-            default -> "message.onekeyminer.chain_action";
-        };
+        String key = "message.onekeyminer.chain_action." + actionType;
         
         Component message = Component.translatable(key, count);
         player.displayClientMessage(message, true); // true = Action Bar
