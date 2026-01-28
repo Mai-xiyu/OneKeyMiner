@@ -968,10 +968,8 @@ public final class ChainActionLogic {
             }
             
             // 使用 Shearable 接口的 shear 方法
-            // 在 1.21.9 中签名为: shear(ServerLevel, SoundSource, ItemStack)
-            if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                shearable.shear(serverLevel, net.minecraft.sounds.SoundSource.PLAYERS, shears);
-            }
+            // 在 1.21.1 中签名为: shear(SoundSource)
+            shearable.shear(net.minecraft.sounds.SoundSource.PLAYERS);
             shearedPositions.add(pos);
             
             if (!context.isCreativeMode()) {
