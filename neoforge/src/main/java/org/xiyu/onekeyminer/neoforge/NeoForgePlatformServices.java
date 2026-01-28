@@ -14,7 +14,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
-import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -47,12 +46,12 @@ public class NeoForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean isClient() {
-        return FMLEnvironment.getDist().isClient();
+        return FMLLoader.getDist().isClient();
     }
     
     @Override
     public boolean isDedicatedServer() {
-        return FMLEnvironment.getDist().isDedicatedServer();
+        return FMLLoader.getDist().isDedicatedServer();
     }
     
     @Override
@@ -186,12 +185,7 @@ public class NeoForgePlatformServices implements PlatformServices {
     public void sendChainActionMessage(ServerPlayer player, String actionType, int count) {
         // 向玩家发送链式操作完成消息
         // 使用 Action Bar 显示
-        String key = switch (actionType) {
-            case "mining" -> "message.onekeyminer.chain_mining";
-            case "interaction" -> "message.onekeyminer.chain_interaction";
-            case "planting" -> "message.onekeyminer.chain_planting";
-            default -> "message.onekeyminer.chain_action";
-        };
+        String key = "message.onekeyminer.chain_action." + actionType;
         
         Component message = Component.translatable(key, count);
         player.displayClientMessage(message, true); // true = Action Bar

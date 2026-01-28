@@ -44,7 +44,7 @@ public class KeyBindings {
                 "key.onekeyminer.hold",             // 翻译键
                 InputConstants.Type.KEYSYM,         // 输入类型
                 GLFW.GLFW_KEY_GRAVE_ACCENT,        // 默认按键（`键）
-                KeyMapping.Category.GAMEPLAY       // 使用游戏玩法分类
+            "key.categories.onekeyminer"       // 使用自定义分类
         ));
         
         // 打开配置界面（默认未绑定）
@@ -52,7 +52,7 @@ public class KeyBindings {
                 "key.onekeyminer.config",
                 InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN,              // 默认未绑定
-                KeyMapping.Category.GAMEPLAY       // 使用游戏玩法分类
+            "key.categories.onekeyminer"       // 使用自定义分类
         ));
         
         // 注册按键处理

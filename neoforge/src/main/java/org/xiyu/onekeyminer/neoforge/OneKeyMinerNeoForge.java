@@ -6,7 +6,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.common.NeoForge;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
@@ -38,7 +38,7 @@ public class OneKeyMinerNeoForge {
         modEventBus.addListener(NeoForgeNetworking::registerPayloadHandlers);
         
         // 客户端专用事件
-        if (FMLEnvironment.getDist() == Dist.CLIENT) {
+        if (FMLLoader.getDist() == Dist.CLIENT) {
             modEventBus.addListener(this::onClientSetup);
             modEventBus.addListener(NeoForgeKeyBindings::registerKeyMappings);
         }
