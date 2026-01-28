@@ -3,7 +3,6 @@ package org.xiyu.onekeyminer.fabric;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import org.xiyu.onekeyminer.OneKeyMiner;
 
 /**

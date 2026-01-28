@@ -111,7 +111,6 @@ public class ForgeKeyBindings {
                 minecraft.execute(() -> {
                     try {
                         ForgeNetworking.sendKeyState(true);
-                        OneKeyMiner.LOGGER.info("连锁按键按下");
                     } catch (Exception e) {
                         OneKeyMiner.LOGGER.error("发送按键状态失败", e);
                     }
@@ -135,7 +134,6 @@ public class ForgeKeyBindings {
             minecraft.execute(() -> {
                 try {
                     ForgeNetworking.sendKeyState(false);
-                    OneKeyMiner.LOGGER.info("连锁按键释放");
                 } catch (Exception e) {
                     OneKeyMiner.LOGGER.error("发送按键释放包失败", e);
                 }

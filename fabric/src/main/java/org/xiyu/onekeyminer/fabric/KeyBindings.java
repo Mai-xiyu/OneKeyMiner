@@ -4,11 +4,9 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
@@ -34,6 +32,9 @@ public class KeyBindings {
     
     /** 上一帧按键是否被按下 */
     private static boolean wasKeyDown = false;
+
+    /** 按键状态网络包 ID */
+    public static final ResourceLocation CHAIN_KEY_STATE_ID = new ResourceLocation(OneKeyMiner.MOD_ID, "chain_key_state");
     
     /**
      * 注册所有按键绑定
@@ -77,8 +78,9 @@ public class KeyBindings {
                 // 发送按键状态到服务端
                 if (client.getConnection() != null) {
                     try {
-                        ClientPlayNetworking.send(new ChainKeyStatePayload(isKeyDown));
-                        OneKeyMiner.LOGGER.info("连锁按键状态变化: {}", isKeyDown ? "按下" : "释放");
+                        FriendlyByteBuf buf = PacketByteBufs.create();
+                        buf.writeBoolean(isKeyDown);
+                        ClientPlayNetworking.send(CHAIN_KEY_STATE_ID, buf);
                     } catch (Exception e) {
                         OneKeyMiner.LOGGER.error("发送按键状态网络包失败: {}", e.getMessage());
                     }
@@ -88,25 +90,8 @@ public class KeyBindings {
             // 检查配置界面按键
             while (OPEN_CONFIG.consumeClick()) {
                 // 打开配置界面
-                OneKeyMiner.LOGGER.debug("配置界面按键被按下");
             }
         });
     }
     
-    /**
-     * 按键状态网络包
-     */
-    public record ChainKeyStatePayload(boolean holding) implements CustomPacketPayload {
-        public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
-        public static final CustomPacketPayload.Type<ChainKeyStatePayload> TYPE = new CustomPacketPayload.Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, ChainKeyStatePayload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> buf.writeBoolean(payload.holding),
-                buf -> new ChainKeyStatePayload(buf.readBoolean())
-        );
-        
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-    }
 }

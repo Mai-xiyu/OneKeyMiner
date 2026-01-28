@@ -4,9 +4,9 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.TickEvent;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 
@@ -49,7 +49,7 @@ public class NeoForgeKeyBindings {
     /**
      * 客户端 tick 事件处理
      */
-    private static void onClientTick(ClientTickEvent.Post event) {
+    private static void onClientTick(TickEvent.ClientTickEvent event) {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc.player == null) return;
         
@@ -68,7 +68,6 @@ public class NeoForgeKeyBindings {
             if (mc.getConnection() != null) {
                 try {
                     NeoForgeNetworking.sendKeyState(isKeyDown);
-                    OneKeyMiner.LOGGER.debug("连锁按键状态变化: {}", isKeyDown ? "按下" : "释放");
                 } catch (Exception e) {
                     OneKeyMiner.LOGGER.debug("发送按键状态失败: {}", e.getMessage());
                 }

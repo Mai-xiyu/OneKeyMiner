@@ -5,7 +5,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.fml.ModContainer;
-import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.client.ConfigScreenHandler;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
@@ -24,8 +24,8 @@ public class NeoForgeConfigScreen {
     
     public static void register(ModContainer modContainer) {
         modContainer.registerExtensionPoint(
-                IConfigScreenFactory.class,
-                (mc, parent) -> createConfigScreen(parent)
+                ConfigScreenHandler.ConfigScreenFactory.class,
+                () -> new ConfigScreenHandler.ConfigScreenFactory((mc, parent) -> createConfigScreen(parent))
         );
         OneKeyMiner.LOGGER.debug("已注册 NeoForge 配置界面");
     }
