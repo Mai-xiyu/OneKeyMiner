@@ -66,10 +66,6 @@ public class ForgeNetworking {
                 ServerPlayer player = context.getSender();
                 if (player != null) {
                     PlatformServices.getInstance().setChainModeActive(player, packet.isPressed());
-                    OneKeyMiner.LOGGER.info("服务端收到按键状态包 - 玩家 {} 连锁模式: {}", 
-                            player.getName().getString(), packet.isPressed() ? "激活" : "关闭");
-                } else {
-                    OneKeyMiner.LOGGER.warn("服务端收到按键状态包但玩家为空");
                 }
             });
             context.setPacketHandled(true);

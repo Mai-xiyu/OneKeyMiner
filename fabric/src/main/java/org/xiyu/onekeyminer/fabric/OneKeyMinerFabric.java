@@ -53,9 +53,6 @@ public class OneKeyMinerFabric implements ModInitializer {
                     context.server().execute(() -> {
                         if (context.player() != null) {
                             PlatformServices.getInstance().setChainModeActive(context.player(), payload.holding());
-                            OneKeyMiner.LOGGER.info("服务端收到按键状态包 - 玩家 {} 连锁模式: {}",
-                                    context.player().getName().getString(),
-                                    payload.holding() ? "激活" : "关闭");
                         }
                     });
                 }

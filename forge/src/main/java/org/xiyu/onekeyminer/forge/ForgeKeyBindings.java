@@ -2,7 +2,6 @@ package org.xiyu.onekeyminer.forge;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -31,8 +30,7 @@ import java.util.TimerTask;
 public class ForgeKeyBindings {
     
     /** 按键分类 */
-    private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
-            ResourceLocation.parse("key.categories.onekeyminer"));
+    private static final String CATEGORY = "key.categories.onekeyminer";
     
     /** 连锁挖矿激活按键（默认：波浪键/反引号键）- 静态初始化 */
     public static final KeyMapping CHAIN_MINING_KEY = new KeyMapping(

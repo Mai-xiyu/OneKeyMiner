@@ -18,6 +18,16 @@ repositories {
     mavenCentral()
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(gradle.ext.java_version as int)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = gradle.ext.java_version as int
+}
+
 dependencies {
     annotationProcessor(manifold.module("preprocessor"))
     annotationProcessor(manifold.module("strings"))
@@ -55,5 +65,13 @@ tasks.withType(GenerateModuleMetadata).configureEach {
     enabled = false
 }
 tasks.withType(Sign).configureEach {
+    enabled = false
+}
+
+tasks.withType(Test).configureEach {
+    enabled = false
+}
+
+tasks.matching { it.name.toLowerCase().startsWith("compiletest") }.configureEach {
     enabled = false
 }

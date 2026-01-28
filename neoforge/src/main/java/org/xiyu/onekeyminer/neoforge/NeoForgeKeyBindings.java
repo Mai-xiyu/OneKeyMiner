@@ -31,8 +31,8 @@ public class NeoForgeKeyBindings {
     
     public static void register() {
         // 创建按键映射
-        CHAIN_MINING_KEY = new KeyMapping("key.onekeyminer.hold", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_GRAVE_ACCENT, KeyMapping.Category.GAMEPLAY);
-        OPEN_CONFIG = new KeyMapping("key.onekeyminer.config", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KeyMapping.Category.GAMEPLAY);
+        CHAIN_MINING_KEY = new KeyMapping("key.onekeyminer.hold", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_GRAVE_ACCENT, "key.categories.onekeyminer");
+        OPEN_CONFIG = new KeyMapping("key.onekeyminer.config", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, "key.categories.onekeyminer");
         
         // 注册 Tick 监听
         NeoForge.EVENT_BUS.addListener(NeoForgeKeyBindings::onClientTick);

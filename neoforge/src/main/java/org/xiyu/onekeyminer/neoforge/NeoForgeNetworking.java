@@ -75,9 +75,6 @@ public class NeoForgeNetworking {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer serverPlayer) {
                 PlatformServices.getInstance().setChainModeActive(serverPlayer, payload.holding());
-                OneKeyMiner.LOGGER.info("服务端收到按键状态包 - 玩家 {} 连锁模式: {}", 
-                        serverPlayer.getName().getString(), 
-                        payload.holding() ? "激活" : "关闭");
             }
         });
     }
