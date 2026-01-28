@@ -12,7 +12,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -38,7 +37,6 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
  * @version 2.0.0
  * @since Minecraft 1.21.9
  */
-@EventBusSubscriber(modid = OneKeyMiner.MOD_ID)
 public class NeoForgeEventHandler {
     
     /** 防止重入的标记 */
@@ -103,7 +101,6 @@ public class NeoForgeEventHandler {
                             SoundSource.PLAYERS, 0.6f, 1.0f);
                 }
                 
-                OneKeyMiner.LOGGER.debug("连锁挖掘完成: {}", result.getSummary());
             }
             
         } finally {

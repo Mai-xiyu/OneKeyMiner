@@ -175,10 +175,6 @@ public class NeoForgePlatformServices implements PlatformServices {
         // 同时更新 MiningStateManager 的按键状态（用于 MiningLogic 检查）
         org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
         
-        // 可选：发送消息给玩家
-        OneKeyMiner.LOGGER.debug("玩家 {} 的链式模式已{}",
-                player.getName().getString(),
-                active ? "激活" : "关闭");
     }
     
     @Override

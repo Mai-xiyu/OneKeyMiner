@@ -1,7 +1,6 @@
 package org.xiyu.onekeyminer.fabric;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
@@ -39,22 +38,12 @@ public class OneKeyMinerFabric implements ModInitializer {
      * 注册网络包处理
      */
     private void registerNetworking() {
-        // 注册按键状态包（客户端到服务端）
-        PayloadTypeRegistry.playC2S().register(
-                KeyBindings.ChainKeyStatePayload.TYPE,
-                KeyBindings.ChainKeyStatePayload.STREAM_CODEC
-        );
-        
         // 注册服务端接收处理
         ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.ChainKeyStatePayload.TYPE,
-                (payload, context) -> {
-                    // 更新玩家的按键状态
-                    context.server().execute(() -> {
-                        if (context.player() != null) {
-                            PlatformServices.getInstance().setChainModeActive(context.player(), payload.holding());
-                        }
-                    });
+                KeyBindings.CHAIN_KEY_STATE_ID,
+                (server, player, handler, buf, responseSender) -> {
+                    boolean holding = buf.readBoolean();
+                    server.execute(() -> PlatformServices.getInstance().setChainModeActive(player, holding));
                 }
         );
         

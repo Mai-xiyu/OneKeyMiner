@@ -70,11 +70,6 @@ public class FabricPlatformServices implements PlatformServices {
             return false; // 基岩等不可破坏方块
         }
         
-        // TODO: 集成 FTB Chunks、Claim Chunk 等保护模组的 API
-        // 示例：
-        // if (FabricLoader.getInstance().isModLoaded("ftbchunks")) {
-        //     return FTBChunksIntegration.canBreak(player, pos);
-        // }
         
         return true;
     }
@@ -92,12 +87,6 @@ public class FabricPlatformServices implements PlatformServices {
         if (player.isCreative() || player.hasPermissions(2)) {
             return true;
         }
-        
-        // TODO: 集成保护模组的交互权限检查
-        // 示例：
-        // if (FabricLoader.getInstance().isModLoaded("ftbchunks")) {
-        //     return FTBChunksIntegration.canInteract(player, pos);
-        // }
         
         return true;
     }

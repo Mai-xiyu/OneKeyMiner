@@ -103,7 +103,6 @@ public class ForgeEventHandler {
                             SoundSource.PLAYERS, 0.6f, 1.0f);
                 }
                 
-                OneKeyMiner.LOGGER.debug("连锁挖掘完成: {}", result.getSummary());
             }
             
         } finally {
