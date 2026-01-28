@@ -157,25 +157,23 @@ public class ForgeKeyBindings {
         }
     }
     
+    /**
+     * 注册按键映射（MOD 事件总线）
+     */
+    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(CHAIN_MINING_KEY);
+        event.register(OPEN_CONFIG);
+        OneKeyMiner.LOGGER.info("已注册 Forge 按键映射");
+    }
+
     // ============ FORGE 事件总线事件 ============
-    
+
     /**
      * 事件处理器 - 注册到 FORGE 事件总线
-     * 在 Forge 1.21.9 中，RegisterKeyMappingsEvent 也在 FORGE 事件总线上
      */
     @Mod.EventBusSubscriber(modid = OneKeyMiner.MOD_ID, value = Dist.CLIENT)
     public static class Events {
-        
-        /**
-         * 注册按键映射
-         */
-        @SubscribeEvent
-        public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-            event.register(CHAIN_MINING_KEY);
-            event.register(OPEN_CONFIG);
-            OneKeyMiner.LOGGER.info("已注册 Forge 按键映射");
-        }
-        
+
         /**
          * 处理按键输入
          */

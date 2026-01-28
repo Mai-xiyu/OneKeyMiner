@@ -37,11 +37,12 @@ public class OneKeyMinerForge {
         
         // 注册生命周期事件
         modEventBus.addListener(this::onCommonSetup);
+        // 注册按键映射（MOD 事件总线）
+        modEventBus.addListener(ForgeKeyBindings::registerKeyMappings);
         
         // 客户端专用事件
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modEventBus.addListener(this::onClientSetup);
-            // 按键映射通过 @Mod.EventBusSubscriber 注解自动注册
         }
         
         // 注册游戏事件处理器到 Forge 事件总线
