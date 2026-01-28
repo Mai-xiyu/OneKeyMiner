@@ -41,12 +41,56 @@ jobs:
           else
             MC_VERSION="$BRANCH_NAME"
           fi
+          if [ "$MC_VERSION" = "1.20.1" ]; then
+            JAVA_VERSION="17"
+            LOADERS="fabric,forge"
+          else
+            JAVA_VERSION="21"
+            LOADERS="fabric,forge,neoforge"
+          fi
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "MOD_VERSION=$MOD_VERSION" >> $GITHUB_OUTPUT
           echo "MC_VERSION=$MC_VERSION" >> $GITHUB_OUTPUT
+          echo "JAVA_VERSION=$JAVA_VERSION" >> $GITHUB_OUTPUT
+          echo "LOADERS=$LOADERS" >> $GITHUB_OUTPUT
 
-      - name: Create Release
+      - name: Create Release (1.20.1)
+        if: ${{ steps.version.outputs.MC_VERSION == '1.20.1' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          name: OneKeyMiner ${{ steps.version.outputs.TAG_NAME }}
+          body: |
+            ## OneKeyMiner ${{ steps.version.outputs.TAG_NAME }}
+            
+            - Minecraft: ${{ steps.version.outputs.MC_VERSION }}
+            - Mod Version: ${{ steps.version.outputs.MOD_VERSION }}
+            
+            ### 下载 / Downloads
+            
+            | 平台 / Platform | 文件 / File |
+            |-----------------|-------------|
+            | Fabric | `onekeyminer-fabric-*.jar` (含 dev) |
+            | Forge | `onekeyminer-forge-*.jar` (含 dev) |
+            | 通用 / Universal | `onekeyminer-*.jar` (Forgix merged) |
+            
+            ### 环境要求 / Requirements
+            - Minecraft ${{ steps.version.outputs.MC_VERSION }}
+            - Java 17+
+            
+            ### 更新日志 / Changelog
+            请查看 [commits](https://github.com/Mai-xiyu/OneKeyMiner/commits/${{ steps.version.outputs.BRANCH_NAME }}) 了解详情。
+          files: |
+            fabric/build/libs/!(*-sources).jar
+            forge/build/libs/!(*-sources).jar
+            build/forgix/!(*-sources).jar
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release (default)
+        if: ${{ steps.version.outputs.MC_VERSION != '1.20.1' }}
         uses: softprops/action-gh-release@v1
         with:
           name: OneKeyMiner ${{ steps.version.outputs.TAG_NAME }}
@@ -82,7 +126,34 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Publish Forgix Merged JAR to Modrinth & CurseForge
-      - name: Publish Universal (Forgix) to Modrinth & CurseForge
+      - name: Publish Universal (Forgix) to Modrinth & CurseForge (1.20.1)
+        if: ${{ steps.version.outputs.MC_VERSION == '1.20.1' }}
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          
+          files: build/forgix/!(*-sources).jar
+          name: OneKeyMiner ${{ steps.version.outputs.TAG_NAME }} (Universal)
+          version: ${{ steps.version.outputs.MOD_VERSION }}-universal
+          version-type: release
+          changelog: |
+            ## OneKeyMiner ${{ steps.version.outputs.TAG_NAME }} (Universal)
+            
+            This is the Forgix merged version, supporting Fabric and Forge.
+            
+            Please Go to [GitHub Release](https://github.com/Mai-xiyu/OneKeyMiner/releases/tag/${{ steps.version.outputs.TAG_NAME }}) for details.
+          loaders: |
+            fabric
+            forge
+          game-versions: ${{ steps.version.outputs.MC_VERSION }}
+          java: 17
+
+      - name: Publish Universal (Forgix) to Modrinth & CurseForge (default)
+        if: ${{ steps.version.outputs.MC_VERSION != '1.20.1' }}
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           modrinth-id: LZu4H9cp

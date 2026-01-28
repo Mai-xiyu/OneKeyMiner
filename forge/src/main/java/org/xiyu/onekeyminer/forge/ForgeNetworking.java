@@ -1,16 +1,17 @@
 package org.xiyu.onekeyminer.forge;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.network.CustomPayloadEvent;
-import net.minecraftforge.network.ChannelBuilder;
+import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.NetworkDirection;
-import net.minecraftforge.network.SimpleChannel;
+import net.minecraftforge.network.simple.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+
+import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Forge 网络数据包处理
@@ -25,10 +26,13 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
 public class ForgeNetworking {
     
     /** 网络通道 */
-    private static final SimpleChannel CHANNEL = ChannelBuilder
-            .named(ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
-            .optional()
-            .simpleChannel();
+        private static final String PROTOCOL_VERSION = "1";
+        private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
+            new ResourceLocation(OneKeyMiner.MOD_ID, "main"),
+            () -> PROTOCOL_VERSION,
+            PROTOCOL_VERSION::equals,
+            PROTOCOL_VERSION::equals
+        );
     
     /** 包ID计数器 */
     private static int packetIndex = 0;
@@ -61,7 +65,8 @@ public class ForgeNetworking {
         /**
          * 服务端处理按键状态包
          */
-        public static void handleOnServer(ChainKeyStatePacket packet, CustomPayloadEvent.Context context) {
+        public static void handleOnServer(ChainKeyStatePacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+            NetworkEvent.Context context = contextSupplier.get();
             context.enqueueWork(() -> {
                 ServerPlayer player = context.getSender();
                 if (player != null) {
@@ -83,11 +88,14 @@ public class ForgeNetworking {
         try {
             registered = true;
             
-            CHANNEL.messageBuilder(ChainKeyStatePacket.class, packetIndex++, NetworkDirection.PLAY_TO_SERVER)
-                    .encoder(ChainKeyStatePacket::write)
-                    .decoder(ChainKeyStatePacket::fromNetwork)
-                    .consumerNetworkThread(ChainKeyStatePacket::handleOnServer)
-                    .add();
+                CHANNEL.registerMessage(
+                    packetIndex++,
+                    ChainKeyStatePacket.class,
+                    ChainKeyStatePacket::write,
+                    ChainKeyStatePacket::fromNetwork,
+                    ChainKeyStatePacket::handleOnServer,
+                    Optional.of(NetworkDirection.PLAY_TO_SERVER)
+                );
             
             OneKeyMiner.LOGGER.debug("已注册 Forge 网络通道");
         } catch (Exception e) {
@@ -99,15 +107,10 @@ public class ForgeNetworking {
      * 从客户端发送按键状态到服务端
      */
     public static void sendKeyState(boolean pressed) {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            try {
-                CHANNEL.send(new ChainKeyStatePacket(pressed), connection.getConnection());
-            } catch (Exception e) {
-                OneKeyMiner.LOGGER.debug("发送按键状态包失败: {}", e.getMessage());
-            }
-        } else {
-            OneKeyMiner.LOGGER.debug("无法发送到服务器：客户端连接为空");
+        try {
+            CHANNEL.sendToServer(new ChainKeyStatePacket(pressed));
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.debug("发送按键状态包失败: {}", e.getMessage());
         }
     }
 }

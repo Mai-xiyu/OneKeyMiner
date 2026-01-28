@@ -45,6 +45,7 @@ jobs:
 
       - name: Upload NeoForge artifact
         uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('neoforge/build/libs/*.jar') != '' }}
         with:
           name: onekeyminer-neoforge
           path: neoforge/build/libs/*.jar
