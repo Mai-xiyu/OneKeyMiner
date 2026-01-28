@@ -1,113 +1,72 @@
 {
   "config.onekeyminer.title": "OneKeyMiner Config",
-  "config.onekeyminer.info": "Edit the config file to change settings",
+  "config.onekeyminer.info": "Edit the config file to modify settings",
   "config.onekeyminer.openFolder": "Open Config Folder",
   "config.onekeyminer.reload": "Reload Config",
-  
+
   "config.onekeyminer.category.basic": "Basic Settings",
-  "config.onekeyminer.category.general": "General Settings",
   "config.onekeyminer.category.activation": "Activation Settings",
-  "config.onekeyminer.category.parameters": "Chain Parameters",
-  "config.onekeyminer.category.blockLists": "Block Lists",
-  "config.onekeyminer.category.limits": "Mining Limits",
+  "config.onekeyminer.category.parameters": "Chain Params",
   "config.onekeyminer.category.consumption": "Consumption Settings",
-  "config.onekeyminer.category.drops": "Drop Settings",
+  "config.onekeyminer.category.features": "Function Features",
   "config.onekeyminer.category.advanced": "Advanced Settings",
-  
-  "config.onekeyminer.enabled": "Enable Mod",
-  "config.onekeyminer.enabled.tooltip": "Whether to enable vein mining functionality",
-  
-  "config.onekeyminer.option.chainMining": "Enable Chain Mining",
-  "config.onekeyminer.option.chainMining.tooltip": "Whether to enable ore chain mining functionality",
-  "config.onekeyminer.option.chainLogging": "Enable Chain Logging",
-  "config.onekeyminer.option.chainLogging.tooltip": "Whether to enable log chain chopping functionality",
-  "config.onekeyminer.option.chainPlanting": "Enable Chain Planting",
-  "config.onekeyminer.option.chainPlanting.tooltip": "Whether to enable crop chain planting functionality",
-  
-  "config.onekeyminer.option.activationMode": "Activation Mode",
-  "config.onekeyminer.option.activationMode.tooltip": "Choose how to activate vein mining (can be combined with sneak condition)",
-  "config.onekeyminer.activationMode": "Activation Mode",
-  "config.onekeyminer.activationMode.tooltip": "Choose how to activate vein mining (can be combined with sneak condition)",
-  "config.onekeyminer.activationMode.always": "Always On",
-  "config.onekeyminer.activationMode.keybind_hold": "Hold Key",
-  
-  "config.onekeyminer.option.requireSneak": "Require Sneak (Additional)",
-  "config.onekeyminer.option.requireSneak.tooltip": "When enabled, sneak key must be held in addition to activation mode",
-  "config.onekeyminer.requireSneak": "Require Sneak (Additional)",
-  "config.onekeyminer.requireSneak.tooltip": "When enabled, sneak key must be held in addition to activation mode",
-  
-  "config.onekeyminer.option.maxChainBlocks": "Max Chain Blocks",
-  "config.onekeyminer.option.maxChainBlocks.tooltip": "Maximum blocks per chain operation",
-  "config.onekeyminer.maxBlocks": "Max Blocks",
-  "config.onekeyminer.maxBlocks.tooltip": "Maximum blocks per vein mining operation",
-  
-  "config.onekeyminer.maxDistance": "Max Distance",
-  "config.onekeyminer.maxDistance.tooltip": "Maximum search distance for vein mining",
-  
-  "config.onekeyminer.allowDiagonal": "Diagonal Mining",
-  "config.onekeyminer.allowDiagonal.tooltip": "Allow diagonal direction vein mining",
-  
-  "config.onekeyminer.option.shapeMode": "Search Shape",
-  "config.onekeyminer.option.shapeMode.tooltip": "Choose the search shape for vein mining",
-  "config.onekeyminer.shapeMode": "Search Shape",
-  "config.onekeyminer.shapeMode.tooltip": "Choose the search shape for vein mining",
-  "config.onekeyminer.shapeMode.connected": "Connected",
-  "config.onekeyminer.shapeMode.cube": "Cube Range",
-  "config.onekeyminer.shapeMode.column": "Vertical Column",
-  
-  "config.onekeyminer.option.checkToolLevel": "Check Tool Level",
-  "config.onekeyminer.option.checkToolLevel.tooltip": "Whether to check if tool can properly harvest the block",
-  
-  "config.onekeyminer.option.consumeDurability": "Consume Durability",
-  "config.onekeyminer.option.consumeDurability.tooltip": "Whether vein mining consumes tool durability",
-  
-  "config.onekeyminer.option.oreBlocks": "Ore Block List",
-  "config.onekeyminer.option.oreBlocks.tooltip": "List of ore block IDs that can be chain mined",
-  "config.onekeyminer.option.logBlocks": "Log Block List",
-  "config.onekeyminer.option.logBlocks.tooltip": "List of log block IDs that can be chain chopped",
-  
-  "config.onekeyminer.mineAllBlocks": "Mine All Blocks",
-  "config.onekeyminer.mineAllBlocks.tooltip": "When enabled, all blocks except blacklisted can be chain mined (whitelist ignored)",
-  
-  "config.onekeyminer.allowBareHand": "Allow Bare Hand",
-  "config.onekeyminer.allowBareHand.tooltip": "Allow triggering chain mining without holding a tool",
-  
-  "config.onekeyminer.teleportDrops": "Teleport Drops",
-  "config.onekeyminer.teleportDrops.tooltip": "Chain mined drops go directly to player inventory",
-  
-  "config.onekeyminer.teleportExp": "Teleport Experience",
-  "config.onekeyminer.teleportExp.tooltip": "Chain mined experience is given directly to player",
-  
-  "config.onekeyminer.consumeDurability": "Consume Durability",
-  "config.onekeyminer.consumeDurability.tooltip": "Whether vein mining consumes tool durability",
-  
-  "config.onekeyminer.stopOnLowDurability": "Stop on Low Durability",
-  "config.onekeyminer.stopOnLowDurability.tooltip": "Auto stop when tool durability is too low",
-  
-  "config.onekeyminer.preserveDurability": "Preserve Durability",
-  "config.onekeyminer.preserveDurability.tooltip": "Minimum durability to preserve before stopping",
-  
-  "config.onekeyminer.consumeHunger": "Consume Hunger",
-  "config.onekeyminer.consumeHunger.tooltip": "Whether vein mining consumes hunger",
-  
-  "config.onekeyminer.hungerMultiplier": "Hunger Multiplier",
-  "config.onekeyminer.hungerMultiplier.tooltip": "Hunger consumption multiplier",
-  
-  "config.onekeyminer.requireExactMatch": "Exact Match",
-  "config.onekeyminer.requireExactMatch.tooltip": "Require exact block type match for chaining",
-  
-  "config.onekeyminer.showStats": "Show Stats",
-  "config.onekeyminer.showStats.tooltip": "Show statistics after mining",
-  
-  "key.onekeyminer.hold": "Vein Mining Key (Hold)",
-  "key.onekeyminer.config": "Open Config",
+
+  "config.onekeyminer.option.enabled": "Enable Mod",
+  "config.onekeyminer.option.enabled.tooltip": "Whether to enable the chain mining feature",
+  "config.onekeyminer.option.activation_mode": "Activation Mode",
+  "config.onekeyminer.option.activation_mode.tooltip": "Choose how to trigger chain mining",
+  "onekeyminer.activation_mode.always": "Always On",
+
+  "config.onekeyminer.option.shape_mode": "Search Shape",
+  "config.onekeyminer.option.shape_mode.tooltip": "Select the search shape for chain mining",
+  "onekeyminer.shape_mode.connected": "Adjacent Connected",
+  "onekeyminer.shape_mode.cube": "Cube Range",
+  "onekeyminer.shape_mode.column": "Vertical Column",
+
+  "config.onekeyminer.option.max_blocks": "Max Blocks",
+  "config.onekeyminer.option.max_blocks.tooltip": "Maximum blocks mined per chain operation",
+  "config.onekeyminer.option.max_distance": "Max Distance",
+  "config.onekeyminer.option.max_distance.tooltip": "Maximum search distance for chain mining",
+  "config.onekeyminer.option.allow_diagonal": "Diagonal Chaining",
+  "config.onekeyminer.option.allow_diagonal.tooltip": "Allow chain mining in diagonal directions",
+
+  "config.onekeyminer.option.consume_durability": "Consume Durability",
+  "config.onekeyminer.option.consume_durability.tooltip": "Whether chain mining consumes tool durability",
+  "config.onekeyminer.option.stop_low_durability": "Low Durability Protection",
+  "config.onekeyminer.option.stop_low_durability.tooltip": "Automatically stop mining when tool durability is low",
+  "config.onekeyminer.option.preserve_durability": "Preserve Durability",
+  "config.onekeyminer.option.preserve_durability.tooltip": "Minimum durability to reserve before stopping mining",
+  "config.onekeyminer.option.consume_hunger": "Consume Hunger",
+  "config.onekeyminer.option.consume_hunger.tooltip": "Whether chain mining consumes hunger points",
+  "config.onekeyminer.option.min_hunger": "Min Hunger",
+  "config.onekeyminer.option.min_hunger.tooltip": "Stop chain mining when hunger is below this value",
+
+  "config.onekeyminer.option.mine_all": "Mine All Blocks",
+  "config.onekeyminer.option.mine_all.tooltip": "Mine all blocks except blacklisted ones (whitelist disabled)",
+  "config.onekeyminer.option.allow_bare_hand": "Allow Bare Hand",
+  "config.onekeyminer.option.allow_bare_hand.tooltip": "Trigger chain mining without holding any tool",
+  "config.onekeyminer.option.enable_interaction": "Enable Chain Interaction",
+  "config.onekeyminer.option.enable_interaction.tooltip": "Enable right-click chain features (shearing, tilling, etc.)",
+  "config.onekeyminer.option.enable_planting": "Enable Chain Planting",
+  "config.onekeyminer.option.enable_planting.tooltip": "Enable chain planting for crops",
+  "config.onekeyminer.option.teleport_drops": "Teleport Drops",
+  "config.onekeyminer.option.teleport_drops.tooltip": "Send chain-mined drops directly to player inventory",
+  "config.onekeyminer.option.teleport_exp": "Teleport Experience",
+  "config.onekeyminer.option.teleport_exp.tooltip": "Give chain-mined experience directly to player",
+  "config.onekeyminer.option.play_sound": "Play Sound",
+  "config.onekeyminer.option.play_sound.tooltip": "Play sound effects during chain mining",
+  "config.onekeyminer.option.strict_match": "Strict Metadata Match",
+  "config.onekeyminer.option.strict_match.tooltip": "Require exact block metadata match for chaining",
+
+  "key.onekeyminer.hold": "Chain Mining Key (Hold)",
+  "key.onekeyminer.config": "Open Config Menu",
   "key.categories.onekeyminer": "OneKeyMiner",
   "category.onekeyminer": "OneKeyMiner",
-  
-  "message.onekeyminer.chain_action.mining": "Vein Mining: %d blocks",
+
+  "message.onekeyminer.chain_action.mining": "Chain Mining: %d blocks",
   "message.onekeyminer.chain_action.interaction": "Chain Interaction: %d blocks",
   "message.onekeyminer.chain_action.planting": "Chain Planting: %d blocks",
-  "message.onekeyminer.mode_enabled": "Vein Mining Enabled",
-  "message.onekeyminer.mode_disabled": "Vein Mining Disabled",
-  "message.onekeyminer.config_reloaded": "Config Reloaded"
+  "message.onekeyminer.mode_enabled": "Chain Mining Enabled",
+  "message.onekeyminer.mode_disabled": "Chain Mining Disabled",
+  "message.onekeyminer.config_reloaded": "Config Reloaded Successfully"
 }
