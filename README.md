@@ -13,8 +13,11 @@
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Mai-xiyu/OneKeyMiner?style=flat-square" alt="License"></a>
   <img src="https://img.shields.io/badge/Minecraft-1.21.9-green?style=flat-square" alt="Minecraft Version">
   <img src="https://img.shields.io/badge/Java-21+-orange?style=flat-square" alt="Java Version">
+ 
 </p>
-
+<p align="center">
+  <img src="https://count.getloli.com/@:OneKeyMiner" alt=":OneKeyMiner" />
+</p>
 <p align="center">
   <a href="README_CN.md">🇨🇳 中文文档</a> | 
   <a href="USER_GUIDE.md">📖 User Guide</a> | 
