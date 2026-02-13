@@ -142,6 +142,8 @@ public class NeoForgeConfigScreen {
             int i = 0;
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction", () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting", () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting", () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant", () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops", () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_exp", () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.play_sound", () -> configCopy.playSound, v -> configCopy.playSound = v);

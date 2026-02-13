@@ -140,6 +140,16 @@ public final class OneKeyMinerAPI {
         for (String entry : config.seedBlacklist) {
             blacklistSeed(entry);
         }
+        
+        // 加载交互物品白名单
+        for (String entry : config.interactiveItemWhitelist) {
+            registerInteractiveItem(entry);
+        }
+        
+        // 加载交互物品黑名单
+        for (String entry : config.interactiveItemBlacklist) {
+            blacklistInteractiveItem(entry);
+        }
     }
     
     // ==================== 方块白名单 API ====================
@@ -752,6 +762,77 @@ public final class OneKeyMinerAPI {
     
     // ==================== 查询 API ====================
     
+    // ==================== 交互物品 API ====================
+    
+    /** 交互物品白名单 */
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
+    
+    /** 交互物品黑名单 */
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
+    
+    /** 交互验证器列表 */
+    private static final List<InteractionValidator> INTERACTION_VALIDATORS = new ArrayList<>();
+    
+    /**
+     * 交互验证器接口
+     */
+    @FunctionalInterface
+    public interface InteractionValidator {
+        boolean canInteract(ItemStack item, BlockState state);
+    }
+    
+    /**
+     * 注册交互物品到白名单
+     */
+    public static boolean registerInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        if (loc == null) {
+            OneKeyMiner.LOGGER.warn("无效的交互物品 ID: {}", itemId);
+            return false;
+        }
+        return INTERACTIVE_ITEM_WHITELIST.add(loc);
+    }
+    
+    /**
+     * 将交互物品添加到黑名单
+     */
+    public static boolean blacklistInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) {
+            OneKeyMiner.LOGGER.warn("无效的交互物品 ID: {}", itemId);
+            return false;
+        }
+        return INTERACTIVE_ITEM_BLACKLIST.add(loc);
+    }
+    
+    /**
+     * 注册交互验证器
+     */
+    public static void registerInteractionValidator(InteractionValidator validator) {
+        INTERACTION_VALIDATORS.add(validator);
+    }
+    
+    /**
+     * 检查物品是否为允许的交互物品
+     */
+    public static boolean isInteractiveItemAllowed(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (INTERACTIVE_ITEM_BLACKLIST.contains(loc)) return false;
+        if (!INTERACTIVE_ITEM_WHITELIST.isEmpty()) return INTERACTIVE_ITEM_WHITELIST.contains(loc);
+        return false;
+    }
+    
+    /**
+     * 检查自定义验证器是否允许交互
+     */
+    public static boolean validateInteraction(ItemStack item, BlockState state) {
+        for (InteractionValidator validator : INTERACTION_VALIDATORS) {
+            if (validator.canInteract(item, state)) return true;
+        }
+        return false;
+    }
+    
     /**
      * 检查方块是否允许连锁挖矿
      * 
@@ -858,6 +939,14 @@ public final class OneKeyMinerAPI {
         TOOL_WHITELIST.clear();
         TOOL_BLACKLIST.clear();
         BLOCK_GROUPS.clear();
+        INTERACTION_TOOL_WHITELIST.clear();
+        INTERACTION_TOOL_BLACKLIST.clear();
+        PLANTABLE_WHITELIST.clear();
+        PLANTABLE_BLACKLIST.clear();
+        TOOL_ACTION_RULES.clear();
+        INTERACTIVE_ITEM_WHITELIST.clear();
+        INTERACTIVE_ITEM_BLACKLIST.clear();
+        INTERACTION_VALIDATORS.clear();
     }
     
     /**
