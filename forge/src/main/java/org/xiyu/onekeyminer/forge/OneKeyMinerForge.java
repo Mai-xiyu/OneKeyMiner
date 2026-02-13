@@ -42,13 +42,13 @@ public class OneKeyMinerForge {
         if (FMLEnvironment.dist == Dist.CLIENT) {
             FMLClientSetupEvent.getBus(modBusGroup).addListener(this::onClientSetup);
             // 按键映射通过 @Mod.EventBusSubscriber 注解自动注册
+            
+            // 注册配置界面（仅客户端）
+            ForgeConfigScreen.register(ModLoadingContext.get());
         }
         
         // 注册游戏事件处理器到 Forge 事件总线
         MinecraftForge.EVENT_BUS.register(new ForgeEventHandler());
-        
-        // 注册配置界面
-        ForgeConfigScreen.register(ModLoadingContext.get());
         
         OneKeyMiner.LOGGER.info("OneKeyMiner Forge 模块初始化完成");
     }
