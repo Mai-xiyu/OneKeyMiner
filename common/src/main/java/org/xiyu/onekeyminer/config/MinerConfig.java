@@ -130,6 +130,30 @@ public class MinerConfig {
      * <p>支持标签格式如 "#c:farmland"</p>
      */
     public List<String> farmlandWhitelist = new ArrayList<>();
+
+    /**
+     * 交互物品白名单
+     * <p>允许触发连锁物品使用的物品列表</p>
+     */
+    public List<String> interactiveItemWhitelist = new ArrayList<>();
+
+    /**
+     * 交互物品黑名单
+     */
+    public List<String> interactiveItemBlacklist = new ArrayList<>();
+
+    // ==================== 收割功能设置 ====================
+
+    /**
+     * 是否启用连锁收割功能
+     * <p>自动收割成熟作物</p>
+     */
+    public boolean enableHarvesting = true;
+
+    /**
+     * 收割后是否自动补种
+     */
+    public boolean harvestReplant = true;
     
     // ==================== 高级设置 ====================
     
@@ -280,6 +304,20 @@ public class MinerConfig {
         copy.requireExactMatch = this.requireExactMatch;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
+        copy.enableInteraction = this.enableInteraction;
+        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
+        copy.enablePlanting = this.enablePlanting;
+        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
+        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
+        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
+        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.enableHarvesting = this.enableHarvesting;
+        copy.harvestReplant = this.harvestReplant;
+        copy.hungerPerBlock = this.hungerPerBlock;
+        copy.maxBlocksCreative = this.maxBlocksCreative;
+        copy.strictBlockMatching = this.strictBlockMatching;
         copy.customWhitelist = new ArrayList<>(this.customWhitelist);
         copy.blacklist = new ArrayList<>(this.blacklist);
         copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);

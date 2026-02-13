@@ -107,6 +107,12 @@
   "message.onekeyminer.chain_action.mining": "Vein Mining: %d blocks",
   "message.onekeyminer.chain_action.interaction": "Chain Interaction: %d blocks",
   "message.onekeyminer.chain_action.planting": "Chain Planting: %d blocks",
+  "message.onekeyminer.chain_action.harvesting": "Chain Harvesting: %d blocks",
+  
+  "config.onekeyminer.option.enable_harvesting": "Enable Chain Harvesting",
+  "config.onekeyminer.option.enable_harvesting.tooltip": "Enable auto-harvesting mature crops",
+  "config.onekeyminer.option.harvest_replant": "Auto Replant",
+  "config.onekeyminer.option.harvest_replant.tooltip": "Automatically replant crops after harvesting",
   "message.onekeyminer.mode_enabled": "Vein Mining Enabled",
   "message.onekeyminer.mode_disabled": "Vein Mining Disabled",
   "message.onekeyminer.config_reloaded": "Config Reloaded"
