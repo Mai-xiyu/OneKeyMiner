@@ -657,12 +657,13 @@ public final class ChainActionLogic {
      * 交互类型枚举
      */
     private enum InteractionType {
-        SHEARING,     // 剪羊毛
-        TILLING,      // 耕地
-        STRIPPING,    // 剥皮
-        PATH_MAKING,  // 制作土径
-        BRUSHING,     // 刷除
-        GENERIC       // 通用右键交互
+        SHEARING,
+        TILLING,
+        STRIPPING,
+        PATH_MAKING,
+        BRUSHING,
+        ITEM_USE,
+        GENERIC
     }
     
     /**
@@ -681,6 +682,8 @@ public final class ChainActionLogic {
             return InteractionType.PATH_MAKING;
         } else if (item instanceof BrushItem) {
             return InteractionType.BRUSHING;
+        } else if (OneKeyMinerAPI.isInteractiveItemAllowed(stack)) {
+            return InteractionType.ITEM_USE;
         }
         
         return InteractionType.GENERIC;
@@ -734,11 +737,12 @@ public final class ChainActionLogic {
 
         InteractionType type = determineInteractionType(stack);
         return switch (type) {
-            case SHEARING -> false; // 剪羊毛为实体交互，不在方块交互中触发
+            case SHEARING -> false;
             case TILLING -> canTill(targetState);
             case STRIPPING -> canStrip(targetState);
             case PATH_MAKING -> canMakePath(targetState);
             case BRUSHING -> canBrush(targetState);
+            case ITEM_USE -> canItemUseOnBlock(stack, targetState);
             case GENERIC -> true;
         };
     }
@@ -872,6 +876,7 @@ public final class ChainActionLogic {
             case STRIPPING -> canStrip(state);
             case PATH_MAKING -> canMakePath(state);
             case BRUSHING -> canBrush(state);
+            case ITEM_USE -> canItemUseOnBlock(null, state);
             case GENERIC -> state.getBlock() == originState.getBlock();
             default -> false;
         };
@@ -906,6 +911,13 @@ public final class ChainActionLogic {
     private static boolean canBrush(BlockState state) {
         return TagResolver.matchesBlock(state.getBlock(), "#minecraft:brushable") ||
                TagResolver.matchesBlock(state.getBlock(), "#minecraft:suspicious_blocks");
+    }
+    
+    private static boolean canItemUseOnBlock(ItemStack stack, BlockState state) {
+        Block block = state.getBlock();
+        if (block instanceof BonemealableBlock) return true;
+        if (stack != null && OneKeyMinerAPI.checkCustomInteractionValidators(stack, state)) return true;
+        return false;
     }
     
     /**
@@ -1027,6 +1039,12 @@ public final class ChainActionLogic {
                     stopReason = StopReason.TOOL_DURABILITY_LOW;
                     break;
                 }
+            }
+            
+            // 消耗型物品数量检查（骨粉等非耐久物品）
+            if (!context.isCreativeMode() && !tool.isDamageableItem() && tool.isEmpty()) {
+                stopReason = StopReason.TOOL_BROKEN;
+                break;
             }
             
             // 权限检查
