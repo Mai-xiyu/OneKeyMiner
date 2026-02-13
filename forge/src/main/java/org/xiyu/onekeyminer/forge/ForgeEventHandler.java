@@ -176,6 +176,9 @@ public class ForgeEventHandler {
         if (actionType == ChainActionType.PLANTING && !config.enablePlanting) {
             return;
         }
+        if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
+            return;
+        }
         
         try {
             IS_CHAIN_INTERACTING.set(true);
@@ -341,6 +344,9 @@ public class ForgeEventHandler {
         var heldItem = player.getItemInHand(hand);
         
         if (heldItem.isEmpty()) {
+            if (ChainActionLogic.isMatureCrop(targetState)) {
+                return ChainActionType.HARVESTING;
+            }
             return null;
         }
         
