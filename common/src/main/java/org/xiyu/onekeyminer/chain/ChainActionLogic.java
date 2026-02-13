@@ -129,6 +129,7 @@ public final class ChainActionLogic {
                 case MINING -> executeMining(context);
                 case INTERACTION -> executeInteraction(context);
                 case PLANTING -> executePlanting(context);
+                case HARVESTING -> executeHarvesting(context);
             };
             
         } catch (Exception e) {
@@ -1523,5 +1524,180 @@ public final class ChainActionLogic {
             }
         }
         return false;
+    }
+    
+    // ==================== 连锁收割逻辑 ====================
+    
+    public static boolean isMatureCrop(BlockState state) {
+        Block block = state.getBlock();
+        if (block instanceof CropBlock crop) return crop.isMaxAge(state);
+        if (block instanceof NetherWartBlock) return state.getValue(NetherWartBlock.AGE) >= 3;
+        if (block instanceof CocoaBlock) return state.getValue(CocoaBlock.AGE) >= 2;
+        if (block instanceof SweetBerryBushBlock) return state.getValue(SweetBerryBushBlock.AGE) >= 2;
+        return false;
+    }
+    
+    private static ChainActionResult executeHarvesting(ChainActionContext context) {
+        MinerConfig config = ConfigManager.getConfig();
+        if (!config.enabled || !config.enableHarvesting) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+        if (!checkActivationConditions(context, config)) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+        if (!isMatureCrop(context.getOriginState())) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+        
+        List<BlockPos> targets = collectHarvestTargets(context, config);
+        if (targets.isEmpty()) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+        
+        PreActionEvent preEvent = new PreActionEvent(context.getPlayer(), context.getLevel(),
+                context.getOriginPos(), targets, context.getHeldItem(), ChainActionType.HARVESTING);
+        ChainEvents.firePreActionEvent(preEvent);
+        if (preEvent.isCancelled()) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+        
+        return performHarvesting(context, preEvent.getTargetPositions(), config);
+    }
+    
+    private static List<BlockPos> collectHarvestTargets(ChainActionContext context, MinerConfig config) {
+        List<BlockPos> result = new ArrayList<>();
+        Set<BlockPos> visited = new HashSet<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+        
+        BlockPos originPos = context.getOriginPos();
+        Level level = context.getLevel();
+        Block targetBlock = context.getOriginState().getBlock();
+        
+        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
+        int maxDistance = config.maxDistance;
+        boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
+        BlockPos[] offsets = allowDiagonal ? DIAGONAL_OFFSETS : ORTHOGONAL_OFFSETS;
+        
+        queue.add(originPos);
+        visited.add(originPos);
+        
+        long startTime = System.currentTimeMillis();
+        int iterations = 0;
+        
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+            if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) break;
+            iterations++;
+            BlockPos current = queue.poll();
+            if (current.distManhattan(originPos) > maxDistance) continue;
+            
+            BlockState currentState = level.getBlockState(current);
+            if (currentState.getBlock() == targetBlock && isMatureCrop(currentState)) {
+                result.add(current);
+            }
+            
+            for (BlockPos offset : offsets) {
+                BlockPos neighbor = current.offset(offset);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    queue.add(neighbor);
+                }
+            }
+        }
+        return result;
+    }
+    
+    private static ChainActionResult performHarvesting(ChainActionContext context, List<BlockPos> targets, MinerConfig config) {
+        ServerPlayer player = context.getPlayer();
+        Level level = context.getLevel();
+        List<BlockPos> harvestedPositions = new ArrayList<>();
+        float totalExp = 0f;
+        StopReason stopReason = StopReason.COMPLETED;
+        
+        for (BlockPos pos : targets) {
+            BlockState cropState = level.getBlockState(pos);
+            
+            if (!context.isSkipPermissionCheck()) {
+                if (!PlatformServices.getInstance().canPlayerInteract(player, level, pos, cropState)) continue;
+            }
+            if (config.consumeHunger && !context.isCreativeMode()) {
+                if (player.getFoodData().getFoodLevel() < config.minHungerLevel) {
+                    stopReason = StopReason.HUNGER_LOW;
+                    break;
+                }
+            }
+            
+            BlockState originalState = cropState;
+            List<ItemStack> drops = Block.getDrops(cropState, (ServerLevel) level, pos, null, player, ItemStack.EMPTY);
+            level.destroyBlock(pos, false, player);
+            harvestedPositions.add(pos);
+            
+            if (config.teleportDrops && !context.isCreativeMode()) {
+                for (ItemStack drop : drops) {
+                    if (!player.getInventory().add(drop)) {
+                        Block.popResource(level, player.blockPosition(), drop);
+                    }
+                }
+            } else if (!context.isCreativeMode()) {
+                for (ItemStack drop : drops) {
+                    Block.popResource(level, pos, drop);
+                }
+            }
+            
+            if (config.harvestReplant) {
+                tryReplant(level, pos, originalState, player, drops);
+            }
+            
+            if (config.consumeHunger && !context.isCreativeMode()) {
+                player.getFoodData().addExhaustion(config.hungerPerBlock);
+            }
+        }
+        
+        ChainActionResult result = ChainActionResult.success(ChainActionType.HARVESTING,
+                harvestedPositions, 0, totalExp, stopReason);
+        PostActionEvent postEvent = new PostActionEvent(player, level, context.getOriginPos(), result);
+        ChainEvents.firePostActionEvent(postEvent);
+        return result;
+    }
+    
+    private static void tryReplant(Level level, BlockPos pos, BlockState originalState, ServerPlayer player, List<ItemStack> drops) {
+        Block block = originalState.getBlock();
+        if (block instanceof CropBlock crop) {
+            ItemStack seedStack = findSeedForCrop(crop, drops, player);
+            if (!seedStack.isEmpty()) {
+                level.setBlock(pos, crop.getStateForAge(0), Block.UPDATE_ALL);
+                seedStack.shrink(1);
+            }
+        } else if (block instanceof NetherWartBlock) {
+            ItemStack wartStack = findItemInDropsOrInventory(Items.NETHER_WART, drops, player);
+            if (!wartStack.isEmpty()) {
+                level.setBlock(pos, Blocks.NETHER_WART.defaultBlockState(), Block.UPDATE_ALL);
+                wartStack.shrink(1);
+            }
+        } else if (block instanceof SweetBerryBushBlock) {
+            level.setBlock(pos, block.defaultBlockState().setValue(SweetBerryBushBlock.AGE, 1), Block.UPDATE_ALL);
+        }
+    }
+    
+    private static ItemStack findSeedForCrop(CropBlock crop, List<ItemStack> drops, ServerPlayer player) {
+        Item seedItem = crop.getCloneItemStack(null, null, null).getItem();
+        for (ItemStack drop : drops) {
+            if (drop.getItem() == seedItem && !drop.isEmpty()) return drop;
+        }
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack invStack = player.getInventory().getItem(i);
+            if (invStack.getItem() == seedItem && !invStack.isEmpty()) return invStack;
+        }
+        return ItemStack.EMPTY;
+    }
+    
+    private static ItemStack findItemInDropsOrInventory(Item item, List<ItemStack> drops, ServerPlayer player) {
+        for (ItemStack drop : drops) {
+            if (drop.getItem() == item && !drop.isEmpty()) return drop;
+        }
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack invStack = player.getInventory().getItem(i);
+            if (invStack.getItem() == item && !invStack.isEmpty()) return invStack;
+        }
+        return ItemStack.EMPTY;
     }
 }

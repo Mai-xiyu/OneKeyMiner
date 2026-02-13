@@ -220,6 +220,9 @@ public class FabricEventHandler {
         if (actionType == ChainActionType.PLANTING && !config.enablePlanting) {
             return InteractionResult.PASS;
         }
+        if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
+            return InteractionResult.PASS;
+        }
         
         try {
             IS_CHAIN_INTERACTING.set(true);
@@ -378,6 +381,9 @@ public class FabricEventHandler {
         var heldItem = player.getItemInHand(hand);
         
         if (heldItem.isEmpty()) {
+            if (ChainActionLogic.isMatureCrop(targetState)) {
+                return ChainActionType.HARVESTING;
+            }
             return null;
         }
         
