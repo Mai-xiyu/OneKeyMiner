@@ -75,5 +75,11 @@
   "message.onekeyminer.chain_action.planting": "连锁种植: %d 个方块",
   "message.onekeyminer.mode_enabled": "连锁挖矿已启用",
   "message.onekeyminer.mode_disabled": "连锁挖矿已禁用",
-  "message.onekeyminer.config_reloaded": "配置已重新加载"
+  "message.onekeyminer.config_reloaded": "配置已重新加载",
+
+  "config.onekeyminer.option.enable_harvesting": "启用连锁收割",
+  "config.onekeyminer.option.enable_harvesting.tooltip": "空手对准成熟作物时启用连锁收割功能",
+  "config.onekeyminer.option.harvest_replant": "收割后自动补种",
+  "config.onekeyminer.option.harvest_replant.tooltip": "连锁收割后自动补种作物",
+  "message.onekeyminer.chain_action.harvesting": "连锁收割: %d 个方块"
 }
