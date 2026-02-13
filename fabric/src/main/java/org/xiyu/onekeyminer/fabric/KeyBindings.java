@@ -12,6 +12,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
+import net.minecraft.client.Minecraft;
 import org.xiyu.onekeyminer.OneKeyMiner;
 
 /**
@@ -87,8 +88,9 @@ public class KeyBindings {
             
             // 检查配置界面按键
             while (OPEN_CONFIG.consumeClick()) {
-                // 打开配置界面
-                OneKeyMiner.LOGGER.debug("配置界面按键被按下");
+                // 打开 Fabric 原生配置界面
+                Minecraft mc = Minecraft.getInstance();
+                mc.setScreen(new FabricConfigScreen(mc.screen));
             }
         });
     }
