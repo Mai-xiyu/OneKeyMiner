@@ -226,6 +226,32 @@ public final class ChainActionContext {
     }
     
     /**
+     * 快速创建收割操作上下文
+     * 
+     * @param player 玩家
+     * @param level 世界
+     * @param pos 位置
+     * @param hand 交互手
+     * @return 上下文实例
+     */
+    public static ChainActionContext forHarvesting(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            InteractionHand hand
+    ) {
+        return builder()
+                .player(player)
+                .level(level)
+                .originPos(pos)
+                .originState(level.getBlockState(pos))
+                .actionType(ChainActionType.HARVESTING)
+                .heldItem(player.getItemInHand(hand))
+                .hand(hand)
+                .build();
+    }
+    
+    /**
      * Context Builder
      */
     public static final class Builder {
