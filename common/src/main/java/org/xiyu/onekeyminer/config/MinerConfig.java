@@ -131,6 +131,33 @@ public class MinerConfig {
      */
     public List<String> farmlandWhitelist = new ArrayList<>();
     
+    // ==================== 交互物品设置 ====================
+    
+    /**
+     * 交互物品白名单
+     * <p>右键使用物品连锁交互，支持标签格式如 "#c:food"</p>
+     */
+    public List<String> interactiveItemWhitelist = new ArrayList<>();
+    
+    /**
+     * 交互物品黑名单
+     */
+    public List<String> interactiveItemBlacklist = new ArrayList<>();
+    
+    // ==================== 收割功能设置 ====================
+    
+    /**
+     * 是否启用连锁收割功能
+     * <p>空手右键成熟作物触发连锁收割</p>
+     */
+    public boolean enableHarvesting = true;
+    
+    /**
+     * 收割后是否自动补种
+     * <p>会从掉落物或背包中消耗种子</p>
+     */
+    public boolean harvestReplant = true;
+    
     // ==================== 高级设置 ====================
     
     /**
@@ -284,6 +311,20 @@ public class MinerConfig {
         copy.blacklist = new ArrayList<>(this.blacklist);
         copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);
         copy.toolBlacklist = new ArrayList<>(this.toolBlacklist);
+        copy.enableInteraction = this.enableInteraction;
+        copy.enablePlanting = this.enablePlanting;
+        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
+        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
+        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
+        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
+        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.enableHarvesting = this.enableHarvesting;
+        copy.harvestReplant = this.harvestReplant;
+        copy.hungerPerBlock = this.hungerPerBlock;
+        copy.maxBlocksCreative = this.maxBlocksCreative;
+        copy.strictBlockMatching = this.strictBlockMatching;
         return copy;
     }
 }

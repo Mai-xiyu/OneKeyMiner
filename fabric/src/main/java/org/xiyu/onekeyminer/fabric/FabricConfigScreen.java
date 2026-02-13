@@ -175,6 +175,12 @@ public class FabricConfigScreen extends Screen {
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting", 
             () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
         
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting", 
+            () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
+        
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant", 
+            () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
+        
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops", 
             () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
         

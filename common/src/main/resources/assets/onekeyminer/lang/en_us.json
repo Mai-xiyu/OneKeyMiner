@@ -49,6 +49,10 @@
   "config.onekeyminer.option.enable_interaction.tooltip": "Enable right-click chain features (shearing, tilling, etc.)",
   "config.onekeyminer.option.enable_planting": "Enable Chain Planting",
   "config.onekeyminer.option.enable_planting.tooltip": "Enable chain planting for crops",
+  "config.onekeyminer.option.enable_harvesting": "Enable Chain Harvesting",
+  "config.onekeyminer.option.enable_harvesting.tooltip": "Enable chain harvesting of mature crops",
+  "config.onekeyminer.option.harvest_replant": "Auto Replant",
+  "config.onekeyminer.option.harvest_replant.tooltip": "Automatically replant crops after harvesting",
   "config.onekeyminer.option.teleport_drops": "Teleport Drops",
   "config.onekeyminer.option.teleport_drops.tooltip": "Send chain-mined drops directly to player inventory",
   "config.onekeyminer.option.teleport_exp": "Teleport Experience",
@@ -66,6 +70,7 @@
   "message.onekeyminer.chain_action.mining": "Chain Mining: %d blocks",
   "message.onekeyminer.chain_action.interaction": "Chain Interaction: %d blocks",
   "message.onekeyminer.chain_action.planting": "Chain Planting: %d blocks",
+  "message.onekeyminer.chain_action.harvesting": "Chain Harvesting: %d blocks",
   "message.onekeyminer.mode_enabled": "Chain Mining Enabled",
   "message.onekeyminer.mode_disabled": "Chain Mining Disabled",
   "message.onekeyminer.config_reloaded": "Config Reloaded Successfully"
