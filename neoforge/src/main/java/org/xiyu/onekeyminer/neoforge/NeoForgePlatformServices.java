@@ -204,5 +204,6 @@ public class NeoForgePlatformServices implements PlatformServices {
      */
     public static void cleanupPlayer(UUID playerUuid) {
         CHAIN_MODE_STATES.remove(playerUuid);
+        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(playerUuid, false);
     }
 }
