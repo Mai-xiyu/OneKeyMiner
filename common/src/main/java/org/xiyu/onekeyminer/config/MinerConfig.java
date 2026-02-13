@@ -131,7 +131,31 @@ public class MinerConfig {
      */
     public List<String> farmlandWhitelist = new ArrayList<>();
     
-    // ==================== 高级设置 ====================
+    // ==================== 交互物品设置 ====================
+    
+    /**
+     * 交互物品白名单
+     */
+    public List<String> interactiveItemWhitelist = new ArrayList<>();
+    
+    /**
+     * 交互物品黑名单
+     */
+    public List<String> interactiveItemBlacklist = new ArrayList<>();
+    
+    // ==================== 收割功能设置 ====================
+    
+    /**
+     * 是否启用连锁收割功能
+     */
+    public boolean enableHarvesting = true;
+    
+    /**
+     * 收割后是否自动补种
+     */
+    public boolean harvestReplant = true;
+    
+    // ==================== 高级设置 ======================================
     
     /**
      * 每个方块消耗的饥饿值
@@ -284,6 +308,20 @@ public class MinerConfig {
         copy.blacklist = new ArrayList<>(this.blacklist);
         copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);
         copy.toolBlacklist = new ArrayList<>(this.toolBlacklist);
+        copy.enableInteraction = this.enableInteraction;
+        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
+        copy.enablePlanting = this.enablePlanting;
+        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
+        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
+        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
+        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.enableHarvesting = this.enableHarvesting;
+        copy.harvestReplant = this.harvestReplant;
+        copy.hungerPerBlock = this.hungerPerBlock;
+        copy.maxBlocksCreative = this.maxBlocksCreative;
+        copy.strictBlockMatching = this.strictBlockMatching;
         return copy;
     }
 }
