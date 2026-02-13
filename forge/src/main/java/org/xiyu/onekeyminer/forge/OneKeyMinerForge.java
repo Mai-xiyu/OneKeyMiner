@@ -48,8 +48,10 @@ public class OneKeyMinerForge {
         // 注册游戏事件处理器到 Forge 事件总线
         MinecraftForge.EVENT_BUS.register(new ForgeEventHandler());
         
-        // 注册配置界面
-        ForgeConfigScreen.register(ModLoadingContext.get());
+        // 注册配置界面（仅客户端）
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            ForgeConfigScreen.register(ModLoadingContext.get());
+        }
         
         OneKeyMiner.LOGGER.info("OneKeyMiner Forge 模块初始化完成");
     }

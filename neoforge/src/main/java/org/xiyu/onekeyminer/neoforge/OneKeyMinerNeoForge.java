@@ -46,8 +46,10 @@ public class OneKeyMinerNeoForge {
         // 注册游戏事件处理器到 NeoForge 事件总线
         NeoForge.EVENT_BUS.register(NeoForgeEventHandler.class);
         
-        // 注册配置界面
-        NeoForgeConfigScreen.register(modContainer);
+        // 注册配置界面（仅客户端）
+        if (FMLLoader.getDist() == Dist.CLIENT) {
+            NeoForgeConfigScreen.register(modContainer);
+        }
         
         OneKeyMiner.LOGGER.info("OneKeyMiner NeoForge 模块初始化完成");
     }
