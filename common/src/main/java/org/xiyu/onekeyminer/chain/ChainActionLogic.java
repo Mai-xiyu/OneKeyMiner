@@ -631,7 +631,7 @@ public final class ChainActionLogic {
     }
     
     /**
-     * 判断物品是否为交互工具
+     * 判断物品是否为交互工具（包括工具类和消耗型交互物品）
      * 
      * <p>使用通用类型检查，自动支持模组工具。</p>
      */
@@ -649,6 +649,7 @@ public final class ChainActionLogic {
                item instanceof ShovelItem ||     // 铲子类（土径）
                item instanceof ShearsItem ||     // 剪刀类（剪羊毛）
                item instanceof BrushItem ||      // 刷子类（刷除）
+             OneKeyMinerAPI.isInteractiveItemAllowed(stack) || // API 注册的交互物品（骨粉等）
              OneKeyMinerAPI.isInteractionToolAllowed(stack) || // API 注册的工具
              OneKeyMinerAPI.hasToolActionRule(stack, ChainActionType.INTERACTION); // 自定义动作规则
     }
@@ -662,6 +663,7 @@ public final class ChainActionLogic {
         STRIPPING,    // 剥皮
         PATH_MAKING,  // 制作土径
         BRUSHING,     // 刷除
+        ITEM_USE,     // 消耗型物品交互（骨粉、自定义交互物品等）
         GENERIC       // 通用右键交互
     }
     
@@ -681,6 +683,8 @@ public final class ChainActionLogic {
             return InteractionType.PATH_MAKING;
         } else if (item instanceof BrushItem) {
             return InteractionType.BRUSHING;
+        } else if (OneKeyMinerAPI.isInteractiveItemAllowed(stack)) {
+            return InteractionType.ITEM_USE;
         }
         
         return InteractionType.GENERIC;
@@ -739,6 +743,7 @@ public final class ChainActionLogic {
             case STRIPPING -> canStrip(targetState);
             case PATH_MAKING -> canMakePath(targetState);
             case BRUSHING -> canBrush(targetState);
+            case ITEM_USE -> canItemUseOnBlock(stack, targetState);
             case GENERIC -> true;
         };
     }
@@ -872,6 +877,7 @@ public final class ChainActionLogic {
             case STRIPPING -> canStrip(state);
             case PATH_MAKING -> canMakePath(state);
             case BRUSHING -> canBrush(state);
+            case ITEM_USE -> canItemUseOnBlock(null, state); // null stack，仅检查方块类型
             case GENERIC -> state.getBlock() == originState.getBlock();
             default -> false;
         };
@@ -906,6 +912,31 @@ public final class ChainActionLogic {
     private static boolean canBrush(BlockState state) {
         return TagResolver.matchesBlock(state.getBlock(), "#minecraft:brushable") ||
                TagResolver.matchesBlock(state.getBlock(), "#minecraft:suspicious_blocks");
+    }
+    
+    /**
+     * 检查消耗型物品是否可以对方块使用
+     * 
+     * <p>支持骨粉（可催熟方块）、自定义验证器等</p>
+     * 
+     * @param stack 物品栈（为 null 时仅检查方块是否为可催熟类型）
+     * @param state 目标方块状态
+     * @return 是否可以交互
+     */
+    private static boolean canItemUseOnBlock(ItemStack stack, BlockState state) {
+        Block block = state.getBlock();
+        
+        // 骨粉类：检查方块是否实现 BonemealableBlock（可催熟）
+        if (block instanceof BonemealableBlock) {
+            return true;
+        }
+        
+        // 自定义验证器
+        if (stack != null && OneKeyMinerAPI.checkCustomInteractionValidators(stack, state)) {
+            return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -1027,6 +1058,12 @@ public final class ChainActionLogic {
                     stopReason = StopReason.TOOL_DURABILITY_LOW;
                     break;
                 }
+            }
+            
+            // 消耗型物品数量检查（骨粉等非耐久物品）
+            if (!context.isCreativeMode() && !tool.isDamageableItem() && tool.isEmpty()) {
+                stopReason = StopReason.TOOL_BROKEN;
+                break;
             }
             
             // 权限检查

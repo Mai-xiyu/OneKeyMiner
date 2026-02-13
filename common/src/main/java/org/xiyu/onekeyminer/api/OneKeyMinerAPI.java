@@ -140,6 +140,16 @@ public final class OneKeyMinerAPI {
         for (String entry : config.seedBlacklist) {
             blacklistSeed(entry);
         }
+
+        // 加载交互物品白名单
+        for (String entry : config.interactiveItemWhitelist) {
+            registerInteractiveItem(entry);
+        }
+
+        // 加载交互物品黑名单
+        for (String entry : config.interactiveItemBlacklist) {
+            blacklistInteractiveItem(entry);
+        }
     }
     
     // ==================== 方块白名单 API ====================
@@ -361,6 +371,15 @@ public final class OneKeyMinerAPI {
     /** 交互工具黑名单 */
     private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
     
+    /** 通用交互物品白名单（骨粉、刷子等消耗型交互物品） */
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
+    
+    /** 通用交互物品黑名单 */
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
+    
+    /** 自定义交互验证器 */
+    private static final List<java.util.function.BiPredicate<ItemStack, BlockState>> INTERACTION_VALIDATORS = new ArrayList<>();
+    
     /**
      * 注册交互工具到白名单
      * 
@@ -396,6 +415,92 @@ public final class OneKeyMinerAPI {
             return false;
         }
         return INTERACTION_TOOL_BLACKLIST.add(loc);
+    }
+
+    // ==================== 自定义交互物品 API ====================
+    
+    /**
+     * 注册交互物品到白名单
+     * 
+     * @param itemId 物品 ID（如 "minecraft:bone_meal"）
+     * @return 如果注册成功返回 true
+     */
+    public static boolean registerInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) {
+            OneKeyMiner.LOGGER.warn("无效的交互物品 ID: {}", itemId);
+            return false;
+        }
+        return INTERACTIVE_ITEM_WHITELIST.add(loc);
+    }
+    
+    /**
+     * 从交互物品白名单移除
+     * 
+     * @param itemId 物品 ID
+     * @return 如果移除成功返回 true
+     */
+    public static boolean unregisterInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) return false;
+        return INTERACTIVE_ITEM_WHITELIST.remove(loc);
+    }
+    
+    /**
+     * 将交互物品加入黑名单
+     * 
+     * @param itemId 物品 ID
+     * @return 如果添加成功返回 true
+     */
+    public static boolean blacklistInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) return false;
+        return INTERACTIVE_ITEM_BLACKLIST.add(loc);
+    }
+    
+    /**
+     * 检查物品是否为允许的交互物品（骨粉、刷子等消耗型）
+     * 
+     * @param stack 物品栈
+     * @return 如果允许返回 true
+     */
+    public static boolean isInteractiveItemAllowed(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (INTERACTIVE_ITEM_BLACKLIST.contains(loc)) return false;
+        return INTERACTIVE_ITEM_WHITELIST.contains(loc);
+    }
+    
+    /**
+     * 注册自定义交互验证器
+     * <p>允许 addon 模组注册自定义的物品-方块交互验证逻辑</p>
+     * 
+     * @param validator 验证函数，接受 (ItemStack, BlockState) 返回是否可交互
+     */
+    public static void registerInteractionValidator(java.util.function.BiPredicate<ItemStack, BlockState> validator) {
+        if (validator != null) {
+            INTERACTION_VALIDATORS.add(validator);
+        }
+    }
+    
+    /**
+     * 使用自定义验证器检查物品是否能与方块交互
+     * 
+     * @param stack 物品栈
+     * @param state 方块状态
+     * @return 如果任一验证器返回 true 则返回 true
+     */
+    public static boolean checkCustomInteractionValidators(ItemStack stack, BlockState state) {
+        for (var validator : INTERACTION_VALIDATORS) {
+            try {
+                if (validator.test(stack, state)) {
+                    return true;
+                }
+            } catch (Exception e) {
+                OneKeyMiner.LOGGER.error("自定义交互验证器异常: {}", e.getMessage());
+            }
+        }
+        return false;
     }
 
     // ==================== 自定义工具动作规则 ====================
@@ -858,6 +963,9 @@ public final class OneKeyMinerAPI {
         TOOL_WHITELIST.clear();
         TOOL_BLACKLIST.clear();
         BLOCK_GROUPS.clear();
+        INTERACTIVE_ITEM_WHITELIST.clear();
+        INTERACTIVE_ITEM_BLACKLIST.clear();
+        INTERACTION_VALIDATORS.clear();
     }
     
     /**
