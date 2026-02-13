@@ -54,7 +54,22 @@ public enum ChainActionType {
      *   <li>模组自定义种子/作物</li>
      * </ul>
      */
-    PLANTING("planting", "连锁种植");
+    PLANTING("planting", "连锁种植"),
+    
+    /**
+     * 连锁收割操作
+     * 
+     * <p>适用于批量收获成熟作物并自动补种，如：</p>
+     * <ul>
+     *   <li>成熟小麦收割（自动补种种子）</li>
+     *   <li>成熟胡萝卜/土豆收获</li>
+     *   <li>成熟甜菜根收获</li>
+     *   <li>成熟地狱疣收获</li>
+     *   <li>甜浆果丛收获</li>
+     *   <li>可可豆收获</li>
+     * </ul>
+     */
+    HARVESTING("harvesting", "连锁收割");
     
     /** 操作类型的内部标识符 */
     private final String id;
