@@ -3,6 +3,7 @@ package org.xiyu.onekeyminer.fabric;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.minecraft.client.Minecraft;
 import org.xiyu.onekeyminer.OneKeyMiner;
 
 /**
@@ -22,9 +23,22 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
         // 注册按键绑定（这会注册 ClientTickEvents）
         KeyBindings.register();
         
-        // 注册配置界面（如果 Mod Menu 存在）
-        // 配置界面通过 fabric.mod.json 的 entrypoints 注册
+        // 注册配置界面按键处理（原生实现，不依赖 ModMenu/Cloth Config）
+        registerConfigKeyHandler();
         
         OneKeyMiner.LOGGER.info("OneKeyMiner Fabric 客户端模块初始化完成");
+    }
+    
+    /**
+     * 注册配置界面快捷键处理器
+     */
+    private void registerConfigKeyHandler() {
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (KeyBindings.OPEN_CONFIG.consumeClick()) {
+                if (client.screen == null) {
+                    client.setScreen(new FabricConfigScreen(null));
+                }
+            }
+        });
     }
 }
