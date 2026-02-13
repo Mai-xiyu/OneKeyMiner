@@ -129,6 +129,7 @@ public final class ChainActionLogic {
                 case MINING -> executeMining(context);
                 case INTERACTION -> executeInteraction(context);
                 case PLANTING -> executePlanting(context);
+                case HARVESTING -> executeHarvesting(context);
             };
             
         } catch (Exception e) {
@@ -1490,6 +1491,272 @@ public final class ChainActionLogic {
         return result;
     }
     
+    // ==================== 连锁收割逻辑 ====================
+
+    /**
+     * 检查方块状态是否为成熟作物
+     */
+    public static boolean isMatureCrop(BlockState state) {
+        Block block = state.getBlock();
+        if (block instanceof CropBlock crop) {
+            return crop.isMaxAge(state);
+        }
+        if (block instanceof NetherWartBlock) {
+            return state.getValue(NetherWartBlock.AGE) >= 3;
+        }
+        if (block instanceof CocoaBlock) {
+            return state.getValue(CocoaBlock.AGE) >= 2;
+        }
+        if (block instanceof SweetBerryBushBlock) {
+            return state.getValue(SweetBerryBushBlock.AGE) >= 2;
+        }
+        return false;
+    }
+
+    /**
+     * 执行连锁收割
+     */
+    private static ChainActionResult executeHarvesting(ChainActionContext context) {
+        MinerConfig config = ConfigManager.getConfig();
+
+        if (!config.enabled || !config.enableHarvesting) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+
+        if (!checkActivationConditions(context, config)) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+
+        List<BlockPos> targets = collectHarvestTargets(context, config);
+
+        if (targets.isEmpty()) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+
+        PreActionEvent preEvent = new PreActionEvent(
+                context.getPlayer(),
+                context.getLevel(),
+                context.getOriginPos(),
+                targets,
+                ItemStack.EMPTY,
+                ChainActionType.HARVESTING
+        );
+        ChainEvents.firePreActionEvent(preEvent);
+
+        if (preEvent.isCancelled()) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
+        }
+
+        return performHarvesting(context, preEvent.getTargetPositions(), config);
+    }
+
+    /**
+     * BFS 收集成熟作物位置
+     */
+    private static List<BlockPos> collectHarvestTargets(ChainActionContext context, MinerConfig config) {
+        List<BlockPos> result = new ArrayList<>();
+        Set<BlockPos> visited = new HashSet<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+
+        BlockPos originPos = context.getOriginPos();
+        Level level = context.getLevel();
+
+        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
+        int maxDistance = config.maxDistance;
+
+        queue.add(originPos);
+        visited.add(originPos);
+
+        long startTime = System.currentTimeMillis();
+        int iterations = 0;
+
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+            if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
+                break;
+            }
+            iterations++;
+            BlockPos current = queue.poll();
+
+            if (current.distManhattan(originPos) > maxDistance) {
+                continue;
+            }
+
+            BlockState currentState = level.getBlockState(current);
+            if (isMatureCrop(currentState)) {
+                result.add(current);
+            }
+
+            // 水平方向搜索
+            for (Direction dir : Direction.Plane.HORIZONTAL) {
+                BlockPos neighbor = current.relative(dir);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 执行收割操作
+     */
+    private static ChainActionResult performHarvesting(
+            ChainActionContext context,
+            List<BlockPos> targets,
+            MinerConfig config
+    ) {
+        ServerPlayer player = context.getPlayer();
+        Level level = context.getLevel();
+        float hungerPerBlock = config.hungerPerBlock * Math.max(0f, config.hungerMultiplier);
+
+        List<BlockPos> harvestedPositions = new ArrayList<>();
+        float hungerUsed = 0f;
+        StopReason stopReason = StopReason.COMPLETED;
+
+        for (BlockPos pos : targets) {
+            if (config.consumeHunger && !context.isCreativeMode()) {
+                if (player.getFoodData().getFoodLevel() <= config.minHungerLevel) {
+                    stopReason = StopReason.HUNGER_LOW;
+                    break;
+                }
+            }
+
+            if (!context.isSkipPermissionCheck()) {
+                if (!PlatformServices.getInstance().canPlayerBreakBlock(player, level, pos, level.getBlockState(pos))) {
+                    continue;
+                }
+            }
+
+            BlockState state = level.getBlockState(pos);
+            if (!isMatureCrop(state)) {
+                continue;
+            }
+
+            // 收集掉落物
+            Block block = state.getBlock();
+            if (level instanceof ServerLevel serverLevel) {
+                List<ItemStack> drops = Block.getDrops(state, serverLevel, pos, null, player, ItemStack.EMPTY);
+
+                // 尝试补种
+                if (config.harvestReplant) {
+                    tryReplant(level, pos, state, drops, player);
+                }
+
+                // 给予掉落物
+                for (ItemStack drop : drops) {
+                    if (!drop.isEmpty()) {
+                        if (!player.getInventory().add(drop)) {
+                            Block.popResource(level, pos, drop);
+                        }
+                    }
+                }
+            }
+
+            // 移除方块
+            level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+
+            harvestedPositions.add(pos);
+
+            if (!context.isCreativeMode() && config.consumeHunger && hungerPerBlock > 0f) {
+                hungerUsed += hungerPerBlock;
+                player.getFoodData().addExhaustion(hungerPerBlock);
+            }
+        }
+
+        ChainActionResult result = ChainActionResult.success(
+                ChainActionType.HARVESTING,
+                harvestedPositions,
+                0,
+                hungerUsed,
+                stopReason
+        );
+
+        PostActionEvent postEvent = new PostActionEvent(
+                player,
+                level,
+                context.getOriginPos(),
+                result
+        );
+        ChainEvents.firePostActionEvent(postEvent);
+
+        return result;
+    }
+
+    /**
+     * 尝试补种作物
+     */
+    private static void tryReplant(Level level, BlockPos pos, BlockState harvestedState, List<ItemStack> drops, ServerPlayer player) {
+        Block block = harvestedState.getBlock();
+
+        if (block instanceof CropBlock crop) {
+            Item seedItem = findSeedForCrop(crop, level, pos, harvestedState);
+            if (seedItem != null) {
+                ItemStack seedStack = findItemInDropsOrInventory(drops, player, seedItem);
+                if (seedStack != null) {
+                    seedStack.shrink(1);
+                    level.setBlock(pos, crop.defaultBlockState(), 3);
+                    return;
+                }
+            }
+        } else if (block instanceof NetherWartBlock) {
+            ItemStack wartStack = findItemInDropsOrInventory(drops, player, Items.NETHER_WART);
+            if (wartStack != null) {
+                wartStack.shrink(1);
+                level.setBlock(pos, Blocks.NETHER_WART.defaultBlockState(), 3);
+                return;
+            }
+        } else if (block instanceof SweetBerryBushBlock) {
+            level.setBlock(pos, block.defaultBlockState().setValue(SweetBerryBushBlock.AGE, 1), 3);
+            return;
+        }
+    }
+
+    /**
+     * 根据作物方块找到对应种子物品
+     */
+    private static Item findSeedForCrop(CropBlock crop, Level level, BlockPos pos, BlockState state) {
+        try {
+            // 尝试通过默认状态的掉落物获取种子
+            if (level instanceof ServerLevel serverLevel) {
+                List<ItemStack> defaultDrops = Block.getDrops(crop.defaultBlockState(), serverLevel, pos, null);
+                for (ItemStack drop : defaultDrops) {
+                    if (drop.getItem() instanceof BlockItem blockItem && blockItem.getBlock() == crop) {
+                        return drop.getItem();
+                    }
+                }
+                // 回退：检查掉落物中是否有可用作种子的物品
+                for (ItemStack drop : defaultDrops) {
+                    if (!drop.isEmpty()) return drop.getItem();
+                }
+            }
+            // 最终回退：使用 Block.asItem()
+            Item blockItem = crop.asItem();
+            return blockItem != Items.AIR ? blockItem : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从掉落物或玩家背包中查找物品
+     */
+    private static ItemStack findItemInDropsOrInventory(List<ItemStack> drops, ServerPlayer player, Item item) {
+        for (ItemStack stack : drops) {
+            if (stack.getItem() == item && stack.getCount() > 0) {
+                return stack;
+            }
+        }
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.getItem() == item && stack.getCount() > 0) {
+                return stack;
+            }
+        }
+        return null;
+    }
+
     // ==================== 工具方法 ====================
     
     /**
