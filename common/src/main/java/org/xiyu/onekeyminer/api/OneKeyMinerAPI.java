@@ -140,6 +140,16 @@ public final class OneKeyMinerAPI {
         for (String entry : config.seedBlacklist) {
             blacklistSeed(entry);
         }
+
+        // 加载交互物品白名单
+        for (String entry : config.interactiveItemWhitelist) {
+            registerInteractiveItem(entry);
+        }
+
+        // 加载交互物品黑名单
+        for (String entry : config.interactiveItemBlacklist) {
+            blacklistInteractiveItem(entry);
+        }
     }
     
     // ==================== 方块白名单 API ====================
@@ -361,6 +371,15 @@ public final class OneKeyMinerAPI {
     /** 交互工具黑名单 */
     private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
     
+    /** 交互物品白名单（消耗型，如骨粉等） */
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
+    
+    /** 交互物品黑名单 */
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
+    
+    /** 自定义交互验证器 */
+    private static final List<java.util.function.BiPredicate<ItemStack, BlockState>> INTERACTION_VALIDATORS = new ArrayList<>();
+    
     /**
      * 注册交互工具到白名单
      * 
@@ -398,7 +417,46 @@ public final class OneKeyMinerAPI {
         return INTERACTION_TOOL_BLACKLIST.add(loc);
     }
 
-    // ==================== 自定义工具动作规则 ====================
+    // ==================== 自定义交互物品 API ====================
+    
+    public static boolean registerInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) { OneKeyMiner.LOGGER.warn("无效的交互物品 ID: {}", itemId); return false; }
+        return INTERACTIVE_ITEM_WHITELIST.add(loc);
+    }
+    
+    public static boolean unregisterInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) return false;
+        return INTERACTIVE_ITEM_WHITELIST.remove(loc);
+    }
+    
+    public static boolean blacklistInteractiveItem(String itemId) {
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
+        if (loc == null) return false;
+        return INTERACTIVE_ITEM_BLACKLIST.add(loc);
+    }
+    
+    public static boolean isInteractiveItemAllowed(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (INTERACTIVE_ITEM_BLACKLIST.contains(loc)) return false;
+        return INTERACTIVE_ITEM_WHITELIST.contains(loc);
+    }
+    
+    public static void registerInteractionValidator(java.util.function.BiPredicate<ItemStack, BlockState> validator) {
+        if (validator != null) INTERACTION_VALIDATORS.add(validator);
+    }
+    
+    public static boolean checkCustomInteractionValidators(ItemStack stack, BlockState state) {
+        for (var validator : INTERACTION_VALIDATORS) {
+            try { if (validator.test(stack, state)) return true; }
+            catch (Exception e) { OneKeyMiner.LOGGER.error("自定义交互验证器异常: {}", e.getMessage()); }
+        }
+        return false;
+    }
+
+    // ==================== 自定义工具动作规则 ======================================
 
     /** 自定义工具动作规则 */
     private static final List<ToolActionRule> TOOL_ACTION_RULES = new ArrayList<>();
@@ -858,6 +916,9 @@ public final class OneKeyMinerAPI {
         TOOL_WHITELIST.clear();
         TOOL_BLACKLIST.clear();
         BLOCK_GROUPS.clear();
+        INTERACTIVE_ITEM_WHITELIST.clear();
+        INTERACTIVE_ITEM_BLACKLIST.clear();
+        INTERACTION_VALIDATORS.clear();
     }
     
     /**

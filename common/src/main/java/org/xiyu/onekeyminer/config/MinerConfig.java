@@ -106,13 +106,37 @@ public class MinerConfig {
      */
     public List<String> interactionToolBlacklist = new ArrayList<>();
     
-    // ==================== 种植功能设置 ====================
+    /**
+     * 交互物品白名单（消耗型交互物品，如骨粉、刷子等）
+     */
+    public List<String> interactiveItemWhitelist = new ArrayList<>(java.util.Arrays.asList(
+            "minecraft:bone_meal",
+            "minecraft:brush"
+    ));
+    
+    /**
+     * 交互物品黑名单
+     */
+    public List<String> interactiveItemBlacklist = new ArrayList<>();
+    
+    // ==================== 种植功能设置 ======================================
     
     /**
      * 是否启用连锁种植功能
      * <p>批量种植作物、树苗等</p>
      */
     public boolean enablePlanting = true;
+    
+    /**
+     * 是否启用连锁收割功能
+     * <p>空手右键成熟作物触发连锁收割</p>
+     */
+    public boolean enableHarvesting = true;
+    
+    /**
+     * 收割后是否自动补种
+     */
+    public boolean harvestReplant = true;
     
     /**
      * 种子/树苗白名单
@@ -284,6 +308,17 @@ public class MinerConfig {
         copy.blacklist = new ArrayList<>(this.blacklist);
         copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);
         copy.toolBlacklist = new ArrayList<>(this.toolBlacklist);
+        copy.enableInteraction = this.enableInteraction;
+        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
+        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.enablePlanting = this.enablePlanting;
+        copy.enableHarvesting = this.enableHarvesting;
+        copy.harvestReplant = this.harvestReplant;
+        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
+        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
+        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
         return copy;
     }
 }
