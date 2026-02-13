@@ -30,6 +30,10 @@ public class NeoForgeKeyBindings {
     private static boolean wasKeyDown = false;
     
     public static void register() {
+        // 防止重复创建 KeyMapping 对象（RegisterKeyMappingsEvent 和 FMLClientSetupEvent 都会调用）
+        // 重复创建会导致游戏内重绑定按键无效：游戏 UI 控制旧对象，tick 检测读取新对象
+        if (CHAIN_MINING_KEY != null) return;
+        
         // 创建按键映射
         CHAIN_MINING_KEY = new KeyMapping("key.onekeyminer.hold", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_GRAVE_ACCENT, KeyMapping.Category.GAMEPLAY);
         OPEN_CONFIG = new KeyMapping("key.onekeyminer.config", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, KeyMapping.Category.GAMEPLAY);
