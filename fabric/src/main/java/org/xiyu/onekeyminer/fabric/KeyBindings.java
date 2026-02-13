@@ -88,7 +88,7 @@ public class KeyBindings {
             // 检查配置界面按键
             while (OPEN_CONFIG.consumeClick()) {
                 // 打开配置界面
-                OneKeyMiner.LOGGER.debug("配置界面按键被按下");
+                client.setScreen(new FabricConfigScreen(client.screen));
             }
         });
     }
