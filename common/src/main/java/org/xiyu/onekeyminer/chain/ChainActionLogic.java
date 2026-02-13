@@ -662,6 +662,7 @@ public final class ChainActionLogic {
         STRIPPING,    // 剥皮
         PATH_MAKING,  // 制作土径
         BRUSHING,     // 刷除
+        ITEM_USE,     // 物品使用交互
         GENERIC       // 通用右键交互
     }
     
@@ -681,6 +682,8 @@ public final class ChainActionLogic {
             return InteractionType.PATH_MAKING;
         } else if (item instanceof BrushItem) {
             return InteractionType.BRUSHING;
+        } else if (OneKeyMinerAPI.isInteractiveItemAllowed(stack)) {
+            return InteractionType.ITEM_USE;
         }
         
         return InteractionType.GENERIC;
@@ -695,6 +698,7 @@ public final class ChainActionLogic {
                 case STRIPPING -> InteractionType.STRIPPING;
                 case PATH_MAKING -> InteractionType.PATH_MAKING;
                 case BRUSHING -> InteractionType.BRUSHING;
+                case ITEM_USE -> InteractionType.ITEM_USE;
                 case GENERIC -> InteractionType.GENERIC;
             };
         }
@@ -739,6 +743,7 @@ public final class ChainActionLogic {
             case STRIPPING -> canStrip(targetState);
             case PATH_MAKING -> canMakePath(targetState);
             case BRUSHING -> canBrush(targetState);
+            case ITEM_USE -> canItemUseOnBlock(null, targetState);
             case GENERIC -> true;
         };
     }
@@ -872,6 +877,7 @@ public final class ChainActionLogic {
             case STRIPPING -> canStrip(state);
             case PATH_MAKING -> canMakePath(state);
             case BRUSHING -> canBrush(state);
+            case ITEM_USE -> canItemUseOnBlock(null, state);
             case GENERIC -> state.getBlock() == originState.getBlock();
             default -> false;
         };
@@ -906,6 +912,17 @@ public final class ChainActionLogic {
     private static boolean canBrush(BlockState state) {
         return TagResolver.matchesBlock(state.getBlock(), "#minecraft:brushable") ||
                TagResolver.matchesBlock(state.getBlock(), "#minecraft:suspicious_blocks");
+    }
+    
+    /**
+     * 检查交互物品是否可以对目标方块使用
+     */
+    private static boolean canItemUseOnBlock(ItemStack stack, BlockState state) {
+        if (state.isAir()) return false;
+        if (stack != null) {
+            return OneKeyMinerAPI.validateInteraction(stack, state);
+        }
+        return true;
     }
     
     /**
