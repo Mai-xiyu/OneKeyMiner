@@ -200,5 +200,6 @@ public class FabricPlatformServices implements PlatformServices {
      */
     public static void cleanupPlayer(UUID playerId) {
         CHAIN_MODE_STATES.remove(playerId);
+        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(playerId, false);
     }
 }
