@@ -129,6 +129,7 @@ public final class ChainActionLogic {
                 case MINING -> executeMining(context);
                 case INTERACTION -> executeInteraction(context);
                 case PLANTING -> executePlanting(context);
+                case HARVESTING -> executeHarvesting(context);
             };
             
         } catch (Exception e) {
@@ -1485,6 +1486,298 @@ public final class ChainActionLogic {
         ChainEvents.firePostActionEvent(postEvent);
         
         return result;
+    }
+    
+    // ==================== 连锁收割逻辑 ====================
+    
+    /**
+     * 判断作物是否成熟
+     * <p>支持的作物类型：</p>
+     * <ul>
+     *   <li>CropBlock（小麦、胡萝卜、马铃薯等）- 使用 isMaxAge()</li>
+     *   <li>NetherWartBlock - AGE >= 3</li>
+     *   <li>CocoaBlock - AGE >= 2</li>
+     *   <li>SweetBerryBushBlock - AGE >= 2</li>
+     * </ul>
+     *
+     * @param state 方块状态
+     * @return 如果是成熟作物返回 true
+     */
+    public static boolean isMatureCrop(BlockState state) {
+        Block block = state.getBlock();
+        
+        if (block instanceof CropBlock crop) {
+            return crop.isMaxAge(state);
+        }
+        if (block instanceof NetherWartBlock) {
+            return state.getValue(NetherWartBlock.AGE) >= 3;
+        }
+        if (block instanceof CocoaBlock) {
+            return state.getValue(CocoaBlock.AGE) >= 2;
+        }
+        if (block instanceof SweetBerryBushBlock) {
+            return state.getValue(SweetBerryBushBlock.AGE) >= 2;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 执行连锁收割操作
+     * <p>收割成熟作物并自动补种</p>
+     */
+    private static ChainActionResult executeHarvesting(ChainActionContext context) {
+        MinerConfig config = ConfigManager.getConfig();
+        
+        if (!config.enableHarvesting) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+        
+        BlockState originState = context.getOriginState();
+        if (!isMatureCrop(originState)) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+        
+        // 检查激活条件
+        if (!checkActivationConditions(context, config)) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+        
+        // 收集目标
+        List<BlockPos> targets = collectHarvestTargets(context, config);
+        if (targets.isEmpty()) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+        
+        // 触发 PreEvent
+        PreActionEvent preEvent = new PreActionEvent(
+                context.getPlayer(),
+                context.getLevel(),
+                context.getOriginPos(),
+                targets,
+                context.getHeldItem(),
+                ChainActionType.HARVESTING
+        );
+        ChainEvents.firePreActionEvent(preEvent);
+        if (preEvent.isCancelled()) {
+            return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
+        }
+        targets = preEvent.getTargetPositions();
+        
+        // 执行收割
+        return performHarvesting(context, targets, config);
+    }
+    
+    /**
+     * 收集可收割的目标方块（BFS水平扩展）
+     */
+    private static List<BlockPos> collectHarvestTargets(ChainActionContext context, MinerConfig config) {
+        Level level = context.getLevel();
+        BlockPos origin = context.getOriginPos();
+        Block targetBlock = context.getOriginState().getBlock();
+        
+        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
+        
+        List<BlockPos> targets = new ArrayList<>();
+        Queue<BlockPos> queue = new LinkedList<>();
+        Set<BlockPos> visited = new HashSet<>();
+        
+        queue.add(origin);
+        visited.add(origin);
+        
+        // 水平方向扩展（4方向 + 4对角 = 8方向）
+        int[][] directions = {
+            {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+            {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
+        };
+        
+        while (!queue.isEmpty() && targets.size() < maxBlocks) {
+            BlockPos current = queue.poll();
+            BlockState currentState = level.getBlockState(current);
+            
+            // 检查是否是同类型的成熟作物
+            if (currentState.getBlock() == targetBlock && isMatureCrop(currentState)) {
+                targets.add(current);
+                
+                // 距离限制
+                double distance = Math.sqrt(current.distSqr(origin));
+                if (distance < config.maxDistance) {
+                    for (int[] dir : directions) {
+                        BlockPos next = current.offset(dir[0], 0, dir[1]);
+                        if (!visited.contains(next)) {
+                            visited.add(next);
+                            queue.add(next);
+                        }
+                    }
+                }
+            }
+        }
+        
+        return targets;
+    }
+    
+    /**
+     * 执行实际的收割操作
+     */
+    private static ChainActionResult performHarvesting(
+            ChainActionContext context,
+            List<BlockPos> targets,
+            MinerConfig config
+    ) {
+        ServerPlayer player = context.getPlayer();
+        Level level = context.getLevel();
+        float hungerPerBlock = config.hungerPerBlock * Math.max(0f, config.hungerMultiplier);
+        
+        List<BlockPos> harvestedBlocks = new ArrayList<>();
+        float hungerUsed = 0f;
+        StopReason stopReason = StopReason.COMPLETED;
+
+        ServerLevel serverLevel = level instanceof ServerLevel sl ? sl : null;
+        
+        for (BlockPos pos : targets) {
+            // 饥饿值检查
+            if (config.consumeHunger && !context.isCreativeMode()) {
+                if (player.getFoodData().getFoodLevel() <= config.minHungerLevel) {
+                    stopReason = StopReason.HUNGER_LOW;
+                    break;
+                }
+            }
+            
+            BlockState cropState = level.getBlockState(pos);
+            if (!isMatureCrop(cropState)) {
+                continue;
+            }
+            
+            // 获取掉落物
+            List<ItemStack> drops = new ArrayList<>();
+            if (serverLevel != null) {
+                drops.addAll(Block.getDrops(cropState, serverLevel, pos, level.getBlockEntity(pos)));
+            }
+            
+            // 移除方块（不播放声音，稍后统一处理）
+            level.removeBlock(pos, false);
+            
+            // 尝试补种
+            if (config.harvestReplant) {
+                tryReplant(level, pos, cropState, drops);
+            }
+            
+            // 处理掉落物
+            if (serverLevel != null) {
+                for (ItemStack drop : drops) {
+                    if (drop.isEmpty()) continue;
+                    if (config.teleportDrops) {
+                        // 传送到玩家位置
+                        ItemEntity itemEntity = new ItemEntity(
+                                level,
+                                player.getX(), player.getY(), player.getZ(),
+                                drop
+                        );
+                        itemEntity.setNoPickUpDelay();
+                        level.addFreshEntity(itemEntity);
+                    } else {
+                        // 在原地掉落
+                        Block.popResource(level, pos, drop);
+                    }
+                }
+            }
+            
+            harvestedBlocks.add(pos);
+            
+            if (!context.isCreativeMode() && config.consumeHunger && hungerPerBlock > 0f) {
+                hungerUsed += hungerPerBlock;
+                player.getFoodData().addExhaustion(hungerPerBlock);
+            }
+        }
+        
+        ChainActionResult result = ChainActionResult.success(
+                ChainActionType.HARVESTING,
+                harvestedBlocks,
+                0, // 收割不消耗耐久
+                hungerUsed,
+                stopReason
+        );
+        
+        PostActionEvent postEvent = new PostActionEvent(
+                player,
+                level,
+                context.getOriginPos(),
+                result
+        );
+        ChainEvents.firePostActionEvent(postEvent);
+        
+        return result;
+    }
+    
+    /**
+     * 尝试在收割后的位置补种
+     */
+    private static void tryReplant(Level level, BlockPos pos, BlockState harvestedState, List<ItemStack> drops) {
+        Block block = harvestedState.getBlock();
+        
+        if (block instanceof CropBlock cropBlock) {
+            // 普通作物 - 放置默认状态（AGE=0）
+            BlockState defaultState = cropBlock.defaultBlockState();
+            Item seed = findSeedForCrop(cropBlock, drops);
+            if (seed != null && removeItemFromDrops(seed, drops)) {
+                level.setBlock(pos, defaultState, 3);
+            }
+        } else if (block instanceof NetherWartBlock) {
+            // 下界疣 - 消耗一个下界疣进行补种
+            if (removeItemFromDrops(Items.NETHER_WART, drops)) {
+                level.setBlock(pos, Blocks.NETHER_WART.defaultBlockState(), 3);
+            }
+        } else if (block instanceof SweetBerryBushBlock) {
+            // 甜浆果丛 - 恢复到 AGE=1 状态，消耗一个甜浆果
+            if (removeItemFromDrops(Items.SWEET_BERRIES, drops)) {
+                level.setBlock(pos, harvestedState.setValue(SweetBerryBushBlock.AGE, 1), 3);
+            }
+        } else if (block instanceof CocoaBlock) {
+            // 可可豆 - 恢复到 AGE=0 状态，消耗一个可可豆
+            if (removeItemFromDrops(Items.COCOA_BEANS, drops)) {
+                level.setBlock(pos, harvestedState.setValue(CocoaBlock.AGE, 0), 3);
+            }
+        }
+    }
+    
+    /**
+     * 查找作物对应的种子
+     */
+    private static Item findSeedForCrop(CropBlock cropBlock, List<ItemStack> drops) {
+        // 首先检查掉落物中是否有对应的 BlockItem
+        for (ItemStack drop : drops) {
+            if (drop.getItem() instanceof BlockItem blockItem) {
+                if (blockItem.getBlock() instanceof CropBlock) {
+                    return drop.getItem();
+                }
+            }
+        }
+        // 回退：检查是否有可种植物品
+        for (ItemStack drop : drops) {
+            if (isPlantableItem(drop)) {
+                return drop.getItem();
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 从掉落物列表中移除一个指定物品
+     *
+     * @return 是否成功移除
+     */
+    private static boolean removeItemFromDrops(Item item, List<ItemStack> drops) {
+        for (int i = 0; i < drops.size(); i++) {
+            ItemStack stack = drops.get(i);
+            if (stack.getItem() == item && !stack.isEmpty()) {
+                stack.shrink(1);
+                if (stack.isEmpty()) {
+                    drops.remove(i);
+                }
+                return true;
+            }
+        }
+        return false;
     }
     
     // ==================== 工具方法 ====================
