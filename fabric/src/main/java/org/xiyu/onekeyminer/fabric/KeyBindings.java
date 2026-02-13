@@ -89,7 +89,10 @@ public class KeyBindings {
             
             // 检查配置界面按键
             while (OPEN_CONFIG.consumeClick()) {
-                // 打开配置界面
+                // 打开原生配置界面
+                net.minecraft.client.Minecraft.getInstance().setScreen(
+                    new FabricConfigScreen(net.minecraft.client.Minecraft.getInstance().screen)
+                );
             }
         });
     }
