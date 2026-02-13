@@ -131,6 +131,35 @@ public class MinerConfig {
      */
     public List<String> farmlandWhitelist = new ArrayList<>();
     
+    // ==================== 交互物品设置 ====================
+    
+    /**
+     * 交互物品白名单（默认包含原版骨粉和刷子）
+     * <p>支持物品 ID 格式如 "minecraft:bone_meal"</p>
+     */
+    public List<String> interactiveItemWhitelist = new ArrayList<>(java.util.Arrays.asList(
+            "minecraft:bone_meal",
+            "minecraft:brush"
+    ));
+    
+    /**
+     * 交互物品黑名单
+     */
+    public List<String> interactiveItemBlacklist = new ArrayList<>();
+    
+    // ==================== 收割功能设置 ====================
+    
+    /**
+     * 是否启用连锁收割功能
+     * <p>空手对成熟作物按连锁键+交互键触发连锁收割+补种</p>
+     */
+    public boolean enableHarvesting = true;
+    
+    /**
+     * 收割后是否自动触发连锁补种
+     */
+    public boolean harvestReplant = true;
+    
     // ==================== 高级设置 ====================
     
     /**
@@ -284,6 +313,17 @@ public class MinerConfig {
         copy.blacklist = new ArrayList<>(this.blacklist);
         copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);
         copy.toolBlacklist = new ArrayList<>(this.toolBlacklist);
+        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.enableHarvesting = this.enableHarvesting;
+        copy.harvestReplant = this.harvestReplant;
+        copy.enableInteraction = this.enableInteraction;
+        copy.enablePlanting = this.enablePlanting;
+        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
+        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
+        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
+        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
         return copy;
     }
 }
