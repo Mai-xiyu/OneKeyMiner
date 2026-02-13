@@ -53,6 +53,11 @@
   "config.onekeyminer.option.enable_planting": "启用连锁种植",
   "config.onekeyminer.option.enable_planting.tooltip": "启用作物连锁种植功能",
 
+  "config.onekeyminer.option.enable_harvesting": "启用连锁收割",
+  "config.onekeyminer.option.enable_harvesting.tooltip": "空手右键成熟作物时触发连锁收割",
+  "config.onekeyminer.option.harvest_replant": "自动补种",
+  "config.onekeyminer.option.harvest_replant.tooltip": "收割后自动消耗种子进行补种",
+
   "config.onekeyminer.option.teleport_drops": "传送掉落物",
   "config.onekeyminer.option.teleport_drops.tooltip": "连锁挖掘的掉落物直接进入玩家背包",
 
@@ -73,6 +78,7 @@
   "message.onekeyminer.chain_action.mining": "连锁挖矿: %d 个方块",
   "message.onekeyminer.chain_action.interaction": "连锁交互: %d 个方块",
   "message.onekeyminer.chain_action.planting": "连锁种植: %d 个方块",
+  "message.onekeyminer.chain_action.harvesting": "连锁收割: %d 个方块",
   "message.onekeyminer.mode_enabled": "连锁挖矿已启用",
   "message.onekeyminer.mode_disabled": "连锁挖矿已禁用",
   "message.onekeyminer.config_reloaded": "配置已重新加载"

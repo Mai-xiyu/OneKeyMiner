@@ -331,6 +331,7 @@ public final class ChainActionContext {
         STRIPPING,
         PATH_MAKING,
         BRUSHING,
+        ITEM_USE,
         GENERIC
     }
 }

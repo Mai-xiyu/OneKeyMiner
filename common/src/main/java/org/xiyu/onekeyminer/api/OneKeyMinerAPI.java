@@ -140,6 +140,16 @@ public final class OneKeyMinerAPI {
         for (String entry : config.seedBlacklist) {
             blacklistSeed(entry);
         }
+
+        // 加载交互物品白名单
+        for (String entry : config.interactiveItemWhitelist) {
+            registerInteractiveItem(entry);
+        }
+
+        // 加载交互物品黑名单
+        for (String entry : config.interactiveItemBlacklist) {
+            blacklistInteractiveItem(entry);
+        }
     }
     
     // ==================== 方块白名单 API ====================
@@ -752,6 +762,98 @@ public final class OneKeyMinerAPI {
     
     // ==================== 查询 API ====================
     
+    // ==================== 交互物品 API ====================
+    
+    /** 交互物品白名单（允许右键使用在方块上的物品，如骨粉、药水等） */
+    private static final Set<Identifier> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
+    
+    /** 交互物品黑名单 */
+    private static final Set<Identifier> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
+    
+    /** 交互验证器列表 */
+    private static final List<java.util.function.BiPredicate<ItemStack, BlockState>> INTERACTION_VALIDATORS = new ArrayList<>();
+    
+    /**
+     * 注册交互物品到白名单
+     *
+     * @param itemId 物品 ID
+     * @return 如果注册成功返回 true
+     */
+    public static boolean registerInteractiveItem(String itemId) {
+        Identifier loc = Identifier.tryParse(itemId);
+        if (loc == null) {
+            OneKeyMiner.LOGGER.warn("无效的交互物品 ID: {}", itemId);
+            return false;
+        }
+        return INTERACTIVE_ITEM_WHITELIST.add(loc);
+    }
+    
+    /**
+     * 将交互物品添加到黑名单
+     *
+     * @param itemId 物品 ID
+     * @return 如果添加成功返回 true
+     */
+    public static boolean blacklistInteractiveItem(String itemId) {
+        Identifier loc = Identifier.tryParse(itemId);
+        if (loc == null) {
+            OneKeyMiner.LOGGER.warn("无效的交互物品 ID: {}", itemId);
+            return false;
+        }
+        return INTERACTIVE_ITEM_BLACKLIST.add(loc);
+    }
+    
+    /**
+     * 检查物品是否为允许的交互物品
+     *
+     * @param stack 物品栈
+     * @return 如果允许返回 true
+     */
+    public static boolean isInteractiveItemAllowed(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        
+        Identifier loc = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        
+        if (INTERACTIVE_ITEM_BLACKLIST.contains(loc)) {
+            return false;
+        }
+        
+        if (!INTERACTIVE_ITEM_WHITELIST.isEmpty()) {
+            return INTERACTIVE_ITEM_WHITELIST.contains(loc);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 注册交互验证器
+     *
+     * @param validator 验证函数，接收物品栈和方块状态
+     */
+    public static void registerInteractionValidator(java.util.function.BiPredicate<ItemStack, BlockState> validator) {
+        INTERACTION_VALIDATORS.add(validator);
+    }
+    
+    /**
+     * 使用注册的验证器检查交互是否有效
+     *
+     * @param stack 物品栈
+     * @param state 方块状态
+     * @return 如果任一验证器通过返回 true
+     */
+    public static boolean validateInteraction(ItemStack stack, BlockState state) {
+        for (var validator : INTERACTION_VALIDATORS) {
+            if (validator.test(stack, state)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // ==================== 查询 API ====================
+    
     /**
      * 检查方块是否允许连锁挖矿
      * 
@@ -858,6 +960,14 @@ public final class OneKeyMinerAPI {
         TOOL_WHITELIST.clear();
         TOOL_BLACKLIST.clear();
         BLOCK_GROUPS.clear();
+        INTERACTION_TOOL_WHITELIST.clear();
+        INTERACTION_TOOL_BLACKLIST.clear();
+        TOOL_ACTION_RULES.clear();
+        PLANTABLE_WHITELIST.clear();
+        PLANTABLE_BLACKLIST.clear();
+        INTERACTIVE_ITEM_WHITELIST.clear();
+        INTERACTIVE_ITEM_BLACKLIST.clear();
+        INTERACTION_VALIDATORS.clear();
     }
     
     /**
