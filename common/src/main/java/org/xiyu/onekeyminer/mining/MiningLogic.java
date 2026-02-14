@@ -20,7 +20,11 @@ import org.xiyu.onekeyminer.api.event.PostMineEvent;
 import org.xiyu.onekeyminer.api.event.PreMineEvent;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ChainShape;
+import org.xiyu.onekeyminer.shape.ShapeContext;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.*;
 
@@ -50,34 +54,6 @@ import java.util.*;
  * @since Minecraft 1.21.9
  */
 public class MiningLogic {
-    
-    /** 6 向搜索偏移量（正交方向） */
-    private static final BlockPos[] ORTHOGONAL_OFFSETS = {
-            new BlockPos(1, 0, 0),
-            new BlockPos(-1, 0, 0),
-            new BlockPos(0, 1, 0),
-            new BlockPos(0, -1, 0),
-            new BlockPos(0, 0, 1),
-            new BlockPos(0, 0, -1)
-    };
-    
-    /** 26 向搜索偏移量（含对角线） */
-    private static final BlockPos[] DIAGONAL_OFFSETS;
-    
-    static {
-        // 生成 26 向偏移量（排除原点）
-        List<BlockPos> offsets = new ArrayList<>();
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
-                for (int z = -1; z <= 1; z++) {
-                    if (x != 0 || y != 0 || z != 0) {
-                        offsets.add(new BlockPos(x, y, z));
-                    }
-                }
-            }
-        }
-        DIAGONAL_OFFSETS = offsets.toArray(new BlockPos[0]);
-    }
     
     /** 防止重入的标记（使用 ThreadLocal 支持多线程） */
     private static final ThreadLocal<Boolean> IS_MINING = ThreadLocal.withInitial(() -> false);
@@ -150,7 +126,7 @@ public class MiningLogic {
             MinerConfig config
     ) {
         // 收集要挖掘的方块
-        List<BlockPos> blocksToMine = collectBlocks(level, originPos, originState, config);
+        List<BlockPos> blocksToMine = collectBlocks(player, level, originPos, originState, config);
         
         // 如果只有起始方块（已经被挖掘），直接返回
         if (blocksToMine.isEmpty()) {
@@ -201,6 +177,7 @@ public class MiningLogic {
      *   <li>重复直到队列为空或达到限制</li>
      * </ol>
      * 
+     * @param player 服务端玩家
      * @param level 世界实例
      * @param originPos 起始位置
      * @param originState 起始方块状态
@@ -208,158 +185,46 @@ public class MiningLogic {
      * @return 收集到的方块位置列表（不包含起始位置）
      */
     private static List<BlockPos> collectBlocks(
+            ServerPlayer player,
             Level level, 
             BlockPos originPos, 
             BlockState originState, 
             MinerConfig config
     ) {
-        // 根据配置选择搜索模式
-        return switch (config.shapeMode) {
-            case CONNECTED -> collectConnectedBlocks(level, originPos, originState, config);
-            case CUBE -> collectCubeBlocks(level, originPos, originState, config);
-            case COLUMN -> collectColumnBlocks(level, originPos, originState, config);
-        };
-    }
-    
-    /**
-     * BFS 搜索相连的同类方块
-     */
-    private static List<BlockPos> collectConnectedBlocks(
-            Level level, 
-            BlockPos originPos, 
-            BlockState originState, 
-            MinerConfig config
-    ) {
-        List<BlockPos> result = new ArrayList<>();
-        Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPos> queue = new LinkedList<>();
-        
-        // 选择搜索偏移量
-        BlockPos[] offsets = config.allowDiagonal ? DIAGONAL_OFFSETS : ORTHOGONAL_OFFSETS;
-        
-        // 起始位置已被破坏，从相邻位置开始搜索
-        visited.add(originPos);
-        
-        // 将起始位置的相邻方块加入队列
-        for (BlockPos offset : offsets) {
-            BlockPos neighbor = originPos.offset(offset);
-            if (!visited.contains(neighbor)) {
-                BlockState neighborState = level.getBlockState(neighbor);
-                if (isMatchingBlock(originState, neighborState, config)) {
-                    queue.add(neighbor);
-                    visited.add(neighbor);
-                }
-            }
+        // 获取玩家选择的形状，优先从 MiningStateManager 获取，否则从配置
+        net.minecraft.resources.ResourceLocation shapeId = MiningStateManager.getPlayerShape(player);
+        if (shapeId == null) {
+            shapeId = ShapeRegistry.DEFAULT_SHAPE_ID;
+        }
+        ChainShape shape = ShapeRegistry.getShapeOrDefault(shapeId);
+        if (shape == null) {
+            return Collections.emptyList();
         }
         
-        // BFS 搜索
-        while (!queue.isEmpty() && result.size() < config.maxBlocks) {
-            BlockPos current = queue.poll();
-            
-            // 检查距离限制
-            if (getDistance(originPos, current) > config.maxDistance) {
-                continue;
-            }
-            
-            // 添加到结果
-            result.add(current);
-            
-            // 如果已达到最大数量，停止搜索
-            if (result.size() >= config.maxBlocks) {
-                break;
-            }
-            
-            // 搜索相邻方块
-            for (BlockPos offset : offsets) {
-                BlockPos neighbor = current.offset(offset);
-                
-                if (visited.contains(neighbor)) {
-                    continue;
-                }
-                
-                // 距离预检查（优化性能）
-                if (getDistance(originPos, neighbor) > config.maxDistance) {
-                    visited.add(neighbor);
-                    continue;
-                }
-                
-                BlockState neighborState = level.getBlockState(neighbor);
-                if (isMatchingBlock(originState, neighborState, config)) {
-                    queue.add(neighbor);
-                }
-                visited.add(neighbor);
-            }
+        // 获取玩家朝向信息
+        Direction playerFacing = player.getDirection();
+        Direction verticalDir = null;
+        float xRot = player.getXRot();
+        if (xRot < -45) {
+            verticalDir = Direction.UP;
+        } else if (xRot > 45) {
+            verticalDir = Direction.DOWN;
         }
         
-        return result;
-    }
-    
-    /**
-     * 在立方体范围内搜索同类方块
-     */
-    private static List<BlockPos> collectCubeBlocks(
-            Level level, 
-            BlockPos originPos, 
-            BlockState originState, 
-            MinerConfig config
-    ) {
-        List<BlockPos> result = new ArrayList<>();
-        int radius = config.maxDistance;
+        // 构建形状上下文
+        ShapeContext ctx = new ShapeContext.Builder()
+                .level(level)
+                .originPos(originPos)
+                .originState(originState)
+                .playerFacing(playerFacing)
+                .playerLookingVertical(verticalDir)
+                .maxBlocks(config.maxBlocks)
+                .maxDistance(config.maxDistance)
+                .allowDiagonal(config.allowDiagonal)
+                .blockMatcher((origin, target) -> isMatchingBlock(origin, target, config))
+                .build();
         
-        for (int x = -radius; x <= radius && result.size() < config.maxBlocks; x++) {
-            for (int y = -radius; y <= radius && result.size() < config.maxBlocks; y++) {
-                for (int z = -radius; z <= radius && result.size() < config.maxBlocks; z++) {
-                    if (x == 0 && y == 0 && z == 0) continue; // 跳过起始位置
-                    
-                    BlockPos pos = originPos.offset(x, y, z);
-                    BlockState state = level.getBlockState(pos);
-                    
-                    if (isMatchingBlock(originState, state, config)) {
-                        result.add(pos);
-                    }
-                }
-            }
-        }
-        
-        return result;
-    }
-    
-    /**
-     * 在垂直柱状范围内搜索同类方块
-     */
-    private static List<BlockPos> collectColumnBlocks(
-            Level level, 
-            BlockPos originPos, 
-            BlockState originState, 
-            MinerConfig config
-    ) {
-        List<BlockPos> result = new ArrayList<>();
-        
-        // 向上搜索
-        for (int y = 1; y <= config.maxDistance && result.size() < config.maxBlocks; y++) {
-            BlockPos pos = originPos.above(y);
-            BlockState state = level.getBlockState(pos);
-            
-            if (isMatchingBlock(originState, state, config)) {
-                result.add(pos);
-            } else {
-                break; // 遇到不同方块停止
-            }
-        }
-        
-        // 向下搜索
-        for (int y = 1; y <= config.maxDistance && result.size() < config.maxBlocks; y++) {
-            BlockPos pos = originPos.below(y);
-            BlockState state = level.getBlockState(pos);
-            
-            if (isMatchingBlock(originState, state, config)) {
-                result.add(pos);
-            } else {
-                break; // 遇到不同方块停止
-            }
-        }
-        
-        return result;
+        return shape.collectBlocks(ctx);
     }
     
     /**
@@ -384,8 +249,10 @@ public class MiningLogic {
         int totalExpCollected = 0;
         
         // 如果需要传送掉落物/经验，预先记录区域内的实体
+        boolean teleportDrops = MiningStateManager.isTeleportDrops(player);
+        boolean teleportExp = MiningStateManager.isTeleportExp(player);
         Set<Integer> existingEntityIds = new HashSet<>();
-        if (config.teleportDrops || config.teleportExp) {
+        if (teleportDrops || teleportExp) {
             AABB searchArea = calculateSearchArea(blocks);
             if (level instanceof ServerLevel serverLevel) {
                 for (ItemEntity entity : serverLevel.getEntitiesOfClass(ItemEntity.class, searchArea)) {
@@ -449,12 +316,12 @@ public class MiningLogic {
             AABB searchArea = calculateSearchArea(minedBlocks);
             
             // 传送掉落物
-            if (config.teleportDrops) {
+            if (teleportDrops) {
                 collectAndTeleportDrops(serverLevel, player, searchArea, existingEntityIds);
             }
             
             // 传送经验
-            if (config.teleportExp) {
+            if (teleportExp) {
                 totalExpCollected = collectAndTeleportExp(serverLevel, player, searchArea, existingEntityIds);
             }
         }

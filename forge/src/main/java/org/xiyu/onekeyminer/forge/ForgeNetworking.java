@@ -8,6 +8,7 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.simple.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 import java.util.Optional;
@@ -41,25 +42,34 @@ public class ForgeNetworking {
     private static boolean registered = false;
     
     /**
-     * 按键状态数据包
+     * 按键状态数据包（含形状 ID）
      */
     public static class ChainKeyStatePacket {
         private final boolean pressed;
+        private final String shapeId;
         
-        public ChainKeyStatePacket(boolean pressed) {
+        public ChainKeyStatePacket(boolean pressed, String shapeId) {
             this.pressed = pressed;
+            this.shapeId = shapeId != null ? shapeId : "onekeyminer:amorphous";
         }
         
         public static ChainKeyStatePacket fromNetwork(FriendlyByteBuf buf) {
-            return new ChainKeyStatePacket(buf.readBoolean());
+            boolean pressed = buf.readBoolean();
+            String shapeId = buf.readUtf(256);
+            return new ChainKeyStatePacket(pressed, shapeId);
         }
         
         public void write(FriendlyByteBuf buf) {
             buf.writeBoolean(pressed);
+            buf.writeUtf(shapeId);
         }
         
         public boolean isPressed() {
             return pressed;
+        }
+        
+        public String getShapeId() {
+            return shapeId;
         }
         
         /**
@@ -71,6 +81,53 @@ public class ForgeNetworking {
                 ServerPlayer player = context.getSender();
                 if (player != null) {
                     PlatformServices.getInstance().setChainModeActive(player, packet.isPressed());
+                    try {
+                        ResourceLocation shapeRL = new ResourceLocation(packet.getShapeId());
+                        MiningStateManager.setPlayerShape(player, shapeRL);
+                    } catch (Exception e) {
+                        OneKeyMiner.LOGGER.debug("无效的形状 ID: {}", packet.getShapeId());
+                    }
+                }
+            });
+            context.setPacketHandled(true);
+        }
+    }
+    
+    /**
+     * 传送设置数据包
+     */
+    public static class TeleportSettingsPacket {
+        private final boolean teleportDrops;
+        private final boolean teleportExp;
+        
+        public TeleportSettingsPacket(boolean teleportDrops, boolean teleportExp) {
+            this.teleportDrops = teleportDrops;
+            this.teleportExp = teleportExp;
+        }
+        
+        public static TeleportSettingsPacket fromNetwork(FriendlyByteBuf buf) {
+            boolean drops = buf.readBoolean();
+            boolean exp = buf.readBoolean();
+            return new TeleportSettingsPacket(drops, exp);
+        }
+        
+        public void write(FriendlyByteBuf buf) {
+            buf.writeBoolean(teleportDrops);
+            buf.writeBoolean(teleportExp);
+        }
+        
+        /**
+         * 服务端处理传送设置包
+         */
+        public static void handleOnServer(TeleportSettingsPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
+            NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> {
+                ServerPlayer player = context.getSender();
+                if (player != null) {
+                    MiningStateManager.setTeleportDrops(player, packet.teleportDrops);
+                    MiningStateManager.setTeleportExp(player, packet.teleportExp);
+                    OneKeyMiner.LOGGER.debug("玩家 {} 更新传送设置: 掉落物={}, 经验={}",
+                            player.getName().getString(), packet.teleportDrops, packet.teleportExp);
                 }
             });
             context.setPacketHandled(true);
@@ -96,6 +153,15 @@ public class ForgeNetworking {
                     ChainKeyStatePacket::handleOnServer,
                     Optional.of(NetworkDirection.PLAY_TO_SERVER)
                 );
+                
+                CHANNEL.registerMessage(
+                    packetIndex++,
+                    TeleportSettingsPacket.class,
+                    TeleportSettingsPacket::write,
+                    TeleportSettingsPacket::fromNetwork,
+                    TeleportSettingsPacket::handleOnServer,
+                    Optional.of(NetworkDirection.PLAY_TO_SERVER)
+                );
             
             OneKeyMiner.LOGGER.debug("已注册 Forge 网络通道");
         } catch (Exception e) {
@@ -104,13 +170,27 @@ public class ForgeNetworking {
     }
     
     /**
-     * 从客户端发送按键状态到服务端
+     * 从客户端发送按键状态和形状 ID 到服务端
      */
-    public static void sendKeyState(boolean pressed) {
+    public static void sendKeyState(boolean pressed, String shapeId) {
         try {
-            CHANNEL.sendToServer(new ChainKeyStatePacket(pressed));
+            CHANNEL.sendToServer(new ChainKeyStatePacket(pressed, shapeId));
         } catch (Exception e) {
             OneKeyMiner.LOGGER.debug("发送按键状态包失败: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * 从客户端发送传送设置到服务端
+     * 
+     * @param teleportDrops 是否传送掉落物
+     * @param teleportExp 是否传送经验
+     */
+    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
+        try {
+            CHANNEL.sendToServer(new TeleportSettingsPacket(teleportDrops, teleportExp));
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.debug("发送传送设置包失败: {}", e.getMessage());
         }
     }
 }

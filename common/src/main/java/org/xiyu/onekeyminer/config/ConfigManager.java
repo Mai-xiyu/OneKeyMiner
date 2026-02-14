@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -95,17 +96,138 @@ public class ConfigManager {
     /**
      * 热重载配置
      * 
-     * <p>从磁盘重新加载配置文件，并通知所有监听器。</p>
+     * <p>从磁盘重新加载配置文件，进行逐字段验证。
+     * 有效的字段被接受，无效字段回退到内存中的旧值。</p>
      */
     public static void reload() {
         MinerConfig oldConfig = CONFIG.get();
-        load();
-        MinerConfig newConfig = CONFIG.get();
+        
+        Path configPath = getConfigPath();
+        MinerConfig diskConfig = null;
+        
+        try {
+            if (Files.exists(configPath)) {
+                String json = Files.readString(configPath);
+                diskConfig = GSON.fromJson(json, MinerConfig.class);
+            }
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.error("重载配置文件失败: {}", e.getMessage());
+            return; // 解析完全失败，保留旧配置
+        }
+        
+        if (diskConfig == null) {
+            OneKeyMiner.LOGGER.warn("配置文件解析结果为 null，保留当前配置");
+            return;
+        }
+        
+        // 逐字段验证并合并
+        MinerConfig merged = oldConfig.copy();
+        List<String> rejected = new ArrayList<>();
+        
+        // 基础设置
+        merged.enabled = diskConfig.enabled;
+        
+        // selectedShape: 验证是否为已注册形状
+        if (diskConfig.selectedShape != null && ShapeRegistry.isValidShapeId(diskConfig.selectedShape)) {
+            merged.selectedShape = diskConfig.selectedShape;
+        } else if (diskConfig.selectedShape != null) {
+            rejected.add("selectedShape (无效的形状 ID: " + diskConfig.selectedShape + ")");
+        }
+        
+        // maxBlocks: 1 - 10240
+        if (diskConfig.maxBlocks >= 1 && diskConfig.maxBlocks <= 10240) {
+            merged.maxBlocks = diskConfig.maxBlocks;
+        } else {
+            rejected.add("maxBlocks (" + diskConfig.maxBlocks + " 超出范围 1-10240)");
+        }
+        
+        // maxDistance: 1 - 128
+        if (diskConfig.maxDistance >= 1 && diskConfig.maxDistance <= 128) {
+            merged.maxDistance = diskConfig.maxDistance;
+        } else {
+            rejected.add("maxDistance (" + diskConfig.maxDistance + " 超出范围 1-128)");
+        }
+        
+        // 布尔值字段直接接受
+        merged.allowDiagonal = diskConfig.allowDiagonal;
+        merged.consumeDurability = diskConfig.consumeDurability;
+        merged.stopOnLowDurability = diskConfig.stopOnLowDurability;
+        merged.consumeHunger = diskConfig.consumeHunger;
+        merged.mineAllBlocks = diskConfig.mineAllBlocks;
+        merged.allowBareHand = diskConfig.allowBareHand;
+        merged.teleportDrops = diskConfig.teleportDrops;
+        merged.teleportExp = diskConfig.teleportExp;
+        merged.requireExactMatch = diskConfig.requireExactMatch;
+        merged.playSound = diskConfig.playSound;
+        merged.showStats = diskConfig.showStats;
+        merged.enableInteraction = diskConfig.enableInteraction;
+        merged.enablePlanting = diskConfig.enablePlanting;
+        merged.enableHarvesting = diskConfig.enableHarvesting;
+        merged.harvestReplant = diskConfig.harvestReplant;
+        merged.strictBlockMatching = diskConfig.strictBlockMatching;
+        
+        // preserveDurability: >= 0
+        if (diskConfig.preserveDurability >= 0) {
+            merged.preserveDurability = diskConfig.preserveDurability;
+        } else {
+            rejected.add("preserveDurability (" + diskConfig.preserveDurability + " < 0)");
+        }
+        
+        // hungerMultiplier: 0 - 10
+        if (diskConfig.hungerMultiplier >= 0 && diskConfig.hungerMultiplier <= 10) {
+            merged.hungerMultiplier = diskConfig.hungerMultiplier;
+        } else {
+            rejected.add("hungerMultiplier (" + diskConfig.hungerMultiplier + " 超出范围 0-10)");
+        }
+        
+        // minHungerLevel: 0 - 20
+        if (diskConfig.minHungerLevel >= 0 && diskConfig.minHungerLevel <= 20) {
+            merged.minHungerLevel = diskConfig.minHungerLevel;
+        } else {
+            rejected.add("minHungerLevel (" + diskConfig.minHungerLevel + " 超出范围 0-20)");
+        }
+        
+        // hungerPerBlock: >= 0
+        if (diskConfig.hungerPerBlock >= 0) {
+            merged.hungerPerBlock = diskConfig.hungerPerBlock;
+        } else {
+            rejected.add("hungerPerBlock (" + diskConfig.hungerPerBlock + " < 0)");
+        }
+        
+        // maxBlocksCreative: >= 1
+        if (diskConfig.maxBlocksCreative >= 1) {
+            merged.maxBlocksCreative = diskConfig.maxBlocksCreative;
+        } else {
+            rejected.add("maxBlocksCreative (" + diskConfig.maxBlocksCreative + " < 1)");
+        }
+        
+        // 列表字段直接接受（null 时保留旧值）
+        if (diskConfig.customWhitelist != null) merged.customWhitelist = new ArrayList<>(diskConfig.customWhitelist);
+        if (diskConfig.blacklist != null) merged.blacklist = new ArrayList<>(diskConfig.blacklist);
+        if (diskConfig.toolWhitelist != null) merged.toolWhitelist = new ArrayList<>(diskConfig.toolWhitelist);
+        if (diskConfig.toolBlacklist != null) merged.toolBlacklist = new ArrayList<>(diskConfig.toolBlacklist);
+        if (diskConfig.interactionToolWhitelist != null) merged.interactionToolWhitelist = new ArrayList<>(diskConfig.interactionToolWhitelist);
+        if (diskConfig.interactionToolBlacklist != null) merged.interactionToolBlacklist = new ArrayList<>(diskConfig.interactionToolBlacklist);
+        if (diskConfig.seedWhitelist != null) merged.seedWhitelist = new ArrayList<>(diskConfig.seedWhitelist);
+        if (diskConfig.seedBlacklist != null) merged.seedBlacklist = new ArrayList<>(diskConfig.seedBlacklist);
+        if (diskConfig.farmlandWhitelist != null) merged.farmlandWhitelist = new ArrayList<>(diskConfig.farmlandWhitelist);
+        if (diskConfig.interactiveItemWhitelist != null) merged.interactiveItemWhitelist = new ArrayList<>(diskConfig.interactiveItemWhitelist);
+        if (diskConfig.interactiveItemBlacklist != null) merged.interactiveItemBlacklist = new ArrayList<>(diskConfig.interactiveItemBlacklist);
+        
+        // 应用合并后的配置
+        CONFIG.set(merged);
+        
+        // 报告结果
+        if (!rejected.isEmpty()) {
+            OneKeyMiner.LOGGER.warn("配置热重载：以下字段验证失败，已回退旧值: {}", String.join(", ", rejected));
+        }
         
         // 通知所有监听器
+        MinerConfig newConfig = CONFIG.get();
         LISTENERS.forEach(listener -> listener.onConfigChanged(oldConfig, newConfig));
         
-        OneKeyMiner.LOGGER.info("配置已热重载");
+        OneKeyMiner.LOGGER.info("配置已热重载 (接受: {}, 拒绝: {})", 
+                "大部分字段", rejected.isEmpty() ? "无" : rejected.size() + " 个");
     }
     
     /**
@@ -164,10 +286,10 @@ public class ConfigManager {
         MinerConfig config = CONFIG.get();
         boolean changed = false;
 
-        if (config.shapeMode == null) {
-            config.shapeMode = MinerConfig.ShapeMode.CONNECTED;
+        if (config.selectedShape == null || config.selectedShape.isEmpty()) {
+            config.selectedShape = "onekeyminer:amorphous";
             changed = true;
-            OneKeyMiner.LOGGER.warn("shapeMode 为空，已重置为默认值 CONNECTED");
+            OneKeyMiner.LOGGER.warn("selectedShape 为空，已重置为默认值 onekeyminer:amorphous");
         }
         
         // 限制最大方块数量

@@ -46,9 +46,11 @@ public class MinerConfig {
     public boolean allowDiagonal = true;
     
     /**
-     * 搜索形状模式
+     * 客户端选择的形状 ID
+     * <p>格式: "namespace:path"，如 "onekeyminer:amorphous"</p>
+     * <p>此字段由客户端存储，通过网络包发送到服务端</p>
      */
-    public ShapeMode shapeMode = ShapeMode.CONNECTED;
+    public String selectedShape = "onekeyminer:amorphous";
     
     // ==================== 消耗设置 ====================
     
@@ -256,33 +258,8 @@ public class MinerConfig {
     
     // ActivationMode 枚举已移除，现在始终使用按住按键激活模式
     
-    /**
-     * 搜索形状模式枚举
-     */
-    public enum ShapeMode {
-        /** 相连的同类方块 */
-        CONNECTED("connected", "相邻连接"),
-        /** 以起始点为中心的立方体范围 */
-        CUBE("cube", "立方体范围"),
-        /** 垂直方向的柱状范围 */
-        COLUMN("column", "垂直柱状");
-        
-        private final String id;
-        private final String displayName;
-        
-        ShapeMode(String id, String displayName) {
-            this.id = id;
-            this.displayName = displayName;
-        }
-        
-        public String getId() {
-            return id;
-        }
-        
-        public String getDisplayName() {
-            return displayName;
-        }
-    }
+    // ShapeMode 枚举已移除，形状现在由 ShapeRegistry 管理
+    // 客户端使用 selectedShape 字段存储选中的形状 ID
     
     /**
      * 创建配置的深拷贝
@@ -295,7 +272,7 @@ public class MinerConfig {
         copy.maxBlocks = this.maxBlocks;
         copy.maxDistance = this.maxDistance;
         copy.allowDiagonal = this.allowDiagonal;
-        copy.shapeMode = this.shapeMode;
+        copy.selectedShape = this.selectedShape;
         copy.consumeDurability = this.consumeDurability;
         copy.stopOnLowDurability = this.stopOnLowDurability;
         copy.preserveDurability = this.preserveDurability;

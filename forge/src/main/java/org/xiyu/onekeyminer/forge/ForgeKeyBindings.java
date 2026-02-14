@@ -2,11 +2,17 @@ package org.xiyu.onekeyminer.forge;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.client.settings.IKeyConflictContext;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
@@ -14,6 +20,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.preview.ChainPreviewHud;
+import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
 import java.lang.reflect.Method;
 
@@ -106,12 +115,34 @@ public class ForgeKeyBindings {
                 wasKeyDown = isKeyDown;
                 if (minecraft.getConnection() != null) {
                     try {
-                        ForgeNetworking.sendKeyState(isKeyDown);
+                        ForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
                         OneKeyMiner.LOGGER.debug("连锁按键状态变化: {}", isKeyDown ? "按下" : "释放");
                     } catch (Exception e) {
                         OneKeyMiner.LOGGER.debug("发送按键状态失败: {}", e.getMessage());
                     }
                 }
+            }
+            
+            // 更新连锁预览
+            BlockPos lookingAt = null;
+            if (minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
+                lookingAt = ((BlockHitResult) minecraft.hitResult).getBlockPos();
+            }
+            Direction playerFacing = minecraft.player.getDirection();
+            float playerPitch = minecraft.player.getXRot();
+            
+            ChainPreviewManager.getInstance().tick(
+                    minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown
+            );
+        }
+        
+        /**
+         * HUD 渲染事件 - 绘制连锁预览覆盖层
+         */
+        @SubscribeEvent
+        public static void onRenderGuiOverlay(RenderGuiOverlayEvent.Post event) {
+            if (event.getOverlay().id().equals(VanillaGuiOverlay.HOTBAR.id())) {
+                ChainPreviewHud.render(event.getGuiGraphics());
             }
         }
     }

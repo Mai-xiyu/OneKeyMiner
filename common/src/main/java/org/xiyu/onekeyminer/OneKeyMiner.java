@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.shape.builtin.*;
 
 /**
  * OneKeyMiner 模组主类
@@ -23,8 +25,6 @@ public class OneKeyMiner {
     /** 模组名称 */
     public static final String MOD_NAME = "OneKeyMiner";
     
-    /** 模组版本 */
-    public static final String VERSION = "1.0.0";
     
     /** 模组日志记录器 */
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
@@ -48,10 +48,13 @@ public class OneKeyMiner {
             return;
         }
         
-        LOGGER.info("正在初始化 {} v{}", MOD_NAME, VERSION);
+        LOGGER.info("正在初始化 {}", MOD_NAME);
         
         // 加载配置
         ConfigManager.load();
+        
+        // 注册内置形状
+        registerBuiltinShapes();
         
         // 初始化 API
         OneKeyMinerAPI.init();
@@ -61,6 +64,19 @@ public class OneKeyMiner {
         
         initialized = true;
         LOGGER.info("{} 初始化完成！", MOD_NAME);
+    }
+    
+    /**
+     * 注册内置的 6 种连锁搜索形状
+     */
+    private static void registerBuiltinShapes() {
+        ShapeRegistry.register(new AmorphousShape());
+        ShapeRegistry.register(new SmallTunnelShape());
+        ShapeRegistry.register(new LargeTunnelShape());
+        ShapeRegistry.register(new SmallSquareShape());
+        ShapeRegistry.register(new MiningTunnelShape());
+        ShapeRegistry.register(new EscapeTunnelShape());
+        LOGGER.debug("已注册 {} 个内置形状", ShapeRegistry.getShapeCount());
     }
     
     /**

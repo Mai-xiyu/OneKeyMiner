@@ -17,6 +17,8 @@ import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.registry.TagResolver;
+import org.xiyu.onekeyminer.shape.ChainShape;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.*;
 
@@ -978,5 +980,104 @@ public final class OneKeyMinerAPI {
         loadFromConfig();
         // 重新注册默认方块（由主类处理）
         OneKeyMiner.LOGGER.info("OneKeyMiner API 已重载");
+    }
+    
+    // ==================== 形状注册 API ====================
+    
+    /**
+     * 注册一个自定义连锁搜索形状
+     * 
+     * <p>附属模组可以调用此方法注册新的形状，注册后玩家可以在配置界面中选择。</p>
+     * 
+     * <h2>使用示例</h2>
+     * <pre>{@code
+     * OneKeyMinerAPI.registerShape(new MyCustomShape());
+     * }</pre>
+     * 
+     * @param shape 形状实例，必须实现 {@link ChainShape} 接口
+     * @throws NullPointerException 如果 shape 或其 ID 为 null
+     * @see ChainShape
+     * @see ShapeRegistry
+     */
+    public static void registerShape(ChainShape shape) {
+        ShapeRegistry.register(shape);
+    }
+    
+    /**
+     * 获取已注册的形状
+     * 
+     * @param id 形状 ID（ResourceLocation）
+     * @return 形状实例，如果不存在返回 null
+     */
+    public static ChainShape getShape(ResourceLocation id) {
+        return ShapeRegistry.getShape(id);
+    }
+    
+    /**
+     * 获取所有已注册的形状（按注册顺序）
+     * 
+     * @return 有序的形状列表（不可变）
+     */
+    public static List<ChainShape> getRegisteredShapes() {
+        return ShapeRegistry.getAllShapes();
+    }
+    
+    /**
+     * 检查形状 ID 是否已注册
+     * 
+     * @param shapeId 形状 ID 字符串，格式 "namespace:path"
+     * @return 如果已注册返回 true
+     */
+    public static boolean isShapeRegistered(String shapeId) {
+        return ShapeRegistry.isValidShapeId(shapeId);
+    }
+    
+    // ==================== 预览 API ====================
+    
+    /**
+     * 获取当前连锁预览的方块列表
+     * 
+     * <p>返回最近一次预览计算的结果，仅客户端可用。</p>
+     * 
+     * <h2>使用示例</h2>
+     * <pre>{@code
+     * List<BlockPos> preview = OneKeyMinerAPI.getPreviewBlocks();
+     * for (BlockPos pos : preview) {
+     *     // 自定义渲染逻辑
+     * }
+     * }</pre>
+     * 
+     * @return 不可变的方块位置列表，如果无预览则为空列表
+     */
+    public static List<net.minecraft.core.BlockPos> getPreviewBlocks() {
+        return org.xiyu.onekeyminer.preview.ChainPreviewManager.getInstance().getPreviewBlocks();
+    }
+    
+    /**
+     * 添加预览变更监听器
+     * 
+     * <p>附属模组可注册监听器以在预览内容变化时获得通知，
+     * 用于自定义渲染或额外逻辑。仅客户端有效。</p>
+     * 
+     * <h2>使用示例</h2>
+     * <pre>{@code
+     * OneKeyMinerAPI.addPreviewListener((blocks, shapeKey) -> {
+     *     System.out.println("预览更新: " + blocks.size() + " 个方块, 形状: " + shapeKey);
+     * });
+     * }</pre>
+     * 
+     * @param listener 预览监听器
+     */
+    public static void addPreviewListener(org.xiyu.onekeyminer.preview.ChainPreviewManager.PreviewListener listener) {
+        org.xiyu.onekeyminer.preview.ChainPreviewManager.getInstance().addListener(listener);
+    }
+    
+    /**
+     * 移除预览变更监听器
+     * 
+     * @param listener 要移除的监听器
+     */
+    public static void removePreviewListener(org.xiyu.onekeyminer.preview.ChainPreviewManager.PreviewListener listener) {
+        org.xiyu.onekeyminer.preview.ChainPreviewManager.getInstance().removeListener(listener);
     }
 }

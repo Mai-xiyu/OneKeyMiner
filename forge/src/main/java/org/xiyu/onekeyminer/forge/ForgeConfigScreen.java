@@ -10,6 +10,8 @@ import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.shape.ChainShape;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -95,6 +97,8 @@ public class ForgeConfigScreen {
                     Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                     button -> {
                         ConfigManager.updateConfig(configCopy);
+                        // 将传送设置同步到服务端
+                        ForgeNetworking.sendTeleportSettings(configCopy.teleportDrops, configCopy.teleportExp);
                         this.onClose();
                     }
             ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
@@ -116,12 +120,10 @@ public class ForgeConfigScreen {
 
             // 挖掘形状
             this.addRenderableWidget(Button.builder(
-                getEnumMessage("config.onekeyminer.option.shape_mode", "onekeyminer.shape_mode." + configCopy.shapeMode.getId()),
+                getShapeMessage(configCopy.selectedShape),
                 b -> {
-                    MinerConfig.ShapeMode[] values = MinerConfig.ShapeMode.values();
-                    int nextIndex = (configCopy.shapeMode.ordinal() + 1) % values.length;
-                    configCopy.shapeMode = values[nextIndex];
-                    b.setMessage(getEnumMessage("config.onekeyminer.option.shape_mode", "onekeyminer.shape_mode." + configCopy.shapeMode.getId()));
+                    configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
+                    b.setMessage(getShapeMessage(configCopy.selectedShape));
                 }
             ).bounds(x - w / 2, y + s * i++, w, h).build());
             
@@ -148,6 +150,14 @@ public class ForgeConfigScreen {
             // 对角线连锁
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_diagonal", 
                 () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v);
+            
+            // 连锁任意方块
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.mine_all", 
+                () -> configCopy.mineAllBlocks, v -> configCopy.mineAllBlocks = v);
+            
+            // 允许空手
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_bare_hand", 
+                () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
         }
         
         // === 第二页：消耗设置 ===
@@ -186,19 +196,6 @@ public class ForgeConfigScreen {
                 }
             ).bounds(x - w / 2, y + s * i++, w, h).build());
             
-            // 连锁任意方块
-            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.mine_all", 
-                () -> configCopy.mineAllBlocks, v -> configCopy.mineAllBlocks = v);
-            
-            // 允许空手
-            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_bare_hand", 
-                () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
-        }
-        
-        // === 第三页：高级设置 ===
-        private void initPageAdvanced(int x, int y, int w, int h, int s) {
-            int i = 0;
-            
             // 连锁交互
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction", 
                 () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
@@ -206,6 +203,11 @@ public class ForgeConfigScreen {
             // 连锁种植
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting", 
                 () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
+        }
+        
+        // === 第三页：高级设置 ===
+        private void initPageAdvanced(int x, int y, int w, int h, int s) {
+            int i = 0;
             
             // 连锁收割
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting", 
@@ -267,6 +269,13 @@ public class ForgeConfigScreen {
         private Component getEnumMessage(String key, String enumTranslationKey) {
             return Component.translatable(key).append(": ")
                     .append(Component.translatable(enumTranslationKey).withStyle(ChatFormatting.YELLOW));
+        }
+        
+        private Component getShapeMessage(String shapeId) {
+            ChainShape shape = ShapeRegistry.getShapeOrDefault(shapeId);
+            String translationKey = shape != null ? shape.getTranslationKey() : "onekeyminer.shape.amorphous";
+            return Component.translatable("config.onekeyminer.option.shape_mode").append(": ")
+                    .append(Component.translatable(translationKey).withStyle(ChatFormatting.YELLOW));
         }
         
         private int cycleValue(int current, int[] presets) {
