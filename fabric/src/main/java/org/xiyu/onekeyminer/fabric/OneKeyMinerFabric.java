@@ -2,7 +2,9 @@ package org.xiyu.onekeyminer.fabric;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.resources.ResourceLocation;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -38,12 +40,36 @@ public class OneKeyMinerFabric implements ModInitializer {
      * 注册网络包处理
      */
     private void registerNetworking() {
-        // 注册服务端接收处理
+        // 注册服务端接收处理 - 按键状态包
         ServerPlayNetworking.registerGlobalReceiver(
                 KeyBindings.CHAIN_KEY_STATE_ID,
                 (server, player, handler, buf, responseSender) -> {
                     boolean holding = buf.readBoolean();
-                    server.execute(() -> PlatformServices.getInstance().setChainModeActive(player, holding));
+                    String shapeId = buf.readUtf(256);
+                    server.execute(() -> {
+                        PlatformServices.getInstance().setChainModeActive(player, holding);
+                        try {
+                            ResourceLocation shapeRL = new ResourceLocation(shapeId);
+                            MiningStateManager.setPlayerShape(player, shapeRL);
+                        } catch (Exception e) {
+                            OneKeyMiner.LOGGER.debug("无效的形状 ID: {}", shapeId);
+                        }
+                    });
+                }
+        );
+        
+        // 注册服务端接收处理 - 传送设置包
+        ServerPlayNetworking.registerGlobalReceiver(
+                KeyBindings.TELEPORT_SETTINGS_ID,
+                (server, player, handler, buf, responseSender) -> {
+                    boolean teleportDrops = buf.readBoolean();
+                    boolean teleportExp = buf.readBoolean();
+                    server.execute(() -> {
+                        MiningStateManager.setTeleportDrops(player, teleportDrops);
+                        MiningStateManager.setTeleportExp(player, teleportExp);
+                        OneKeyMiner.LOGGER.debug("玩家 {} 更新传送设置: 掉落物={}, 经验={}",
+                                player.getName().getString(), teleportDrops, teleportExp);
+                    });
                 }
         );
         

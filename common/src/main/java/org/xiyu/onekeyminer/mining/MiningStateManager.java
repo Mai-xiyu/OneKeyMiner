@@ -1,5 +1,6 @@
 package org.xiyu.onekeyminer.mining;
 
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
@@ -23,6 +24,15 @@ public class MiningStateManager {
     
     /** 玩家激活状态映射（线程安全）- 兼容旧版 toggle 模式 */
     private static final Map<UUID, Boolean> PLAYER_STATES = new ConcurrentHashMap<>();
+    
+    /** 玩家选择的形状 ID 映射（线程安全）- 由客户端网络包同步 */
+    private static final Map<UUID, ResourceLocation> PLAYER_SHAPES = new ConcurrentHashMap<>();
+    
+    /** 玩家传送掉落物设置（线程安全）- 由客户端网络包同步 */
+    private static final Map<UUID, Boolean> PLAYER_TELEPORT_DROPS = new ConcurrentHashMap<>();
+    
+    /** 玩家传送经验设置（线程安全）- 由客户端网络包同步 */
+    private static final Map<UUID, Boolean> PLAYER_TELEPORT_EXP = new ConcurrentHashMap<>();
     
     // ==================== 按住模式 API ====================
     
@@ -92,6 +102,114 @@ public class MiningStateManager {
         return newState;
     }
     
+    // ==================== 形状 API ====================
+    
+    /**
+     * 获取玩家当前选择的形状 ID
+     * 
+     * @param player 玩家
+     * @return 形状 ID，如果未设置返回 null
+     */
+    public static ResourceLocation getPlayerShape(ServerPlayer player) {
+        return PLAYER_SHAPES.get(player.getUUID());
+    }
+    
+    /**
+     * 通过 UUID 获取玩家当前选择的形状 ID
+     * 
+     * @param uuid 玩家 UUID
+     * @return 形状 ID，如果未设置返回 null
+     */
+    public static ResourceLocation getPlayerShape(UUID uuid) {
+        return PLAYER_SHAPES.get(uuid);
+    }
+    
+    /**
+     * 设置玩家的形状选择
+     * 
+     * @param player 玩家
+     * @param shapeId 形状 ID
+     */
+    public static void setPlayerShape(ServerPlayer player, ResourceLocation shapeId) {
+        if (shapeId != null) {
+            PLAYER_SHAPES.put(player.getUUID(), shapeId);
+        }
+    }
+    
+    /**
+     * 通过 UUID 设置玩家的形状选择
+     * 
+     * @param uuid 玩家 UUID
+     * @param shapeId 形状 ID
+     */
+    public static void setPlayerShape(UUID uuid, ResourceLocation shapeId) {
+        if (shapeId != null) {
+            PLAYER_SHAPES.put(uuid, shapeId);
+        }
+    }
+    
+    // ==================== 传送设置 API ====================
+    
+    /**
+     * 获取玩家是否启用传送掉落物
+     * 
+     * @param player 玩家
+     * @return 如果玩家启用了传送掉落物返回 true
+     */
+    public static boolean isTeleportDrops(ServerPlayer player) {
+        return PLAYER_TELEPORT_DROPS.getOrDefault(player.getUUID(), false);
+    }
+    
+    /**
+     * 获取玩家是否启用传送经验
+     * 
+     * @param player 玩家
+     * @return 如果玩家启用了传送经验返回 true
+     */
+    public static boolean isTeleportExp(ServerPlayer player) {
+        return PLAYER_TELEPORT_EXP.getOrDefault(player.getUUID(), false);
+    }
+    
+    /**
+     * 设置玩家的传送掉落物状态
+     * 
+     * @param player 玩家
+     * @param enabled 是否启用
+     */
+    public static void setTeleportDrops(ServerPlayer player, boolean enabled) {
+        PLAYER_TELEPORT_DROPS.put(player.getUUID(), enabled);
+    }
+    
+    /**
+     * 通过 UUID 设置玩家的传送掉落物状态
+     * 
+     * @param uuid 玩家 UUID
+     * @param enabled 是否启用
+     */
+    public static void setTeleportDrops(UUID uuid, boolean enabled) {
+        PLAYER_TELEPORT_DROPS.put(uuid, enabled);
+    }
+    
+    /**
+     * 设置玩家的传送经验状态
+     * 
+     * @param player 玩家
+     * @param enabled 是否启用
+     */
+    public static void setTeleportExp(ServerPlayer player, boolean enabled) {
+        PLAYER_TELEPORT_EXP.put(player.getUUID(), enabled);
+    }
+    
+    /**
+     * 通过 UUID 设置玩家的传送经验状态
+     * 
+     * @param uuid 玩家 UUID
+     * @param enabled 是否启用
+     */
+    public static void setTeleportExp(UUID uuid, boolean enabled) {
+        PLAYER_TELEPORT_EXP.put(uuid, enabled);
+    }
+    
     // ==================== 清理 API ====================
     
     /**
@@ -102,6 +220,9 @@ public class MiningStateManager {
     public static void clearState(ServerPlayer player) {
         PLAYER_STATES.remove(player.getUUID());
         PLAYER_KEY_STATES.remove(player.getUUID());
+        PLAYER_SHAPES.remove(player.getUUID());
+        PLAYER_TELEPORT_DROPS.remove(player.getUUID());
+        PLAYER_TELEPORT_EXP.remove(player.getUUID());
     }
     
     /**
@@ -110,5 +231,8 @@ public class MiningStateManager {
     public static void clearAll() {
         PLAYER_STATES.clear();
         PLAYER_KEY_STATES.clear();
+        PLAYER_SHAPES.clear();
+        PLAYER_TELEPORT_DROPS.clear();
+        PLAYER_TELEPORT_EXP.clear();
     }
 }

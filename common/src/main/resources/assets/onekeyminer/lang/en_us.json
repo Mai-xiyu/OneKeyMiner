@@ -19,9 +19,12 @@
 
   "config.onekeyminer.option.shape_mode": "Search Shape",
   "config.onekeyminer.option.shape_mode.tooltip": "Select the search shape for chain mining",
-  "onekeyminer.shape_mode.connected": "Adjacent Connected",
-  "onekeyminer.shape_mode.cube": "Cube Range",
-  "onekeyminer.shape_mode.column": "Vertical Column",
+  "onekeyminer.shape.amorphous": "Amorphous",
+  "onekeyminer.shape.small_tunnel": "Small Tunnel",
+  "onekeyminer.shape.large_tunnel": "Large Tunnel",
+  "onekeyminer.shape.small_square": "Small Square",
+  "onekeyminer.shape.mining_tunnel": "Mining Tunnel",
+  "onekeyminer.shape.escape_tunnel": "Escape Tunnel",
 
   "config.onekeyminer.option.max_blocks": "Max Blocks",
   "config.onekeyminer.option.max_blocks.tooltip": "Maximum blocks mined per chain operation",
@@ -73,5 +76,10 @@
   "message.onekeyminer.chain_action.harvesting": "Chain Harvesting: %d blocks",
   "message.onekeyminer.mode_enabled": "Chain Mining Enabled",
   "message.onekeyminer.mode_disabled": "Chain Mining Disabled",
-  "message.onekeyminer.config_reloaded": "Config Reloaded Successfully"
+  "message.onekeyminer.config_reloaded": "Config Reloaded Successfully",
+
+  "onekeyminer.hud.preview_title": "[Chain Preview]",
+  "onekeyminer.hud.shape": "Shape: %s",
+  "onekeyminer.hud.count": "Blocks: %d",
+  "onekeyminer.hud.max": "Max: %d"
 }

@@ -13,9 +13,12 @@
 
   "config.onekeyminer.option.shape_mode": "搜索形状",
   "config.onekeyminer.option.shape_mode.tooltip": "选择连锁挖矿的搜索形状",
-  "onekeyminer.shape_mode.connected": "相邻连接",
-  "onekeyminer.shape_mode.cube": "立方体范围",
-  "onekeyminer.shape_mode.column": "垂直柱状",
+  "onekeyminer.shape.amorphous": "不定形",
+  "onekeyminer.shape.small_tunnel": "小型通道",
+  "onekeyminer.shape.large_tunnel": "大型通道",
+  "onekeyminer.shape.small_square": "小型方形",
+  "onekeyminer.shape.mining_tunnel": "采矿通道",
+  "onekeyminer.shape.escape_tunnel": "逃生通道",
 
   "config.onekeyminer.option.max_blocks": "最大方块数",
   "config.onekeyminer.option.max_blocks.tooltip": "单次连锁挖矿的最大方块数量",
@@ -81,5 +84,10 @@
   "message.onekeyminer.chain_action.harvesting": "连锁收割: %d 个方块",
   "message.onekeyminer.mode_enabled": "连锁挖矿已启用",
   "message.onekeyminer.mode_disabled": "连锁挖矿已禁用",
-  "message.onekeyminer.config_reloaded": "配置已重新加载"
+  "message.onekeyminer.config_reloaded": "配置已重新加载",
+
+  "onekeyminer.hud.preview_title": "[连锁预览]",
+  "onekeyminer.hud.shape": "形状: %s",
+  "onekeyminer.hud.count": "方块数: %d",
+  "onekeyminer.hud.max": "上限: %d"
 }
