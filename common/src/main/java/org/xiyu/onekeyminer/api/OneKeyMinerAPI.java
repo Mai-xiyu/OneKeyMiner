@@ -12,9 +12,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.api.event.MiningEvents;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.registry.TagResolver;
 
@@ -27,7 +27,7 @@ import java.util.*;
  * <ul>
  *   <li>注册/注销方块白名单和黑名单</li>
  *   <li>注册/注销工具白名单和黑名单</li>
- *   <li>监听挖矿事件（PreMineEvent, PostMineEvent）</li>
+ *   <li>通过 {@link org.xiyu.onekeyminer.api.event.ChainEvents} 监听链式操作事件</li>
  *   <li>查询和修改运行时状态</li>
  * </ul>
  * 
@@ -39,18 +39,18 @@ import java.util.*;
  * // 注册方块标签
  * OneKeyMinerAPI.registerBlockTag("mymod:custom_ores");
  * 
- * // 监听挖矿事件
- * MiningEvents.registerPreMineListener(event -> {
- *     if (isProtectedArea(event.getOriginPos())) {
- *         event.cancel();
- *     }
+ * // 监听链式操作事件
+ * ChainEvents.registerPostActionListener(event -> {
+ *     if (event.getActionType() == ChainActionType.MINING) {
+ *         int count = event.getTotalCount();
+ *         // 处理挖矿统计...
  * });
  * }</pre>
  * 
  * @author OneKeyMiner Team
- * @version 1.0.0
+ * @version 2.0.0
  * @since Minecraft 1.21.9
- * @see MiningEvents
+ * @see org.xiyu.onekeyminer.api.event.ChainEvents
  */
 public final class OneKeyMinerAPI {
     
@@ -63,14 +63,23 @@ public final class OneKeyMinerAPI {
     /** 运行时方块标签白名单 */
     private static final Set<TagKey<Block>> BLOCK_TAG_WHITELIST = new HashSet<>();
     
+    /** 运行时方块标签黑名单 */
+    private static final Set<TagKey<Block>> BLOCK_TAG_BLACKLIST = new HashSet<>();
+    
     /** 运行时工具白名单 */
     private static final Set<ResourceLocation> TOOL_WHITELIST = new HashSet<>();
     
     /** 运行时工具黑名单 */
     private static final Set<ResourceLocation> TOOL_BLACKLIST = new HashSet<>();
     
+    /** 运行时工具标签白名单 */
+    private static final Set<TagKey<Item>> TOOL_TAG_WHITELIST = new HashSet<>();
+    
+    /** 运行时工具标签黑名单 */
+    private static final Set<TagKey<Item>> TOOL_TAG_BLACKLIST = new HashSet<>();
+    
     /** 方块分组映射（用于宽松匹配） */
-    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new HashMap<>();
+    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new HashMap<>();;
     
     private OneKeyMinerAPI() {
         // 私有构造函数，防止实例化
@@ -104,8 +113,14 @@ public final class OneKeyMinerAPI {
         // 加载黑名单
         for (String entry : config.blacklist) {
             if (entry.startsWith("#")) {
-                // 标签黑名单暂不支持，记录日志
-                OneKeyMiner.LOGGER.warn("方块标签黑名单暂不支持: {}", entry);
+                // 标签黑名单
+                String tagId = entry.substring(1);
+                ResourceLocation loc = ResourceLocation.tryParse(tagId);
+                if (loc != null) {
+                    BLOCK_TAG_BLACKLIST.add(TagKey.create(Registries.BLOCK, loc));
+                } else {
+                    OneKeyMiner.LOGGER.warn("无效的方块标签黑名单条目: {}", entry);
+                }
             } else {
                 blacklistBlock(entry);
             }
@@ -274,6 +289,15 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean whitelistTool(String itemId) {
+        if (itemId.startsWith("#")) {
+            String tagId = itemId.substring(1);
+            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            if (loc == null) {
+                OneKeyMiner.LOGGER.warn("无效的物品标签: {}", itemId);
+                return false;
+            }
+            return TOOL_TAG_WHITELIST.add(TagKey.create(Registries.ITEM, loc));
+        }
         ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的物品 ID: {}", itemId);
@@ -289,6 +313,15 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistTool(String itemId) {
+        if (itemId.startsWith("#")) {
+            String tagId = itemId.substring(1);
+            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            if (loc == null) {
+                OneKeyMiner.LOGGER.warn("无效的物品标签: {}", itemId);
+                return false;
+            }
+            return TOOL_TAG_BLACKLIST.add(TagKey.create(Registries.ITEM, loc));
+        }
         ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的物品 ID: {}", itemId);
@@ -371,6 +404,12 @@ public final class OneKeyMinerAPI {
     /** 交互工具黑名单 */
     private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
     
+    /** 交互工具标签白名单 */
+    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_WHITELIST = new HashSet<>();
+    
+    /** 交互工具标签黑名单 */
+    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_BLACKLIST = new HashSet<>();
+    
     /**
      * 注册交互工具到白名单
      * 
@@ -378,7 +417,16 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true
      */
     public static boolean registerInteractionTool(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        if (itemId.startsWith("#")) {
+            String tagId = itemId.substring(1);
+            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            if (loc == null) {
+                OneKeyMiner.LOGGER.warn("无效的交互工具标签: {}", itemId);
+                return false;
+            }
+            return INTERACTION_TOOL_TAG_WHITELIST.add(TagKey.create(Registries.ITEM, loc));
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的交互工具 ID: {}", itemId);
             return false;
@@ -400,7 +448,16 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistInteractionTool(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        if (itemId.startsWith("#")) {
+            String tagId = itemId.substring(1);
+            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            if (loc == null) {
+                OneKeyMiner.LOGGER.warn("无效的交互工具标签: {}", itemId);
+                return false;
+            }
+            return INTERACTION_TOOL_TAG_BLACKLIST.add(TagKey.create(Registries.ITEM, loc));
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的交互工具 ID: {}", itemId);
             return false;
@@ -662,10 +719,23 @@ public final class OneKeyMinerAPI {
         if (INTERACTION_TOOL_BLACKLIST.contains(loc)) {
             return false;
         }
+        for (TagKey<Item> tag : INTERACTION_TOOL_TAG_BLACKLIST) {
+            if (stack.is(tag)) {
+                return false;
+            }
+        }
         
-        // 检查白名单
-        if (!INTERACTION_TOOL_WHITELIST.isEmpty()) {
-            return INTERACTION_TOOL_WHITELIST.contains(loc);
+        // 检查白名单（ID + 标签）
+        if (!INTERACTION_TOOL_WHITELIST.isEmpty() || !INTERACTION_TOOL_TAG_WHITELIST.isEmpty()) {
+            if (INTERACTION_TOOL_WHITELIST.contains(loc)) {
+                return true;
+            }
+            for (TagKey<Item> tag : INTERACTION_TOOL_TAG_WHITELIST) {
+                if (stack.is(tag)) {
+                    return true;
+                }
+            }
+            return false;
         }
         
         return false;
@@ -678,11 +748,17 @@ public final class OneKeyMinerAPI {
     
     /** 种植物品黑名单 */
     private static final Set<ResourceLocation> PLANTABLE_BLACKLIST = new HashSet<>();
+    
+    /** 种植物品标签白名单 */
+    private static final Set<TagKey<Item>> PLANTABLE_TAG_WHITELIST = new HashSet<>();
+    
+    /** 种植物品标签黑名单 */
+    private static final Set<TagKey<Item>> PLANTABLE_TAG_BLACKLIST = new HashSet<>();
 
-    /** 交互物品白名单 */
+    /** 通用交互物品白名单（骨粉、刷子等消耗型交互物品） */
     private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
 
-    /** 交互物品黑名单 */
+    /** 通用交互物品黑名单 */
     private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
 
     /** 交互验证器列表 */
@@ -762,7 +838,16 @@ public final class OneKeyMinerAPI {
      * @return 如果注册成功返回 true
      */
     public static boolean registerPlantableItem(String itemId) {
-        ResourceLocation loc = ResourceLocation.tryParse(itemId.startsWith("#") ? itemId.substring(1) : itemId);
+        if (itemId.startsWith("#")) {
+            String tagId = itemId.substring(1);
+            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            if (loc == null) {
+                OneKeyMiner.LOGGER.warn("无效的种植物品标签: {}", itemId);
+                return false;
+            }
+            return PLANTABLE_TAG_WHITELIST.add(TagKey.create(Registries.ITEM, loc));
+        }
+        ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的种植物品 ID: {}", itemId);
             return false;
@@ -784,6 +869,15 @@ public final class OneKeyMinerAPI {
      * @return 如果添加成功返回 true
      */
     public static boolean blacklistSeed(String itemId) {
+        if (itemId.startsWith("#")) {
+            String tagId = itemId.substring(1);
+            ResourceLocation loc = ResourceLocation.tryParse(tagId);
+            if (loc == null) {
+                OneKeyMiner.LOGGER.warn("无效的种子标签: {}", itemId);
+                return false;
+            }
+            return PLANTABLE_TAG_BLACKLIST.add(TagKey.create(Registries.ITEM, loc));
+        }
         ResourceLocation loc = ResourceLocation.tryParse(itemId);
         if (loc == null) {
             OneKeyMiner.LOGGER.warn("无效的种子 ID: {}", itemId);
@@ -807,7 +901,15 @@ public final class OneKeyMinerAPI {
      */
     public static boolean isSeedBlacklisted(Item item) {
         ResourceLocation loc = BuiltInRegistries.ITEM.getKey(item);
-        return PLANTABLE_BLACKLIST.contains(loc);
+        if (PLANTABLE_BLACKLIST.contains(loc)) {
+            return true;
+        }
+        for (TagKey<Item> tag : PLANTABLE_TAG_BLACKLIST) {
+            if (item.builtInRegistryHolder().is(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -827,10 +929,23 @@ public final class OneKeyMinerAPI {
         if (PLANTABLE_BLACKLIST.contains(loc)) {
             return false;
         }
+        for (TagKey<Item> tag : PLANTABLE_TAG_BLACKLIST) {
+            if (stack.is(tag)) {
+                return false;
+            }
+        }
         
-        // 检查白名单
-        if (!PLANTABLE_WHITELIST.isEmpty()) {
-            return PLANTABLE_WHITELIST.contains(loc);
+        // 检查白名单（ID + 标签）
+        if (!PLANTABLE_WHITELIST.isEmpty() || !PLANTABLE_TAG_WHITELIST.isEmpty()) {
+            if (PLANTABLE_WHITELIST.contains(loc)) {
+                return true;
+            }
+            for (TagKey<Item> tag : PLANTABLE_TAG_WHITELIST) {
+                if (stack.is(tag)) {
+                    return true;
+                }
+            }
+            return false;
         }
         
         return false;
@@ -881,7 +996,15 @@ public final class OneKeyMinerAPI {
      */
     public static boolean isBlockBlacklisted(Block block) {
         ResourceLocation loc = BuiltInRegistries.BLOCK.getKey(block);
-        return BLOCK_BLACKLIST.contains(loc);
+        if (BLOCK_BLACKLIST.contains(loc)) {
+            return true;
+        }
+        for (TagKey<Block> tag : BLOCK_TAG_BLACKLIST) {
+            if (block.defaultBlockState().is(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -900,18 +1023,31 @@ public final class OneKeyMinerAPI {
         
         ResourceLocation loc = BuiltInRegistries.ITEM.getKey(tool.getItem());
         
-        // 检查黑名单（优先）
+        // 检查黑名单（优先）— ID 和标签
         if (TOOL_BLACKLIST.contains(loc)) {
             return false;
         }
+        for (TagKey<Item> tag : TOOL_TAG_BLACKLIST) {
+            if (tool.is(tag)) {
+                return false;
+            }
+        }
         
-        // 如果白名单为空，允许所有工具
-        if (TOOL_WHITELIST.isEmpty()) {
+        // 如果白名单为空（ID 和标签都为空），允许所有工具
+        if (TOOL_WHITELIST.isEmpty() && TOOL_TAG_WHITELIST.isEmpty()) {
             return true;
         }
         
-        // 检查白名单
-        return TOOL_WHITELIST.contains(loc);
+        // 检查白名单 — ID 和标签
+        if (TOOL_WHITELIST.contains(loc)) {
+            return true;
+        }
+        for (TagKey<Item> tag : TOOL_TAG_WHITELIST) {
+            if (tool.is(tag)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**
@@ -941,14 +1077,21 @@ public final class OneKeyMinerAPI {
         BLOCK_WHITELIST.clear();
         BLOCK_BLACKLIST.clear();
         BLOCK_TAG_WHITELIST.clear();
+        BLOCK_TAG_BLACKLIST.clear();
         TOOL_WHITELIST.clear();
         TOOL_BLACKLIST.clear();
+        TOOL_TAG_WHITELIST.clear();
+        TOOL_TAG_BLACKLIST.clear();
         BLOCK_GROUPS.clear();
         INTERACTION_TOOL_WHITELIST.clear();
         INTERACTION_TOOL_BLACKLIST.clear();
+        INTERACTION_TOOL_TAG_WHITELIST.clear();
+        INTERACTION_TOOL_TAG_BLACKLIST.clear();
         TOOL_ACTION_RULES.clear();
         PLANTABLE_WHITELIST.clear();
         PLANTABLE_BLACKLIST.clear();
+        PLANTABLE_TAG_WHITELIST.clear();
+        PLANTABLE_TAG_BLACKLIST.clear();
         INTERACTIVE_ITEM_WHITELIST.clear();
         INTERACTIVE_ITEM_BLACKLIST.clear();
         INTERACTION_VALIDATORS.clear();
@@ -964,5 +1107,77 @@ public final class OneKeyMinerAPI {
         loadFromConfig();
         // 重新注册默认方块（由主类处理）
         OneKeyMiner.LOGGER.info("OneKeyMiner API 已重载");
+    }
+    
+    // ==================== 配置访问 API ====================
+    
+    /**
+     * 检查是否启用掉落物传送
+     * 
+     * @return 如果启用返回 true
+     */
+    public static boolean isTeleportDropsEnabled() {
+        return ConfigManager.getConfig().teleportDrops;
+    }
+    
+    /**
+     * 设置掉落物传送开关
+     * 
+     * <p>修改后会自动保存配置并同步到服务器。</p>
+     * 
+     * @param enabled 是否启用
+     */
+    public static void setTeleportDropsEnabled(boolean enabled) {
+        MinerConfig config = ConfigManager.getConfig();
+        config.teleportDrops = enabled;
+        ConfigManager.save();
+        ConfigSyncHelper.triggerSync();
+        ConfigSyncHelper.notifyConfigChanged("teleportDrops");
+    }
+    
+    /**
+     * 检查是否启用经验传送
+     * 
+     * @return 如果启用返回 true
+     */
+    public static boolean isTeleportExpEnabled() {
+        return ConfigManager.getConfig().teleportExp;
+    }
+    
+    /**
+     * 设置经验传送开关
+     * 
+     * <p>修改后会自动保存配置并同步到服务器。</p>
+     * 
+     * @param enabled 是否启用
+     */
+    public static void setTeleportExpEnabled(boolean enabled) {
+        MinerConfig config = ConfigManager.getConfig();
+        config.teleportExp = enabled;
+        ConfigManager.save();
+        ConfigSyncHelper.triggerSync();
+        ConfigSyncHelper.notifyConfigChanged("teleportExp");
+    }
+    
+    /**
+     * 添加配置变更监听器
+     * 
+     * <p>当通过 API 修改配置时，监听器会被触发。
+     * 监听器接收变更的配置键名（如 "teleportDrops", "teleportExp"）。</p>
+     * 
+     * @param listener 配置变更监听器
+     */
+    public static void addConfigChangeListener(java.util.function.Consumer<String> listener) {
+        ConfigSyncHelper.addConfigChangeListener(listener);
+    }
+    
+    /**
+     * 移除配置变更监听器
+     * 
+     * @param listener 要移除的监听器
+     * @return 如果成功移除返回 true
+     */
+    public static boolean removeConfigChangeListener(java.util.function.Consumer<String> listener) {
+        return ConfigSyncHelper.removeConfigChangeListener(listener);
     }
 }
