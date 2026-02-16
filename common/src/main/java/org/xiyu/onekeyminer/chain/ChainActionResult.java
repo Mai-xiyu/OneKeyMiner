@@ -41,7 +41,13 @@ public record ChainActionResult(
         float hungerUsed,
         
         /** 停止原因 */
-        StopReason stopReason
+        StopReason stopReason,
+        
+        /** 收集到的掉落物列表 */
+        List<ItemStack> collectedDrops,
+        
+        /** 收集到的经验值 */
+        int experienceCollected
 ) {
     
     /**
@@ -106,7 +112,9 @@ public record ChainActionResult(
                 0,
                 0,
                 0f,
-                reason
+                reason,
+                Collections.emptyList(),
+                0
         );
     }
     
@@ -118,6 +126,8 @@ public record ChainActionResult(
      * @param durabilityUsed 消耗的耐久
      * @param hungerUsed 消耗的饥饿
      * @param stopReason 停止原因
+     * @param collectedDrops 收集到的掉落物列表
+     * @param experienceCollected 收集到的经验值
      * @return 结果实例
      */
     public static ChainActionResult success(
@@ -125,7 +135,9 @@ public record ChainActionResult(
             List<BlockPos> positions,
             int durabilityUsed,
             float hungerUsed,
-            StopReason stopReason
+            StopReason stopReason,
+            List<ItemStack> collectedDrops,
+            int experienceCollected
     ) {
         return new ChainActionResult(
                 actionType,
@@ -133,7 +145,9 @@ public record ChainActionResult(
                 positions.size(),
                 durabilityUsed,
                 hungerUsed,
-                stopReason
+                stopReason,
+                collectedDrops != null ? Collections.unmodifiableList(collectedDrops) : Collections.emptyList(),
+                experienceCollected
         );
     }
     
@@ -162,11 +176,13 @@ public record ChainActionResult(
      */
     public String getSummary() {
         return String.format(
-                "%s: %d 个目标, 耐久-%d, 饥饿-%.1f, 停止原因: %s",
+                "%s: %d 个目标, 耐久-%d, 饥饿-%.1f, 掉落物-%d种, 经验-%d, 停止原因: %s",
                 actionType.getDisplayName(),
                 totalCount,
                 durabilityUsed,
                 hungerUsed,
+                collectedDrops.size(),
+                experienceCollected,
                 stopReason.getDisplayName()
         );
     }

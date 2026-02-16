@@ -15,9 +15,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
-import org.xiyu.onekeyminer.api.event.MiningEvents;
-import org.xiyu.onekeyminer.api.event.PostMineEvent;
-import org.xiyu.onekeyminer.api.event.PreMineEvent;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
@@ -133,29 +130,11 @@ public class MiningLogic {
             return;
         }
         
-        // 触发 PreMineEvent
-        PreMineEvent preEvent = new PreMineEvent(player, level, originPos, blocksToMine, tool);
-        MiningEvents.firePreMineEvent(preEvent);
-        
-        if (preEvent.isCancelled()) {
-            OneKeyMiner.LOGGER.debug("连锁挖矿被 PreMineEvent 取消");
-            return;
-        }
-        
         // 获取可能被修改的方块列表
-        List<BlockPos> finalBlocks = preEvent.getBlocksToMine();
+        List<BlockPos> finalBlocks = blocksToMine;
         
         // 执行挖矿
         MiningResult result = mineBlocks(player, level, finalBlocks, tool, config);
-        
-        // 触发 PostMineEvent
-        PostMineEvent postEvent = new PostMineEvent(
-                player, level, originPos, 
-                result.minedBlocks(), 
-                result.totalMined(), 
-                result.stopReason()
-        );
-        MiningEvents.firePostMineEvent(postEvent);
         
         // 显示统计信息
         if (config.showStats && result.totalMined() > 0) {
@@ -356,7 +335,7 @@ public class MiningLogic {
     /**
      * 收集并传送掉落物到玩家背包
      */
-    private static void collectAndTeleportDrops(
+    private static List<ItemStack> collectAndTeleportDrops(
             ServerLevel level, 
             ServerPlayer player, 
             AABB area, 
@@ -365,8 +344,10 @@ public class MiningLogic {
         List<ItemEntity> newItems = level.getEntitiesOfClass(ItemEntity.class, area, 
                 entity -> !existingEntityIds.contains(entity.getId()) && entity.isAlive());
         
+        List<ItemStack> collected = new ArrayList<>();
         for (ItemEntity itemEntity : newItems) {
             ItemStack stack = itemEntity.getItem().copy();
+            collected.add(stack.copy());
             
             // 尝试添加到玩家背包
             if (player.getInventory().add(stack)) {
@@ -377,6 +358,7 @@ public class MiningLogic {
                 itemEntity.teleportTo(player.getX(), player.getY(), player.getZ());
             }
         }
+        return collected;
     }
     
     /**

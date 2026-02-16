@@ -10,6 +10,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
@@ -27,6 +29,12 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     
     @Override
     public void onInitializeClient() {
+        // 注册配置同步回调
+        ConfigSyncHelper.registerSyncCallback(() -> {
+            var config = ConfigManager.getConfig();
+            KeyBindings.sendTeleportSettings(config.teleportDrops, config.teleportExp);
+        });
+        
         // 注册按键绑定（这会注册 ClientTickEvents）
         KeyBindings.register();
         

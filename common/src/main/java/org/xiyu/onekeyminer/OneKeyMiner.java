@@ -102,7 +102,7 @@ public class OneKeyMiner {
         OneKeyMinerAPI.registerBlockTag("minecraft:leaves");
         
         // 下界矿石
-        OneKeyMinerAPI.registerBlockTag("minecraft:nether_gold_ore");
+        OneKeyMinerAPI.registerBlock("minecraft:nether_gold_ore");
         OneKeyMinerAPI.registerBlock("minecraft:ancient_debris");
         OneKeyMinerAPI.registerBlock("minecraft:nether_quartz_ore");
         
