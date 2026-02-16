@@ -519,13 +519,15 @@ public final class ChainActionLogic {
             }
         }
 
+        List<ItemStack> collectedDrops = Collections.emptyList();
+        int totalExpCollected = 0;
         if (serverLevel != null && !minedBlocks.isEmpty()) {
             AABB searchArea = calculateSearchArea(minedBlocks);
             if (config.teleportDrops) {
-                collectAndTeleportDrops(serverLevel, player, searchArea, existingEntityIds);
+                collectedDrops = collectAndTeleportDrops(serverLevel, player, searchArea, existingEntityIds);
             }
             if (config.teleportExp) {
-                collectAndTeleportExp(serverLevel, player, searchArea, existingEntityIds);
+                totalExpCollected = collectAndTeleportExp(serverLevel, player, searchArea, existingEntityIds);
             }
         }
         
@@ -535,7 +537,9 @@ public final class ChainActionLogic {
                 minedBlocks,
                 durabilityUsed,
                 hungerUsed,
-                stopReason
+                stopReason,
+                collectedDrops,
+                totalExpCollected
         );
         
         PostActionEvent postEvent = new PostActionEvent(
@@ -890,8 +894,9 @@ public final class ChainActionLogic {
      */
     private static boolean canTill(BlockState state) {
         // 检查是否在可耕地标签中
+        String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
         return TagResolver.matchesBlock(state.getBlock(), "#minecraft:dirt") ||
-               TagResolver.matchesBlock(state.getBlock(), "#c:tillable");
+               TagResolver.matchesBlock(state.getBlock(), "#" + prefix + ":tillable");
     }
     
     /**
@@ -1010,7 +1015,9 @@ public final class ChainActionLogic {
                 shearedPositions,
                 durabilityUsed,
                 0f,
-                stopReason
+                stopReason,
+                Collections.emptyList(),
+                0
         );
         
         // 触发 PostActionEvent
@@ -1080,7 +1087,9 @@ public final class ChainActionLogic {
                 interactedPositions,
                 durabilityUsed,
                 0f,
-                stopReason
+                stopReason,
+                Collections.emptyList(),
+                0
         );
         
         PostActionEvent postEvent = new PostActionEvent(
@@ -1129,7 +1138,7 @@ public final class ChainActionLogic {
         return new AABB(minX - 2, minY - 2, minZ - 2, maxX + 3, maxY + 3, maxZ + 3);
     }
 
-    private static void collectAndTeleportDrops(
+    private static List<ItemStack> collectAndTeleportDrops(
             ServerLevel level,
             ServerPlayer player,
             AABB area,
@@ -1138,14 +1147,17 @@ public final class ChainActionLogic {
         List<ItemEntity> newItems = level.getEntitiesOfClass(ItemEntity.class, area,
                 entity -> !existingEntityIds.contains(entity.getId()) && entity.isAlive());
 
+        List<ItemStack> collectedDrops = new ArrayList<>();
         for (ItemEntity itemEntity : newItems) {
             ItemStack stack = itemEntity.getItem().copy();
+            collectedDrops.add(stack.copy());
             if (player.getInventory().add(stack)) {
                 itemEntity.discard();
             } else {
                 itemEntity.teleportTo(player.getX(), player.getY(), player.getZ());
             }
         }
+        return collectedDrops;
     }
 
     private static int collectAndTeleportExp(
@@ -1311,9 +1323,9 @@ public final class ChainActionLogic {
         }
         
         // 检查物品标签（作为后备）
-        return TagResolver.matchesItem(item, "#c:seeds") ||
+        String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
+        return TagResolver.matchesItem(item, "#" + prefix + ":seeds") ||
                TagResolver.matchesItem(item, "#minecraft:saplings") ||
-               TagResolver.matchesItem(item, "#neoforge:seeds") ||
                OneKeyMinerAPI.isPlantableItemAllowed(stack);
     }
     
@@ -1410,8 +1422,9 @@ public final class ChainActionLogic {
         }
 
         // 通用检查：耕地或草方块
+        String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
         return TagResolver.matchesBlock(belowState.getBlock(), "#minecraft:dirt") ||
-               TagResolver.matchesBlock(belowState.getBlock(), "#c:farmland");
+               TagResolver.matchesBlock(belowState.getBlock(), "#" + prefix + ":farmland");
     }
 
     private static boolean matchesBlockList(BlockState state, List<String> entries) {
@@ -1477,7 +1490,9 @@ public final class ChainActionLogic {
                 plantedPositions,
                 0,
                 0f,
-                stopReason
+                stopReason,
+                Collections.emptyList(),
+                0
         );
         
         PostActionEvent postEvent = new PostActionEvent(
@@ -1612,6 +1627,7 @@ public final class ChainActionLogic {
         float hungerPerBlock = config.hungerPerBlock * Math.max(0f, config.hungerMultiplier);
 
         List<BlockPos> harvestedPositions = new ArrayList<>();
+        List<ItemStack> allCollectedDrops = new ArrayList<>();
         float hungerUsed = 0f;
         StopReason stopReason = StopReason.COMPLETED;
 
@@ -1645,6 +1661,7 @@ public final class ChainActionLogic {
                 }
 
                 // 给予掉落物
+                allCollectedDrops.addAll(drops.stream().map(ItemStack::copy).toList());
                 for (ItemStack drop : drops) {
                     if (!drop.isEmpty()) {
                         if (!player.getInventory().add(drop)) {
@@ -1670,7 +1687,9 @@ public final class ChainActionLogic {
                 harvestedPositions,
                 0,
                 hungerUsed,
-                stopReason
+                stopReason,
+                allCollectedDrops,
+                (int) hungerUsed
         );
 
         PostActionEvent postEvent = new PostActionEvent(
