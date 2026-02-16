@@ -11,6 +11,8 @@ import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -65,6 +67,10 @@ public class OneKeyMinerForge {
      * 客户端设置事件处理
      */
     private void onClientSetup(FMLClientSetupEvent event) {
+        // 注册配置同步回调
+        ConfigSyncHelper.registerSyncCallback(() -> {
+            // 配置变更后的回调
+        });
         // 注册按键绑定
         ForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("Forge 客户端设置完成");

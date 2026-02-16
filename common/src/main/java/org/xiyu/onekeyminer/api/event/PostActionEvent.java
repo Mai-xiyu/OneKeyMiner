@@ -2,6 +2,7 @@ package org.xiyu.onekeyminer.api.event;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
@@ -12,8 +13,11 @@ import java.util.List;
 /**
  * 链式操作后事件（不可取消）
  * 
- * <p>在链式操作（挖掘/交互/种植）完成后触发。
+ * <p>在链式操作（挖掘/交互/种植/收割）完成后触发。
  * 此事件仅用于收集信息，不能取消或修改操作结果。</p>
+ * 
+ * <p>可通过 {@link #getCollectedDrops()} 获取收集到的掉落物，
+ * 通过 {@link #getExperienceCollected()} 获取收集到的经验值。</p>
  * 
  * <h2>使用示例</h2>
  * <pre>{@code
@@ -160,6 +164,29 @@ public final class PostActionEvent {
      */
     public ChainActionResult.StopReason getStopReason() {
         return result.stopReason();
+    }
+    
+    /**
+     * 获取收集到的掉落物列表
+     * 
+     * <p>仅在启用了掉落物传送时才会有数据，否则返回空列表。
+     * 掉落物以 {@link ItemStack} 副本形式返回，修改返回列表不会影响实际掉落物。</p>
+     * 
+     * @return 不可修改的掉落物列表
+     */
+    public List<ItemStack> getCollectedDrops() {
+        return result.collectedDrops();
+    }
+    
+    /**
+     * 获取收集到的经验值
+     * 
+     * <p>仅在启用了经验传送时才会有数据，否则返回 0。</p>
+     * 
+     * @return 收集到的经验值
+     */
+    public int getExperienceCollected() {
+        return result.experienceCollected();
     }
     
     /**
