@@ -4,6 +4,8 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 
 /**
  * Fabric 平台客户端入口点
@@ -19,6 +21,11 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     
     @Override
     public void onInitializeClient() {
+        // 注册配置同步回调
+        ConfigSyncHelper.registerSyncCallback(() -> {
+            // 配置变更后的回调
+        });
+        
         // 注册按键绑定（这会注册 ClientTickEvents）
         KeyBindings.register();
         

@@ -97,7 +97,7 @@ public class MinerConfig {
     
     /**
      * 交互工具白名单
-     * <p>支持标签格式如 "#c:shears"、"#c:hoes"</p>
+     * <p>支持标签格式如 "#c:shears"、"#c:hoes"（Forge 平台使用 "#forge:shears"）</p>
      */
     public List<String> interactionToolWhitelist = new ArrayList<>();
     
@@ -140,7 +140,7 @@ public class MinerConfig {
     
     /**
      * 种子/树苗白名单
-     * <p>支持标签格式如 "#c:seeds"、"#minecraft:saplings"</p>
+     * <p>支持标签格式如 "#c:seeds"、"#minecraft:saplings"（Forge 平台使用 "#forge:seeds"）</p>
      */
     public List<String> seedWhitelist = new ArrayList<>();
     
@@ -151,7 +151,7 @@ public class MinerConfig {
     
     /**
      * 可种植耕地白名单
-     * <p>支持标签格式如 "#c:farmland"</p>
+     * <p>支持标签格式如 "#c:farmland"（Forge 平台使用 "#forge:farmland"）</p>
      */
     public List<String> farmlandWhitelist = new ArrayList<>();
     
