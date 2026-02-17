@@ -21,11 +21,15 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>单个 ID: {@code minecraft:diamond_ore}</li>
  *   <li>标签格式 1: {@code #minecraft:logs}</li>
- *   <li>标签格式 2: {@code #c:shears}（通用标签）</li>
- *   <li>标签格式 3: {@code #neoforge:seeds}（NeoForge 标签）</li>
+ *   <li>标签格式 2: {@code #c:shears}（Fabric/NeoForge 通用标签）</li>
+ *   <li>标签格式 3: {@code #forge:seeds}（Forge 通用标签）</li>
  *   <li>通配符: {@code minecraft:*_ore}（匹配所有矿石）</li>
  * </ul>
  * 
+ * <p>不同平台的共用标签命名空间不同：Fabric/NeoForge 使用 {@code c}，
+ * Forge 使用 {@code forge}。可通过 {@code PlatformServices.getInstance().getConventionalTagPrefix()}
+ * 获取当前平台的正确前缀。</p>
+ *
  * <p>使用缓存机制优化性能，避免频繁的标签查询。</p>
  * 
  * @author OneKeyMiner Team

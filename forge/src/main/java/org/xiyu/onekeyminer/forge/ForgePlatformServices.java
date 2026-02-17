@@ -179,6 +179,11 @@ public class ForgePlatformServices implements PlatformServices {
         // 见 ForgeConfigScreen 类
     }
     
+    @Override
+    public String getConventionalTagPrefix() {
+        return "forge";
+    }
+    
     /**
      * 清理玩家状态（玩家退出时调用）
      * 
