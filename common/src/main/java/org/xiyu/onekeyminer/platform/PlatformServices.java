@@ -226,4 +226,20 @@ public interface PlatformServices {
     default void sendChainActionMessage(ServerPlayer player, String actionType, int count) {
         // 由各平台实现网络包发送
     }
+    
+    /**
+     * 获取当前平台的共用标签命名空间前缀
+     * 
+     * <p>不同平台使用不同的共用标签命名空间：</p>
+     * <ul>
+     *   <li>Fabric: {@code "c"}  — 由 Fabric API 的 fabric-convention-tags 提供</li>
+     *   <li>Forge 1.20.x: {@code "forge"}  — 由 MinecraftForge 提供</li>
+     *   <li>NeoForge 1.21+: {@code "c"}  — 由 NeoForge 提供</li>
+     * </ul>
+     * 
+     * @return 标签命名空间前缀（不包含冒号）
+     */
+    default String getConventionalTagPrefix() {
+        return "c";
+    }
 }
