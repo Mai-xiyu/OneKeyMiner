@@ -6,6 +6,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -22,6 +24,7 @@ import java.util.function.Supplier;
  * @version 1.2.0
  * @since Minecraft 1.21.9
  */
+@OnlyIn(Dist.CLIENT)
 public class NeoForgeConfigScreen {
 
     private static final String DISCORD_URL = "https://discord.com/invite/h88UDxwUHm";
