@@ -6,6 +6,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.settings.IKeyConflictContext;
 import net.minecraftforge.client.settings.KeyConflictContext;
@@ -25,6 +26,7 @@ import java.lang.reflect.Method;
  * @version 1.1.0
  * @since Minecraft 1.21.7
  */
+@OnlyIn(Dist.CLIENT)
 public class ForgeKeyBindings {
     
     /** 按键分类 */
