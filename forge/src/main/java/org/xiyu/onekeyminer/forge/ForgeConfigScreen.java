@@ -5,6 +5,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -19,10 +21,12 @@ import java.util.function.Supplier;
 /**
  * Forge 配置界面工厂 (国际化修复版)
  * <p>提供分页的图形化配置界面，使用翻译键支持多语言。</p>
+ * <p>此类仅在客户端加载，包含 GUI 相关的客户端引用。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
  * @since Minecraft 1.21.9
  */
+@OnlyIn(Dist.CLIENT)
 public class ForgeConfigScreen {
     
     public static void register(ModLoadingContext context) {
