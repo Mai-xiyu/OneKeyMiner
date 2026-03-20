@@ -9,8 +9,6 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.neoforge.common.NeoForge;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
-import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -48,8 +46,10 @@ public class OneKeyMinerNeoForge {
         // 注册游戏事件处理器到 NeoForge 事件总线
         NeoForge.EVENT_BUS.register(NeoForgeEventHandler.class);
         
-        // 注册配置界面
-        NeoForgeConfigScreen.register(modContainer);
+        // 注册配置界面（仅客户端，避免服务端加载 GUI 类）
+        if (FMLLoader.getDist() == Dist.CLIENT) {
+            NeoForgeConfigScreen.register(modContainer);
+        }
         
         OneKeyMiner.LOGGER.info("OneKeyMiner NeoForge 模块初始化完成");
     }
@@ -65,10 +65,6 @@ public class OneKeyMinerNeoForge {
      * 客户端设置事件处理
      */
     private void onClientSetup(FMLClientSetupEvent event) {
-        // 注册配置同步回调
-        ConfigSyncHelper.registerSyncCallback(() -> {
-            // 配置变更后的回调
-        });
         // 注册按键绑定
         NeoForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("NeoForge 客户端设置完成");

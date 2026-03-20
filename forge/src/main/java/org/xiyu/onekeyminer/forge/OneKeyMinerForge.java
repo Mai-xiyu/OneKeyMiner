@@ -1,11 +1,9 @@
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import org.xiyu.onekeyminer.forge.ForgeKeyBindings;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -39,13 +37,13 @@ public class OneKeyMinerForge {
         
         // 注册生命周期事件
         modEventBus.addListener(this::onCommonSetup);
-        // 注册按键映射（MOD 事件总线）
-        modEventBus.addListener(ForgeKeyBindings::registerKeyMappings);
         
-        // 客户端专用事件
+        // 客户端专用事件（按键、配置界面等引用客户端类，必须在 dist 检查内注册）
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modEventBus.addListener(this::onClientSetup);
-            // 注册配置界面（仅客户端）
+            // 注册按键映射（MOD 事件总线）
+            modEventBus.addListener(ForgeKeyBindings::registerKeyMappings);
+            // 注册配置界面
             ForgeConfigScreen.register(ModLoadingContext.get());
         }
         
