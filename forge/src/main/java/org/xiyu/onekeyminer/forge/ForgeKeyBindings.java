@@ -10,6 +10,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -29,11 +30,13 @@ import java.lang.reflect.Method;
 /**
  * Forge 按键绑定注册
  * <p>注册模组使用的快捷键，并通过客户端 tick 事件处理按键状态同步。</p>
+ * <p>此类仅在客户端加载，包含客户端专用的 KeyMapping 和 Minecraft 引用。</p>
  * 
  * @author OneKeyMiner Team
  * @version 1.1.0
  * @since Minecraft 1.20.1
  */
+@OnlyIn(Dist.CLIENT)
 public class ForgeKeyBindings {
     
     /** 按键分类 */

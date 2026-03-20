@@ -1,0 +1,208 @@
+[203月2026 20:40:47.194] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserver, --fml.forgeVersion, 47.4.6, --fml.mcVersion, 1.20.1, --fml.forgeGroup, net.minecraftforge, --fml.mcpVersion, 20230612.114412]
+[203月2026 20:40:47.198] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 10.0.9+10.0.9+main.dcd20f30 starting: java version 21.0.2 by Oracle Corporation; OS Linux arch amd64 version 6.8.0-90-generic
+[203月2026 20:40:47.849] [main/INFO] [net.minecraftforge.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserver
+[203月2026 20:40:47.889] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.5 Source=union:/home/container/libraries/org/spongepowered/mixin/0.8.5/mixin-0.8.5.jar%2365!/ Service=ModLauncher Env=SERVER
+[203月2026 20:40:48.236] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file /home/container/libraries/net/minecraftforge/fmlcore/1.20.1-47.4.6/fmlcore-1.20.1-47.4.6.jar is missing mods.toml file
+[203月2026 20:40:48.238] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file /home/container/libraries/net/minecraftforge/javafmllanguage/1.20.1-47.4.6/javafmllanguage-1.20.1-47.4.6.jar is missing mods.toml file
+[203月2026 20:40:48.240] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file /home/container/libraries/net/minecraftforge/lowcodelanguage/1.20.1-47.4.6/lowcodelanguage-1.20.1-47.4.6.jar is missing mods.toml file
+[203月2026 20:40:48.241] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file /home/container/libraries/net/minecraftforge/mclanguage/1.20.1-47.4.6/mclanguage-1.20.1-47.4.6.jar is missing mods.toml file
+[203月2026 20:40:48.719] [main/WARN] [net.minecraftforge.jarjar.selection.JarSelector/]: Attempted to select two dependency jars from JarJar which have the same identification: Mod File:  and Mod File: . Using Mod File: 
+[203月2026 20:40:48.721] [main/INFO] [net.minecraftforge.fml.loading.moddiscovery.JarInJarDependencyLocator/]: Found 23 dependencies adding them to mods collection
+[203月2026 20:40:50.942] [main/INFO] [mixin/]: Compatibility level set to JAVA_17
+[203月2026 20:40:51.038] [main/INFO] [mixin/]: Successfully loaded Mixin Connector [com.sonicether.soundphysics.MixinConnector]
+[203月2026 20:40:51.040] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserver' with arguments []
+[203月2026 20:40:51.151] [main/WARN] [mixin/]: Reference map 'puzzlesaccessapi.common.refmap.json' for puzzlesaccessapi.common.mixins.json could not be read. If this is a development environment you can ignore this message
+[203月2026 20:40:51.188] [main/WARN] [mixin/]: Reference map 'tpa.refmap.json' for tpa.mixins.json could not be read. If this is a development environment you can ignore this message
+[203月2026 20:40:51.222] [main/INFO] [Puzzles Lib/]: Loading 61 mods:
+	- advancednetherite 2.1.3
+	- aether 1.20.1-1.5.2-neoforge
+		|-- cumulus_menus 1.20.1-1.0.1-neoforge
+		|-- curios 5.6.1+1.20.1
+		\-- nitrogen_internals 1.20.1-1.0.12-neoforge
+	- appleskin 2.5.1+mc1.20.1
+	- architectury 9.2.14
+	- caelus 3.2.0+1.20.1
+	- carryon 2.1.2.7
+	- cataclysm 3.16
+	- celestial_artifacts 1.5.9
+	- celestial_core 1.5.7
+		|-- l2damagetracker 0.3.8
+		|-- l2itemselector 0.1.7
+		|-- l2library 2.4.23
+		|-- l2screentracker 0.1.4
+		\-- l2tabs 0.3.1
+	- citadel 2.6.3
+	- cloth_config 11.1.136
+	- clumps 12.0.0.4
+	- constructionwand 1.20.1-2.11
+	- create 6.0.8
+		|-- flywheel 1.0.5
+		\-- ponder 1.0.91
+	- create_new_age 1.1.7f+mc1.20.1
+		\-- esl 1.1.3
+	- createbigcannons 5.11.2
+	- dungeons_arise 2.1.58-1.20.x
+	- elytraslot 6.4.4+1.20.1
+		\-- mixinsquared 0.1.2-beta.6
+	- enchantinginfuser 8.0.3
+	- explorerscompass 1.20.1-1.3.3-forge
+	- ferritecore 6.0.1
+	- forge 47.4.6
+	- iceandfire 2.1.13-1.20.1
+	- jei 15.20.0.129
+	- lionfishapi 2.4
+	- mantle 1.11.104
+	- minecraft 1.20.1
+	- naturescompass 1.20.1-1.11.2-forge
+	- ncm 1.0
+	- onekeyminer 1.6.3
+	- puzzleslib 8.1.33
+		|-- mixinextras 0.4.1
+		\-- puzzlesaccessapi 20.1.1
+	- refinedstorage 1.12.4
+	- refinedstorageaddons 0.10.0
+	- ritchiesprojectilelib 2.1.1
+	- rsinfinitybooster 1.20.1-1.0+41
+	- sophisticatedbackpacks 3.24.29.1588
+	- sophisticatedcore 1.3.7.1518
+	- sound_physics_remastered 1.20.1-1.5.1
+	- tacz 1.1.7-hotfix2
+	- taxfreelevels 1.4.14
+	- tconstruct 3.10.2.92
+	- tpa 1.7.5
+	- twilightforest 4.3.1893
+	- voicechat 1.20.1-2.6.12
+		\-- voicechat_api 2.6.0
+	- xaerominimap 25.3.10
+		\-- xaerolib 1.1.0
+	- yes_steve_model 2.6.3-forge+mc1.20.1
+[203月2026 20:40:51.224] [main/WARN] [mixin/]: Reference map 'nitrogen_internals.refmap.json' for nitrogen_internals.mixins.json could not be read. If this is a development environment you can ignore this message
+[203月2026 20:40:51.227] [main/WARN] [mixin/]: Reference map 'itemselector.refmap.json' for l2itemselector.mixins.json could not be read. If this is a development environment you can ignore this message
+[203月2026 20:40:51.601] [main/WARN] [mixin/]: Error loading class: com/github/alexmodguy/alexscaves/server/event/CommonEvents (java.lang.ClassNotFoundException: com.github.alexmodguy.alexscaves.server.event.CommonEvents)
+[203月2026 20:40:51.601] [main/WARN] [mixin/]: @Mixin target com.github.alexmodguy.alexscaves.server.event.CommonEvents was not found wolfcompass.mixins.json:AlexCaveFix
+[203月2026 20:40:51.893] [main/WARN] [mixin/]: Error loading class: dev/shadowsoffire/apotheosis/ench/table/ApothEnchantmentMenu (java.lang.ClassNotFoundException: dev.shadowsoffire.apotheosis.ench.table.ApothEnchantmentMenu)
+[203月2026 20:40:51.893] [main/WARN] [mixin/]: @Mixin target dev.shadowsoffire.apotheosis.ench.table.ApothEnchantmentMenu was not found celestial_artifacts.mixins.json:ApothEnchantmentMenuMixin
+[203月2026 20:40:51.979] [main/WARN] [mixin/]: Error loading class: xfacthd/framedblocks/common/blockentity/doubled/FramedAdjustableDoubleBlockEntity (java.lang.ClassNotFoundException: xfacthd.framedblocks.common.blockentity.doubled.FramedAdjustableDoubleBlockEntity)
+[203月2026 20:40:51.980] [main/WARN] [mixin/]: @Mixin target xfacthd.framedblocks.common.blockentity.doubled.FramedAdjustableDoubleBlockEntity was not found createbigcannons.mixins.json:compat.FramedAdjustableDoubleBlockEntityAccessor
+[203月2026 20:40:52.240] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.4.1).
+[203月2026 20:40:57.459] [modloading-worker-0/INFO] [xaero.lib.XaeroLib/]: Registering common data for channel xaerolib:main!
+[203月2026 20:40:57.489] [modloading-worker-0/INFO] [xaero.lib.XaeroLib/]: Loading primary common config for channel xaerolib:main!
+[203月2026 20:40:57.495] [modloading-worker-0/INFO] [xaero.lib.XaeroLib/]: Loading server config profiles for channel xaerolib:main!
+[203月2026 20:40:57.731] [modloading-worker-0/WARN] [yes_steve_model/]: Failed to create preferred directory, using fallback
+java.nio.file.FileSystemException: /root/.ysm: 只读文件系统
+	at sun.nio.fs.UnixException.translateToIOException(UnixException.java:100) ~[?:?]
+	at sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:106) ~[?:?]
+	at sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111) ~[?:?]
+	at sun.nio.fs.UnixFileSystemProvider.createDirectory(UnixFileSystemProvider.java:438) ~[?:?]
+	at java.nio.file.Files.createDirectory(Files.java:699) ~[?:?]
+	at java.nio.file.Files.createAndCheckIsDirectory(Files.java:807) ~[?:?]
+	at java.nio.file.Files.createDirectories(Files.java:793) ~[?:?]
+	at com.elfmcys.yesstevemodel.Ooo0o0oO000OO000O0OO000o.OOooo0oo0OOOo00OoooOooOO(Unknown Source) ~[ysm-2.6.3-forge+mc1.20.1-release.jar%23145!/:2.6.3-forge+mc1.20.1]
+	at com.elfmcys.yesstevemodel.Ooo0o0oO000OO000O0OO000o.OO0o0oOOooooOooooO0O0o00(Unknown Source) ~[ysm-2.6.3-forge+mc1.20.1-release.jar%23145!/:2.6.3-forge+mc1.20.1]
+	at com.elfmcys.yesstevemodel.Ooo0o0oO000OO000O0OO000o.OOooo0oo0OOOo00OoooOooOO(Unknown Source) ~[ysm-2.6.3-forge+mc1.20.1-release.jar%23145!/:2.6.3-forge+mc1.20.1]
+	at com.elfmcys.yesstevemodel.YesSteveModel.<init>(Unknown Source) ~[ysm-2.6.3-forge+mc1.20.1-release.jar%23145!/:2.6.3-forge+mc1.20.1]
+	at jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62) ~[?:?]
+	at java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502) ~[?:?]
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:486) ~[?:?]
+	at net.minecraftforge.fml.javafmlmod.FMLModContainer.constructMod(FMLModContainer.java:77) ~[javafmllanguage-1.20.1-47.4.6.jar%23189!/:?]
+	at net.minecraftforge.fml.ModContainer.lambda$buildTransitionHandler$5(ModContainer.java:126) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at java.util.concurrent.CompletableFuture$AsyncRun.run(CompletableFuture.java:1804) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncRun.exec(CompletableFuture.java:1796) ~[?:?]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:387) ~[?:?]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1312) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1843) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1808) ~[?:?]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) ~[?:?]
+[203月2026 20:40:57.899] [modloading-worker-0/INFO] [org.antarcticgardens.cna.CreateNewAge/]: Hello 1.20.1 Create!
+[203月2026 20:40:57.991] [modloading-worker-0/INFO] [OneKeyMiner/]: 正在初始化 OneKeyMiner
+[203月2026 20:40:57.998] [modloading-worker-0/INFO] [OneKeyMiner/]: 配置文件加载成功: /home/container/config/onekeyminer.json
+[203月2026 20:40:58.006] [modloading-worker-0/INFO] [OneKeyMiner/]: OneKeyMiner 初始化完成！
+[203月2026 20:40:58.011] [modloading-worker-0/ERROR] [net.minecraftforge.fml.loading.RuntimeDistCleaner/DISTXFORM]: Attempted to load class net/minecraft/client/Options for invalid dist DEDICATED_SERVER
+[203月2026 20:40:58.012] [modloading-worker-0/ERROR] [net.minecraftforge.fml.javafmlmod.FMLModContainer/LOADING]: Failed to create mod instance. ModID: onekeyminer, class org.xiyu.onekeyminer.forge.OneKeyMinerForge
+java.lang.RuntimeException: Attempted to load class net/minecraft/client/Options for invalid dist DEDICATED_SERVER
+	at net.minecraftforge.fml.loading.RuntimeDistCleaner.processClassWithFlags(RuntimeDistCleaner.java:57) ~[fmlloader-1.20.1-47.4.6.jar%2369!/:1.0]
+	at cpw.mods.modlauncher.LaunchPluginHandler.offerClassNodeToPlugins(LaunchPluginHandler.java:88) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.ClassTransformer.transform(ClassTransformer.java:120) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.TransformingClassLoader.maybeTransformClassBytes(TransformingClassLoader.java:50) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.cl.ModuleClassLoader.readerToClass(ModuleClassLoader.java:113) ~[securejarhandler-2.1.10.jar:?]
+	at cpw.mods.cl.ModuleClassLoader.lambda$findClass$15(ModuleClassLoader.java:219) ~[securejarhandler-2.1.10.jar:?]
+	at cpw.mods.cl.ModuleClassLoader.loadFromModule(ModuleClassLoader.java:229) ~[securejarhandler-2.1.10.jar:?]
+	at cpw.mods.cl.ModuleClassLoader.findClass(ModuleClassLoader.java:219) ~[securejarhandler-2.1.10.jar:?]
+	at cpw.mods.cl.ModuleClassLoader.loadClass(ModuleClassLoader.java:135) ~[securejarhandler-2.1.10.jar:?]
+	at java.lang.ClassLoader.loadClass(ClassLoader.java:526) ~[?:?]
+	at java.lang.Class.getDeclaredConstructors0(Native Method) ~[?:?]
+	at java.lang.Class.privateGetDeclaredConstructors(Class.java:3549) ~[?:?]
+	at java.lang.Class.getConstructor0(Class.java:3754) ~[?:?]
+	at java.lang.Class.getConstructor(Class.java:2442) ~[?:?]
+	at net.minecraftforge.eventbus.api.EventListenerHelper.computeListenerList(EventListenerHelper.java:75) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.api.EventListenerHelper.lambda$getListenerListInternal$0(EventListenerHelper.java:56) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.LockHelper.computeIfAbsent(LockHelper.java:61) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.LockHelper.get(LockHelper.java:44) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.LockHelper.computeIfAbsent(LockHelper.java:39) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.api.EventListenerHelper.getListenerListInternal(EventListenerHelper.java:56) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.api.EventListenerHelper.getListenerList(EventListenerHelper.java:50) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.EventBus.addToListeners(EventBus.java:276) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.EventBus.addListener(EventBus.java:252) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.EventBus.addListener(EventBus.java:244) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.EventBus.addListener(EventBus.java:199) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.EventBus.addListener(EventBus.java:193) ~[eventbus-6.0.5.jar%2352!/:?]
+	at net.minecraftforge.eventbus.EventBus.addListener(EventBus.java:187) ~[eventbus-6.0.5.jar%2352!/:?]
+	at org.xiyu.onekeyminer.forge.OneKeyMinerForge.<init>(OneKeyMinerForge.java:41) ~[onekeyminer-1.6.3-1.20.1.jar%23143!/:?]
+	at jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62) ~[?:?]
+	at java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:502) ~[?:?]
+	at java.lang.reflect.Constructor.newInstance(Constructor.java:486) ~[?:?]
+	at net.minecraftforge.fml.javafmlmod.FMLModContainer.constructMod(FMLModContainer.java:77) ~[javafmllanguage-1.20.1-47.4.6.jar%23189!/:?]
+	at net.minecraftforge.fml.ModContainer.lambda$buildTransitionHandler$5(ModContainer.java:126) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at java.util.concurrent.CompletableFuture$AsyncRun.run(CompletableFuture.java:1804) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncRun.exec(CompletableFuture.java:1796) ~[?:?]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:387) ~[?:?]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1312) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1843) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1808) ~[?:?]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) ~[?:?]
+[203月2026 20:40:58.107] [modloading-worker-0/INFO] [net.minecraftforge.common.ForgeMod/FORGEMOD]: Forge mod loading, version 47.4.6, for MC 1.20.1 with MCP 20230612.114412
+[203月2026 20:40:58.107] [modloading-worker-0/INFO] [net.minecraftforge.common.MinecraftForge/FORGE]: MinecraftForge v47.4.6 Initialized
+[203月2026 20:40:58.230] [modloading-worker-0/ERROR] [net.minecraftforge.fml.loading.RuntimeDistCleaner/DISTXFORM]: Attempted to load class org/antarcticgardens/cna/CreateNewAgeClientForge for invalid dist DEDICATED_SERVER
+[203月2026 20:40:58.230] [modloading-worker-0/INFO] [org.antarcticgardens.cna.CreateNewAge/]: Running in dedicated server
+[203月2026 20:40:58.589] [modloading-worker-0/INFO] [com.refinedmods.refinedstorage.apiimpl.API/]: Found 1 RS API injection point
+[203月2026 20:40:58.591] [modloading-worker-0/INFO] [com.refinedmods.refinedstorage.apiimpl.API/]: Injected RS API in com.refinedmods.refinedstorageaddons.RSAddons RSAPI
+[203月2026 20:40:59.440] [modloading-worker-0/INFO] [com.simibubi.create.Create/]: Create 6.0.8 initializing! Commit hash: 1a1a9a2819b4f89f78caec41b55ed8cb222fa24b
+[203月2026 20:41:00.095] [modloading-worker-0/INFO] [xaero.common.HudMod/]: Registering common data for channel xaerominimap:main!
+[203月2026 20:41:00.134] [modloading-worker-0/INFO] [xaero.common.HudMod/]: Loading primary common config for channel xaerominimap:main!
+[203月2026 20:41:00.138] [modloading-worker-0/INFO] [xaero.common.HudMod/]: Loading server config profiles for channel xaerominimap:main!
+[203月2026 20:41:00.189] [modloading-worker-0/INFO] [com.autovw.advancednetherite.AdvancedNetherite/]: Initializing platform helper for Advanced Netherite!
+[203月2026 20:41:00.222] [modloading-worker-0/INFO] [com.aetherteam.cumulus.Cumulus/]: Disabling Cumulus as it is on server.
+[203月2026 20:41:00.327] [modloading-worker-0/INFO] [dev.architectury.networking.forge.NetworkManagerImpl/]: Registering C2S receiver with id architectury:sync_ids
+[203月2026 20:41:00.408] [modloading-worker-0/INFO] [Puzzles Lib/]: Constructing common components for puzzleslib:main
+[203月2026 20:41:00.639] [modloading-worker-0/INFO] [Puzzles Lib/]: Constructing common components for enchantinginfuser:main
+[203月2026 20:41:01.274] [main/FATAL] [net.minecraftforge.fml.ModLoader/LOADING]: Failed to complete lifecycle event CONSTRUCT, 1 errors found
+[203月2026 20:41:01.412] [main/FATAL] [net.minecraftforge.common.ForgeMod/]: Preparing crash report with UUID 6265b06b-7b39-460c-bdff-755f4dfb1489
+[203月2026 20:41:01.413] [main/FATAL] [net.minecraftforge.server.loading.ServerModLoader/]: Crash report saved to ./crash-reports/crash-2026-03-20_20.41.01-fml.txt
+[203月2026 20:41:01.419] [main/FATAL] [net.minecraftforge.common.ForgeMod/]: Preparing crash report with UUID d0b902e3-f2c5-42b1-ac44-b27bd47740ee
+[203月2026 20:41:01.419] [main/ERROR] [net.minecraft.server.Main/FATAL]: Failed to start the minecraft server
+net.minecraftforge.fml.LoadingFailedException: Loading errors encountered: [
+	Onekeyminer (onekeyminer) has failed to load correctly
+§7java.lang.RuntimeException: Attempted to load class net/minecraft/client/Options for invalid dist DEDICATED_SERVER
+]
+	at net.minecraftforge.fml.ModLoader.waitForTransition(ModLoader.java:246) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at net.minecraftforge.fml.ModLoader.lambda$dispatchAndHandleError$20(ModLoader.java:210) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at java.util.Optional.ifPresent(Optional.java:178) ~[?:?]
+	at net.minecraftforge.fml.ModLoader.dispatchAndHandleError(ModLoader.java:210) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at net.minecraftforge.fml.ModLoader.lambda$gatherAndInitializeMods$13(ModLoader.java:183) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at java.lang.Iterable.forEach(Iterable.java:75) ~[?:?]
+	at net.minecraftforge.fml.ModLoader.gatherAndInitializeMods(ModLoader.java:183) ~[fmlcore-1.20.1-47.4.6.jar%23188!/:?]
+	at net.minecraftforge.server.loading.ServerModLoader.load(ServerModLoader.java:30) ~[forge-1.20.1-47.4.6-universal.jar%23192!/:?]
+	at net.minecraft.server.Main.main(Main.java:125) ~[server-1.20.1-20230612.114412-srg.jar%23187!/:?]
+	at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:580) ~[?:?]
+	at net.minecraftforge.fml.loading.targets.CommonLaunchHandler.runTarget(CommonLaunchHandler.java:111) ~[fmlloader-1.20.1-47.4.6.jar%2369!/:?]
+	at net.minecraftforge.fml.loading.targets.CommonLaunchHandler.serverService(CommonLaunchHandler.java:103) ~[fmlloader-1.20.1-47.4.6.jar%2369!/:?]
+	at net.minecraftforge.fml.loading.targets.CommonServerLaunchHandler.lambda$makeService$0(CommonServerLaunchHandler.java:27) ~[fmlloader-1.20.1-47.4.6.jar%2369!/:?]
+	at cpw.mods.modlauncher.LaunchServiceHandlerDecorator.launch(LaunchServiceHandlerDecorator.java:30) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.LaunchServiceHandler.launch(LaunchServiceHandler.java:53) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.LaunchServiceHandler.launch(LaunchServiceHandler.java:71) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.Launcher.run(Launcher.java:108) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.Launcher.main(Launcher.java:78) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.BootstrapLaunchConsumer.accept(BootstrapLaunchConsumer.java:26) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.modlauncher.BootstrapLaunchConsumer.accept(BootstrapLaunchConsumer.java:23) ~[modlauncher-10.0.9.jar%2355!/:?]
+	at cpw.mods.bootstraplauncher.BootstrapLauncher.main(BootstrapLauncher.java:141) ~[bootstraplauncher-1.1.2.jar:?]
