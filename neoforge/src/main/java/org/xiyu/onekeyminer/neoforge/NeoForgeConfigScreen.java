@@ -4,6 +4,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.ConfigScreenHandler;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -16,10 +18,12 @@ import java.util.function.Supplier;
 /**
  * NeoForge 配置界面工厂 (修复完善版)
  * <p>提供分页的图形化配置界面，支持多语言。</p>
+ * <p>此类仅在客户端加载，包含 GUI 相关的客户端引用。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
  * @since Minecraft 1.21.9
  */
+@OnlyIn(Dist.CLIENT)
 public class NeoForgeConfigScreen {
     
     public static void register(ModContainer modContainer) {
