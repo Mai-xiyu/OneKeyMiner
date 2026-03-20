@@ -5,6 +5,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -21,6 +23,7 @@ import java.util.function.Supplier;
  * @version 1.2.0
  * @since Minecraft 1.21.9
  */
+@OnlyIn(Dist.CLIENT)
 public class ForgeConfigScreen {
     
     public static void register(ModLoadingContext context) {
