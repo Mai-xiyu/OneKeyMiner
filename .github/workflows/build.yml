@@ -1,1 +1,70 @@
-﻿name: Buildon:  push:    branches: [ "**" ]  pull_request:    branches: [ "**" ]jobs:  build:    runs-on: ubuntu-latest        steps:      - name: Checkout repository        uses: actions/checkout@v4      - name: Read project properties        id: props        run: |          MC_VERSION="$(grep '^mc_ver=' gradle.properties | cut -d= -f2 | tr -d '\r')"          PROPS_FILE="versionProperties/${MC_VERSION}.properties"          JAVA_VERSION="21"          if [ -f "$PROPS_FILE" ]; then            JV="$(grep '^java_version=' "$PROPS_FILE" | cut -d= -f2 | tr -d '\r')"            if [ -n "$JV" ]; then JAVA_VERSION="$JV"; fi          fi          echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"      - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}        uses: actions/setup-java@v4        with:          java-version: '${{ steps.props.outputs.JAVA_VERSION }}'          distribution: 'temurin'      - name: Grant execute permission for gradlew        run: chmod +x gradlew      - name: Setup Gradle        uses: gradle/actions/setup-gradle@v3      - name: Build with Gradle        run: ./gradlew build --no-daemon -x test -x compileTestJava      - name: Upload Fabric artifact        uses: actions/upload-artifact@v4        with:          name: onekeyminer-fabric          path: fabric/build/libs/*.jar          if-no-files-found: warn      - name: Upload Forge artifact        uses: actions/upload-artifact@v4        with:          name: onekeyminer-forge          path: forge/build/libs/*.jar          if-no-files-found: warn      - name: Upload NeoForge artifact        uses: actions/upload-artifact@v4        with:          name: onekeyminer-neoforge          path: neoforge/build/libs/*.jar          if-no-files-found: warn      - name: Upload Merged artifact        uses: actions/upload-artifact@v4        with:          name: onekeyminer-merged          path: build/forgix/*.jar          if-no-files-found: warn
+name: Build
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read project properties
+        id: props
+        run: |
+          MC_VERSION="$(grep '^mc_ver=' gradle.properties | cut -d= -f2 | tr -d '\r')"
+          PROPS_FILE="versionProperties/${MC_VERSION}.properties"
+          JAVA_VERSION="21"
+          if [ -f "$PROPS_FILE" ]; then
+            JV="$(grep '^java_version=' "$PROPS_FILE" | cut -d= -f2 | tr -d '\r')"
+            if [ -n "$JV" ]; then JAVA_VERSION="$JV"; fi
+          fi
+          echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: '${{ steps.props.outputs.JAVA_VERSION }}'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon -x test -x compileTestJava
+
+      - name: Upload Fabric artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onekeyminer-fabric
+          path: fabric/build/libs/*.jar
+          if-no-files-found: warn
+
+      - name: Upload Forge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onekeyminer-forge
+          path: forge/build/libs/*.jar
+          if-no-files-found: warn
+
+      - name: Upload NeoForge artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onekeyminer-neoforge
+          path: neoforge/build/libs/*.jar
+          if-no-files-found: warn
+
+      - name: Upload Merged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onekeyminer-merged
+          path: build/forgix/*.jar
+          if-no-files-found: warn
