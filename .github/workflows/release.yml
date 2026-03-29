@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - '*-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name to release (e.g. 1.21.9-1.6.5-beta)'
+        required: true
+        type: string
 
 jobs:
   build:
@@ -12,13 +18,24 @@ jobs:
       contents: write
     
     steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.name }}
 
       - name: Read project properties
         id: props
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_NAME="${{ steps.tag.outputs.name }}"
           MC_VERSION="$(grep '^mc_ver=' gradle.properties | cut -d= -f2 | tr -d '\r')"
           MOD_VERSION="${TAG_NAME#${MC_VERSION}-}"
 
