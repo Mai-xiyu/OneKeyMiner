@@ -13,7 +13,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -165,12 +164,12 @@ public class ForgePlatformServices implements PlatformServices {
         // 使用 ActionBar 消息通知玩家
         String translationKey = "message.onekeyminer.chain_action." + actionType;
         Component message = Component.translatable(translationKey, count);
-        player.displayClientMessage(message, true);
+        player.sendOverlayMessage(message);
     }
     
     @Override
     public boolean isModLoaded(String modId) {
-        return ModList.get().isLoaded(modId);
+        return net.minecraftforge.fml.loading.LoadingModList.getModFileById(modId) != null;
     }
     
     @Override

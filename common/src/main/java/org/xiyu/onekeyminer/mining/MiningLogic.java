@@ -584,9 +584,8 @@ public class MiningLogic {
             message.append(" §7(").append(result.stopReason().getMessage()).append(")");
         }
         
-        player.displayClientMessage(
-                net.minecraft.network.chat.Component.literal(message.toString()), 
-                true // Action Bar
+        player.sendOverlayMessage(
+                net.minecraft.network.chat.Component.literal(message.toString())
         );
     }
     

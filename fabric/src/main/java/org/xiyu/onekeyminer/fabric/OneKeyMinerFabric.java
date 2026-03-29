@@ -40,7 +40,7 @@ public class OneKeyMinerFabric implements ModInitializer {
      */
     private void registerNetworking() {
         // 注册按键状态包（客户端到服务端）
-        PayloadTypeRegistry.playC2S().register(
+        PayloadTypeRegistry.serverboundPlay().register(
                 KeyBindings.ChainKeyStatePayload.TYPE,
                 KeyBindings.ChainKeyStatePayload.STREAM_CODEC
         );

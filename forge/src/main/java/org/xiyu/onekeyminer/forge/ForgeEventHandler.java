@@ -230,7 +230,7 @@ public class ForgeEventHandler {
      * @param event 右键实体事件
      */
     @SubscribeEvent(priority = Priority.LOW)
-    public void onRightClickEntity(PlayerInteractEvent.EntityInteract event) {
+    public void onRightClickEntity(PlayerInteractEvent.EntityInteractSpecific event) {
         if (IS_CHAIN_INTERACTING.get()) {
             return;
         }
