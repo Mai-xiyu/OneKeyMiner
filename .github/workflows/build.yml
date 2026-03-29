@@ -14,10 +14,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Read project properties
+        id: props
+        run: |
+          MC_VERSION="$(grep '^mc_ver=' gradle.properties | cut -d= -f2 | tr -d '\r')"
+          PROPS_FILE="versionProperties/${MC_VERSION}.properties"
+          JAVA_VERSION="21"
+          if [ -f "$PROPS_FILE" ]; then
+            JV="$(grep '^java_version=' "$PROPS_FILE" | cut -d= -f2 | tr -d '\r')"
+            if [ -n "$JV" ]; then JAVA_VERSION="$JV"; fi
+          fi
+          echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '${{ steps.props.outputs.JAVA_VERSION }}'
           distribution: 'temurin'
 
       - name: Grant execute permission for gradlew
@@ -54,5 +66,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: onekeyminer-merged
-          path: build/libs/*.jar
+          path: build/forgix/*.jar
           if-no-files-found: warn
