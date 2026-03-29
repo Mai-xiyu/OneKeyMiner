@@ -1315,8 +1315,8 @@ public final class ChainActionLogic {
                 block instanceof TallFlowerBlock ||
                 block instanceof CactusBlock ||
                 block instanceof TallGrassBlock ||
-                block instanceof FungusBlock ||
-                block instanceof RootsBlock ||
+                block instanceof NetherFungusBlock ||
+                block instanceof NetherRootsBlock ||
                 block instanceof NetherSproutsBlock ||
                 block instanceof CocoaBlock ||
                 block instanceof MangroveRootsBlock ||

@@ -2,7 +2,7 @@ package org.xiyu.onekeyminer.fabric;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.KeyMapping;
@@ -40,7 +40,7 @@ public class KeyBindings {
      */
     public static void register() {
         // 连锁挖矿激活按键（按住模式）
-        CHAIN_MINING_KEY = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+        CHAIN_MINING_KEY = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.onekeyminer.hold",             // 翻译键
                 InputConstants.Type.KEYSYM,         // 输入类型
                 GLFW.GLFW_KEY_GRAVE_ACCENT,        // 默认按键（`键）
@@ -48,7 +48,7 @@ public class KeyBindings {
         ));
         
         // 打开配置界面（默认未绑定）
-        OPEN_CONFIG = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+        OPEN_CONFIG = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.onekeyminer.config",
                 InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_UNKNOWN,              // 默认未绑定

@@ -183,7 +183,7 @@ public class NeoForgePlatformServices implements PlatformServices {
         String key = "message.onekeyminer.chain_action." + actionType;
         
         Component message = Component.translatable(key, count);
-        player.displayClientMessage(message, true); // true = Action Bar
+        player.sendOverlayMessage(message);
     }
     
     /**

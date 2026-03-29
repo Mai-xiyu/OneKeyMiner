@@ -689,7 +689,7 @@ public final class OneKeyMinerAPI {
                 Identifier tagId = Identifier.tryParse(entry.substring(1));
                 if (tagId != null) {
                     TagKey<EntityType<?>> tag = TagKey.create(Registries.ENTITY_TYPE, tagId);
-                    if (type.is(tag)) {
+                    if (type.builtInRegistryHolder().is(tag)) {
                         return true;
                     }
                 }

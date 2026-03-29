@@ -7,9 +7,8 @@ unimined.minecraft(sourceSets.main, true) {
     version gradle.ext.minecraft_version
 
     mappings {
-        mojmap()
-        devNamespace "mojmap"
-        devFallbackNamespace "mojmap"
+        devNamespace "official"
+        devFallbackNamespace "official"
     }
 }
 

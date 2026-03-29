@@ -178,7 +178,7 @@ public class FabricPlatformServices implements PlatformServices {
         // 使用 ActionBar 消息通知玩家
         String translationKey = "message.onekeyminer.chain_action." + actionType;
         Component message = Component.translatable(translationKey, count);
-        player.displayClientMessage(message, true);
+        player.sendOverlayMessage(message);
     }
     
     @Override
