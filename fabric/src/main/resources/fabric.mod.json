@@ -28,7 +28,6 @@
     }
   },
   "depends": {
-    "fabric": "*",
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
     "minecraft": $compatible_mc_versions,
