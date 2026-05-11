@@ -10,104 +10,114 @@ import net.minecraftforge.network.ChannelBuilder;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
- * Forge 网络数据包处理
- * 
- * <p>用于客户端和服务端之间的按键状态同步。</p>
- * <p>使用 SimpleChannel API 实现网络通信。</p>
- * 
- * @author OneKeyMiner Team
- * @version 1.0.0
- * @since Minecraft 1.21.9
+ * Forge C2S networking.
  */
 public class ForgeNetworking {
-    
-    /** 网络通道 */
     private static final SimpleChannel CHANNEL = ChannelBuilder
             .named(ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
             .optional()
             .simpleChannel();
-    
-    /** 包ID计数器 */
+
     private static int packetIndex = 0;
-    
-    /** 是否已注册 */
     private static boolean registered = false;
-    
-    /**
-     * 按键状态数据包
-     */
+
     public static class ChainKeyStatePacket {
         private final boolean pressed;
-        
-        public ChainKeyStatePacket(boolean pressed) {
+        private final String shapeId;
+
+        public ChainKeyStatePacket(boolean pressed, String shapeId) {
             this.pressed = pressed;
+            this.shapeId = shapeId != null ? shapeId : "onekeyminer:amorphous";
         }
-        
+
         public static ChainKeyStatePacket fromNetwork(FriendlyByteBuf buf) {
-            return new ChainKeyStatePacket(buf.readBoolean());
+            return new ChainKeyStatePacket(buf.readBoolean(), buf.readUtf(256));
         }
-        
+
         public void write(FriendlyByteBuf buf) {
             buf.writeBoolean(pressed);
+            buf.writeUtf(shapeId);
         }
-        
-        public boolean isPressed() {
-            return pressed;
-        }
-        
-        /**
-         * 服务端处理按键状态包
-         */
+
         public static void handleOnServer(ChainKeyStatePacket packet, CustomPayloadEvent.Context context) {
             context.enqueueWork(() -> {
                 ServerPlayer player = context.getSender();
                 if (player != null) {
-                    PlatformServices.getInstance().setChainModeActive(player, packet.isPressed());
+                    PlatformServices.getInstance().setChainModeActive(player, packet.pressed);
+                    ResourceLocation id = ResourceLocation.tryParse(packet.shapeId);
+                    if (id != null) {
+                        MiningStateManager.setPlayerShape(player, id);
+                    }
                 }
             });
             context.setPacketHandled(true);
         }
     }
-    
-    /**
-     * 注册网络数据包
-     */
+
+    public static class TeleportSettingsPacket {
+        private final boolean teleportDrops;
+        private final boolean teleportExp;
+
+        public TeleportSettingsPacket(boolean teleportDrops, boolean teleportExp) {
+            this.teleportDrops = teleportDrops;
+            this.teleportExp = teleportExp;
+        }
+
+        public static TeleportSettingsPacket fromNetwork(FriendlyByteBuf buf) {
+            return new TeleportSettingsPacket(buf.readBoolean(), buf.readBoolean());
+        }
+
+        public void write(FriendlyByteBuf buf) {
+            buf.writeBoolean(teleportDrops);
+            buf.writeBoolean(teleportExp);
+        }
+
+        public static void handleOnServer(TeleportSettingsPacket packet, CustomPayloadEvent.Context context) {
+            context.enqueueWork(() -> {
+                ServerPlayer player = context.getSender();
+                if (player != null) {
+                    MiningStateManager.setTeleportDrops(player, packet.teleportDrops);
+                    MiningStateManager.setTeleportExp(player, packet.teleportExp);
+                }
+            });
+            context.setPacketHandled(true);
+        }
+    }
+
     public static void register() {
         if (registered) {
             return;
         }
-        
-        try {
-            registered = true;
-            
-            CHANNEL.messageBuilder(ChainKeyStatePacket.class, packetIndex++, NetworkDirection.PLAY_TO_SERVER)
-                    .encoder(ChainKeyStatePacket::write)
-                    .decoder(ChainKeyStatePacket::fromNetwork)
-                    .consumerNetworkThread(ChainKeyStatePacket::handleOnServer)
-                    .add();
-            
-            OneKeyMiner.LOGGER.debug("已注册 Forge 网络通道");
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.error("注册 Forge 网络通道失败", e);
-        }
+        registered = true;
+
+        CHANNEL.messageBuilder(ChainKeyStatePacket.class, packetIndex++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ChainKeyStatePacket::write)
+                .decoder(ChainKeyStatePacket::fromNetwork)
+                .consumerNetworkThread(ChainKeyStatePacket::handleOnServer)
+                .add();
+
+        CHANNEL.messageBuilder(TeleportSettingsPacket.class, packetIndex++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(TeleportSettingsPacket::write)
+                .decoder(TeleportSettingsPacket::fromNetwork)
+                .consumerNetworkThread(TeleportSettingsPacket::handleOnServer)
+                .add();
     }
-    
-    /**
-     * 从客户端发送按键状态到服务端
-     */
-    public static void sendKeyState(boolean pressed) {
+
+    public static void sendKeyState(boolean pressed, String shapeId) {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         if (connection != null) {
-            try {
-                CHANNEL.send(new ChainKeyStatePacket(pressed), connection.getConnection());
-            } catch (Exception e) {
-                OneKeyMiner.LOGGER.debug("发送按键状态包失败: {}", e.getMessage());
-            }
-        } else {
-            OneKeyMiner.LOGGER.debug("无法发送到服务器：客户端连接为空");
+            CHANNEL.send(new ChainKeyStatePacket(pressed, shapeId), connection.getConnection());
+        }
+    }
+
+    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection != null) {
+            CHANNEL.send(new TeleportSettingsPacket(teleportDrops, teleportExp), connection.getConnection());
         }
     }
 }
