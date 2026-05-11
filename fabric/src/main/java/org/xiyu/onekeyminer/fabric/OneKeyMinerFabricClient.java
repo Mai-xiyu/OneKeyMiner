@@ -3,36 +3,63 @@ package org.xiyu.onekeyminer.fabric;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.preview.ChainPreviewHud;
+import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
 /**
- * Fabric 平台客户端入口点
- * 
- * <p>负责客户端专用功能的初始化，如配置界面、按键绑定等。</p>
- * 
- * @author OneKeyMiner Team
- * @version 1.0.0
- * @since Minecraft 1.21.9
+ * Fabric client-only entry point.
  */
 @Environment(EnvType.CLIENT)
 public class OneKeyMinerFabricClient implements ClientModInitializer {
-    
     @Override
     public void onInitializeClient() {
-        // 注册配置同步回调
         ConfigSyncHelper.registerSyncCallback(() -> {
-            // 配置变更后的回调
+            var config = ConfigManager.getConfig();
+            KeyBindings.sendTeleportSettings(config.teleportDrops, config.teleportExp);
         });
-        
-        // 注册按键绑定（这会注册 ClientTickEvents）
+
         KeyBindings.register();
-        
-        // 注册配置界面（如果 Mod Menu 存在）
-        // 配置界面通过 fabric.mod.json 的 entrypoints 注册
-        
-        OneKeyMiner.LOGGER.info("OneKeyMiner Fabric 客户端模块初始化完成");
+        registerPreviewSystem();
+
+        OneKeyMiner.LOGGER.info("OneKeyMiner Fabric client initialized");
+    }
+
+    private void registerPreviewSystem() {
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.player == null || client.level == null) {
+                return;
+            }
+
+            BlockPos lookingAt = null;
+            if (client.hitResult != null && client.hitResult.getType() == HitResult.Type.BLOCK) {
+                lookingAt = ((BlockHitResult) client.hitResult).getBlockPos();
+            }
+
+            Direction playerFacing = client.player.getDirection();
+            float playerPitch = client.player.getXRot();
+            ChainPreviewManager.getInstance().tick(
+                    client.level,
+                    lookingAt,
+                    playerFacing,
+                    playerPitch,
+                    KeyBindings.CHAIN_MINING_KEY != null && KeyBindings.CHAIN_MINING_KEY.isDown()
+            );
+        });
+
+        HudElementRegistry.attachElementAfter(
+                VanillaHudElements.HOTBAR,
+                Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_preview"),
+                (guiGraphics, tickDelta) -> ChainPreviewHud.render(guiGraphics)
+        );
     }
 }
