@@ -11,6 +11,8 @@ import net.neoforged.neoforge.client.ConfigScreenHandler;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.shape.ChainShape;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -116,11 +118,11 @@ public class NeoForgeConfigScreen {
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enabled", () -> configCopy.enabled, v -> configCopy.enabled = v);
             
             this.addRenderableWidget(Button.builder(
-                getEnumMessage("config.onekeyminer.option.shape_mode", "onekeyminer.shape_mode." + configCopy.shapeMode.getId()),
+                getShapeMessage(configCopy.selectedShape),
                 b -> {
-                    MinerConfig.ShapeMode[] values = MinerConfig.ShapeMode.values();
-                    configCopy.shapeMode = values[(configCopy.shapeMode.ordinal() + 1) % values.length];
-                    b.setMessage(getEnumMessage("config.onekeyminer.option.shape_mode", "onekeyminer.shape_mode." + configCopy.shapeMode.getId()));
+                    configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
+                    configCopy.shapeMode = null;
+                    b.setMessage(getShapeMessage(configCopy.selectedShape));
                 }
             ).bounds(x - w / 2, y + s * i++, w, h).build());
             
@@ -193,6 +195,13 @@ public class NeoForgeConfigScreen {
         
         private Component getEnumMessage(String key, String enumTranslationKey) {
             return Component.translatable(key).append(": ").append(Component.translatable(enumTranslationKey).withStyle(ChatFormatting.YELLOW));
+        }
+
+        private Component getShapeMessage(String shapeId) {
+            ChainShape shape = ShapeRegistry.getShapeOrDefault(shapeId);
+            String translationKey = shape != null ? shape.getTranslationKey() : "onekeyminer.shape.amorphous";
+            return Component.translatable("config.onekeyminer.option.shape_mode").append(": ")
+                    .append(Component.translatable(translationKey).withStyle(ChatFormatting.YELLOW));
         }
 
         @Override
