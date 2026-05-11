@@ -8,26 +8,14 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlerEvent;
 import net.neoforged.neoforge.network.handling.PlayPayloadContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
-/**
- * NeoForge 网络包注册
- * 
- * <p>注册客户端到服务端的按键状态同步包。</p>
- * 
- * @author OneKeyMiner Team
- * @version 1.0.0
- * @since Minecraft 1.21.9
- */
 public class NeoForgeNetworking {
-    
-    /**
-     * 按键状态网络包
-     */
-    public record ChainKeyStatePayload(boolean holding) implements CustomPacketPayload {
+    public record ChainKeyStatePayload(boolean holding, String shapeId) implements CustomPacketPayload {
         public static final ResourceLocation ID = new ResourceLocation(OneKeyMiner.MOD_ID, "chain_key_state");
         public static final FriendlyByteBuf.Reader<ChainKeyStatePayload> READER =
-                buf -> new ChainKeyStatePayload(buf.readBoolean());
+                buf -> new ChainKeyStatePayload(buf.readBoolean(), buf.readUtf());
 
         @Override
         public ResourceLocation id() {
@@ -37,44 +25,70 @@ public class NeoForgeNetworking {
         @Override
         public void write(FriendlyByteBuf buf) {
             buf.writeBoolean(holding);
+            buf.writeUtf(shapeId == null ? "" : shapeId);
         }
     }
-    
-    /**
-     * 注册网络包处理器（在 MOD 事件总线上调用）
-     */
+
+    public record TeleportSettingsPayload(boolean teleportDrops, boolean teleportExp) implements CustomPacketPayload {
+        public static final ResourceLocation ID = new ResourceLocation(OneKeyMiner.MOD_ID, "teleport_settings");
+        public static final FriendlyByteBuf.Reader<TeleportSettingsPayload> READER =
+                buf -> new TeleportSettingsPayload(buf.readBoolean(), buf.readBoolean());
+
+        @Override
+        public ResourceLocation id() {
+            return ID;
+        }
+
+        @Override
+        public void write(FriendlyByteBuf buf) {
+            buf.writeBoolean(teleportDrops);
+            buf.writeBoolean(teleportExp);
+        }
+    }
+
     public static void registerPayloadHandlers(RegisterPayloadHandlerEvent event) {
         var registrar = event.registrar(OneKeyMiner.MOD_ID);
-        
-        // 注册按键状态包（客户端到服务端）
-        registrar.play(
-                ChainKeyStatePayload.ID,
-                ChainKeyStatePayload.READER,
-                NeoForgeNetworking::handleChainKeyState
-        );
-        
-        OneKeyMiner.LOGGER.debug("已注册 NeoForge 网络包处理器");
+        registrar.play(ChainKeyStatePayload.ID, ChainKeyStatePayload.READER, NeoForgeNetworking::handleChainKeyState);
+        registrar.play(TeleportSettingsPayload.ID, TeleportSettingsPayload.READER, NeoForgeNetworking::handleTeleportSettings);
+        OneKeyMiner.LOGGER.debug("Registered NeoForge networking payloads");
     }
-    
-    /**
-     * 发送按键状态到服务端
-     */
-    public static void sendKeyState(boolean pressed) {
+
+    public static void sendKeyState(boolean pressed, String shapeId) {
         try {
-            PacketDistributor.SERVER.noArg().send(new ChainKeyStatePayload(pressed));
+            PacketDistributor.SERVER.noArg().send(new ChainKeyStatePayload(pressed, shapeId));
         } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("发送按键状态失败: {}", e.getMessage());
+            OneKeyMiner.LOGGER.debug("Failed to send NeoForge key state: {}", e.getMessage());
         }
     }
-    
-    /**
-     * 处理按键状态包
-     */
+
+    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
+        try {
+            PacketDistributor.SERVER.noArg().send(new TeleportSettingsPayload(teleportDrops, teleportExp));
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.debug("Failed to send NeoForge teleport settings: {}", e.getMessage());
+        }
+    }
+
     private static void handleChainKeyState(ChainKeyStatePayload payload, PlayPayloadContext context) {
         context.workHandler().execute(() ->
                 context.player().ifPresent(player -> {
                     if (player instanceof ServerPlayer serverPlayer) {
                         PlatformServices.getInstance().setChainModeActive(serverPlayer, payload.holding());
+                        ResourceLocation shapeId = ResourceLocation.tryParse(payload.shapeId());
+                        if (shapeId != null) {
+                            MiningStateManager.setPlayerShape(serverPlayer, shapeId);
+                        }
+                    }
+                })
+        );
+    }
+
+    private static void handleTeleportSettings(TeleportSettingsPayload payload, PlayPayloadContext context) {
+        context.workHandler().execute(() ->
+                context.player().ifPresent(player -> {
+                    if (player instanceof ServerPlayer serverPlayer) {
+                        MiningStateManager.setTeleportDrops(serverPlayer, payload.teleportDrops());
+                        MiningStateManager.setTeleportExp(serverPlayer, payload.teleportExp());
                     }
                 })
         );

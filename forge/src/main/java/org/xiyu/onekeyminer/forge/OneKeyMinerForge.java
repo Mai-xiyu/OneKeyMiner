@@ -13,65 +13,36 @@ import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
-/**
- * Forge 平台模组入口点
- * 
- * <p>负责在 Forge 平台上初始化 OneKeyMiner 模组，
- * 包括注册事件监听器和配置界面。</p>
- * 
- * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
- */
 @Mod(OneKeyMiner.MOD_ID)
 public class OneKeyMinerForge {
-    
     public OneKeyMinerForge(FMLJavaModLoadingContext context) {
-        // 首先初始化平台服务（必须在 OneKeyMiner.init() 之前）
         PlatformServices.setInstance(new ForgePlatformServices());
-        
-        // 初始化通用模块
         OneKeyMiner.init();
-        
+
         var modEventBus = context.getModEventBus();
-        
-        // 注册生命周期事件
         modEventBus.addListener(this::onCommonSetup);
-        
-        // 客户端专用事件（按键、配置界面等引用客户端类，必须在 dist 检查内注册）
+
         if (FMLEnvironment.dist == Dist.CLIENT) {
             modEventBus.addListener(this::onClientSetup);
-            // 注册按键映射（MOD 事件总线）
             modEventBus.addListener(ForgeKeyBindings::registerKeyMappings);
-            // 注册配置界面
             ForgeConfigScreen.register(ModLoadingContext.get());
         }
-        
-        // 注册游戏事件处理器到 Forge 事件总线
+
         MinecraftForge.EVENT_BUS.register(new ForgeEventHandler());
-        
-        OneKeyMiner.LOGGER.info("OneKeyMiner Forge 模块初始化完成");
+        OneKeyMiner.LOGGER.info("OneKeyMiner Forge initialized");
     }
-    
-    /**
-     * 通用设置事件处理
-     */
+
     private void onCommonSetup(FMLCommonSetupEvent event) {
-        // 注册网络包
         ForgeNetworking.register();
-        OneKeyMiner.LOGGER.debug("Forge 通用设置完成");
+        OneKeyMiner.LOGGER.debug("Forge common setup complete");
     }
-    
-    /**
-     * 客户端设置事件处理
-     */
+
     private void onClientSetup(FMLClientSetupEvent event) {
-        // 注册配置同步回调
         ConfigSyncHelper.registerSyncCallback(() -> {
-            // 配置变更后的回调
+            var config = ConfigManager.getConfig();
+            ForgeNetworking.sendTeleportSettings(config.teleportDrops, config.teleportExp);
         });
-        // 注册按键绑定
         ForgeKeyBindings.register();
-        OneKeyMiner.LOGGER.debug("Forge 客户端设置完成");
+        OneKeyMiner.LOGGER.debug("Forge client setup complete");
     }
 }
