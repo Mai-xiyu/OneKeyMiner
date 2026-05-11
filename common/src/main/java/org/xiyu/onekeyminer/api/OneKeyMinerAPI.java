@@ -17,6 +17,8 @@ import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.registry.TagResolver;
+import org.xiyu.onekeyminer.shape.ChainShape;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.*;
 
@@ -1121,6 +1123,54 @@ public final class OneKeyMinerAPI {
      * 
      * @return 如果启用返回 true
      */
+    // ==================== Shape API ====================
+
+    public static void registerShape(ChainShape shape) {
+        ShapeRegistry.register(shape);
+    }
+
+    public static ChainShape getShape(ResourceLocation id) {
+        return ShapeRegistry.getShape(id);
+    }
+
+    public static List<ChainShape> getRegisteredShapes() {
+        return ShapeRegistry.getAllShapes();
+    }
+
+    public static boolean isShapeRegistered(String shapeId) {
+        return ShapeRegistry.isValidShapeId(shapeId);
+    }
+
+    public static List<net.minecraft.core.BlockPos> getPreviewBlocks() {
+        return org.xiyu.onekeyminer.preview.ChainPreviewManager.getInstance().getPreviewBlocks();
+    }
+
+    public static void addPreviewListener(org.xiyu.onekeyminer.preview.ChainPreviewManager.PreviewListener listener) {
+        org.xiyu.onekeyminer.preview.ChainPreviewManager.getInstance().addListener(listener);
+    }
+
+    public static boolean removePreviewListener(org.xiyu.onekeyminer.preview.ChainPreviewManager.PreviewListener listener) {
+        return org.xiyu.onekeyminer.preview.ChainPreviewManager.getInstance().removeListener(listener);
+    }
+
+    public static String getSelectedShape() {
+        return ConfigManager.getConfig().selectedShape;
+    }
+
+    public static boolean setSelectedShape(String shapeId) {
+        if (shapeId == null || !ShapeRegistry.isValidShapeId(shapeId)) {
+            OneKeyMiner.LOGGER.warn("Invalid chain shape ID: {}", shapeId);
+            return false;
+        }
+        MinerConfig config = ConfigManager.getConfig();
+        config.selectedShape = shapeId;
+        config.shapeMode = null;
+        ConfigManager.save();
+        ConfigSyncHelper.triggerSync();
+        ConfigSyncHelper.notifyConfigChanged("selectedShape");
+        return true;
+    }
+
     public static boolean isTeleportDropsEnabled() {
         return ConfigManager.getConfig().teleportDrops;
     }
