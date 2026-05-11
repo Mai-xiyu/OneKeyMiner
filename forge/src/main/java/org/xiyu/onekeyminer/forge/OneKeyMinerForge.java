@@ -1,6 +1,8 @@
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -41,8 +43,9 @@ public class OneKeyMinerForge {
         // 客户端专用事件
         if (FMLEnvironment.dist == Dist.CLIENT) {
             FMLClientSetupEvent.getBus(modBusGroup).addListener(this::onClientSetup);
-            // 按键映射通过 @Mod.EventBusSubscriber 注解自动注册
-            
+            RegisterKeyMappingsEvent.getBus(modBusGroup).addListener(ForgeKeyBindings::registerKeyMappings);
+            CustomizeGuiOverlayEvent.Chat.BUS.addListener(ForgeKeyBindings::renderPreviewHud);
+
             // 注册配置界面（仅客户端）
             ForgeConfigScreen.register(ModLoadingContext.get());
         }
@@ -68,7 +71,8 @@ public class OneKeyMinerForge {
     private void onClientSetup(FMLClientSetupEvent event) {
         // 注册配置同步回调
         ConfigSyncHelper.registerSyncCallback(() -> {
-            // 配置变更后的回调
+            var config = ConfigManager.getConfig();
+            ForgeNetworking.sendTeleportSettings(config.teleportDrops, config.teleportExp);
         });
         // 注册按键绑定
         ForgeKeyBindings.register();

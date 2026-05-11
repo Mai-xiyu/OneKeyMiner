@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.*;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.api.event.ChainEvents;
@@ -30,6 +31,9 @@ import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 import org.xiyu.onekeyminer.registry.TagResolver;
+import org.xiyu.onekeyminer.shape.ChainShape;
+import org.xiyu.onekeyminer.shape.ShapeContext;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.*;
 
@@ -294,11 +298,37 @@ public final class ChainActionLogic {
         int maxDistance = context.getMaxDistance() > 0 ? context.getMaxDistance() : config.maxDistance;
         boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
 
-        return switch (config.shapeMode) {
-            case CONNECTED -> collectConnectedMiningBlocks(context, config, maxBlocks, maxDistance, allowDiagonal);
-            case CUBE -> collectCubeMiningBlocks(context, config, maxBlocks, maxDistance);
-            case COLUMN -> collectColumnMiningBlocks(context, config, maxBlocks, maxDistance);
-        };
+        Identifier shapeId = MiningStateManager.getPlayerShape(context.getPlayer());
+        ChainShape shape = shapeId != null
+                ? ShapeRegistry.getShapeOrDefault(shapeId)
+                : ShapeRegistry.getShapeOrDefault(config.selectedShape);
+
+        if (shape == null) {
+            OneKeyMiner.LOGGER.warn("No chain shape is registered; skipping target collection");
+            return Collections.emptyList();
+        }
+
+        ServerPlayer player = context.getPlayer();
+        ShapeContext.Builder builder = new ShapeContext.Builder()
+                .level(context.getLevel())
+                .originPos(context.getOriginPos())
+                .originState(context.getOriginState())
+                .maxBlocks(maxBlocks)
+                .maxDistance(maxDistance)
+                .allowDiagonal(allowDiagonal)
+                .blockMatcher((origin, target) -> isMatchingMiningBlock(origin, target, config));
+
+        if (player != null) {
+            builder.playerFacing(player.getDirection());
+            float xRot = player.getXRot();
+            if (xRot < -45) {
+                builder.playerLookingVertical(Direction.UP);
+            } else if (xRot > 45) {
+                builder.playerLookingVertical(Direction.DOWN);
+            }
+        }
+
+        return shape.collectBlocks(builder.build());
     }
 
     /**
