@@ -1,43 +1,29 @@
 package org.xiyu.onekeyminer.fabric;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.config.ConfigManager;
 
 /**
- * Fabric 按键绑定注册
- * 
- * <p>注册模组使用的快捷键，如按住连锁挖矿激活的按键。</p>
- * 
- * @author OneKeyMiner Team
- * @version 1.0.0
- * @since Minecraft 1.21.9
+ * Fabric client key bindings and C2S sync.
  */
 @Environment(EnvType.CLIENT)
 public class KeyBindings {
-    
-    /** 连锁挖矿激活按键（默认：波浪键/反引号键）- 需要按住 */
     public static KeyMapping CHAIN_MINING_KEY;
-    
-    /** 打开配置界面的按键（默认：无） */
     public static KeyMapping OPEN_CONFIG;
-    
-    /** 上一帧按键是否被按下 */
+
     private static boolean wasKeyDown = false;
-    
-    /**
-     * 注册所有按键绑定
-     */
+
     public static void register() {
         // 连锁挖矿激活按键（按住模式）
         CHAIN_MINING_KEY = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -51,59 +37,75 @@ public class KeyBindings {
         OPEN_CONFIG = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.onekeyminer.config",
                 InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,              // 默认未绑定
-                KeyMapping.Category.GAMEPLAY       // 使用游戏玩法分类
+                GLFW.GLFW_KEY_UNKNOWN,
+                KeyMapping.Category.GAMEPLAY
         ));
-        
-        // 注册按键处理
+
         registerKeyHandler();
-        
-        OneKeyMiner.LOGGER.debug("已注册 Fabric 按键绑定");
     }
-    
-    /**
-     * 注册按键事件处理器 - 按住模式
-     */
+
+    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
+        try {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc.getConnection() != null) {
+                ClientPlayNetworking.send(new TeleportSettingsPayload(teleportDrops, teleportExp));
+            }
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.debug("Failed to send teleport settings: {}", e.getMessage());
+        }
+    }
+
     private static void registerKeyHandler() {
-        // 使用 Fabric 的客户端 tick 事件来检查按键状态
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // 检查按键当前状态
             boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-            
-            // 只在状态变化时发送网络包
             if (isKeyDown != wasKeyDown) {
                 wasKeyDown = isKeyDown;
-                
-                // 发送按键状态到服务端
                 if (client.getConnection() != null) {
                     try {
-                        ClientPlayNetworking.send(new ChainKeyStatePayload(isKeyDown));
-                        OneKeyMiner.LOGGER.info("连锁按键状态变化: {}", isKeyDown ? "按下" : "释放");
+                        ClientPlayNetworking.send(new ChainKeyStatePayload(
+                                isKeyDown,
+                                ConfigManager.getConfig().selectedShape
+                        ));
                     } catch (Exception e) {
-                        OneKeyMiner.LOGGER.error("发送按键状态网络包失败: {}", e.getMessage());
+                        OneKeyMiner.LOGGER.error("Failed to send chain key state: {}", e.getMessage());
                     }
                 }
             }
-            
-            // 检查配置界面按键
+
             while (OPEN_CONFIG.consumeClick()) {
-                // 打开配置界面
                 client.setScreen(new FabricConfigScreen(client.screen));
             }
         });
     }
-    
-    /**
-     * 按键状态网络包
-     */
-    public record ChainKeyStatePayload(boolean holding) implements CustomPacketPayload {
+
+    public record ChainKeyStatePayload(boolean holding, String shapeId) implements CustomPacketPayload {
         public static final Identifier ID = Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
         public static final CustomPacketPayload.Type<ChainKeyStatePayload> TYPE = new CustomPacketPayload.Type<>(ID);
         public static final StreamCodec<FriendlyByteBuf, ChainKeyStatePayload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> buf.writeBoolean(payload.holding),
-                buf -> new ChainKeyStatePayload(buf.readBoolean())
+                (buf, payload) -> {
+                    buf.writeBoolean(payload.holding);
+                    buf.writeUtf(payload.shapeId == null ? "" : payload.shapeId);
+                },
+                buf -> new ChainKeyStatePayload(buf.readBoolean(), buf.readUtf(256))
         );
-        
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record TeleportSettingsPayload(boolean teleportDrops, boolean teleportExp) implements CustomPacketPayload {
+        public static final Identifier ID = Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "teleport_settings");
+        public static final CustomPacketPayload.Type<TeleportSettingsPayload> TYPE = new CustomPacketPayload.Type<>(ID);
+        public static final StreamCodec<FriendlyByteBuf, TeleportSettingsPayload> STREAM_CODEC = StreamCodec.of(
+                (buf, payload) -> {
+                    buf.writeBoolean(payload.teleportDrops);
+                    buf.writeBoolean(payload.teleportExp);
+                },
+                buf -> new TeleportSettingsPayload(buf.readBoolean(), buf.readBoolean())
+        );
+
         @Override
         public Type<? extends CustomPacketPayload> type() {
             return TYPE;
