@@ -73,7 +73,7 @@ public class KeyBindings {
             }
 
             while (OPEN_CONFIG.consumeClick()) {
-                client.setScreen(new FabricConfigScreen(client.screen));
+                client.gui.setScreen(new FabricConfigScreen(client.gui.screen()));
             }
         });
     }

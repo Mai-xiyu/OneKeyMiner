@@ -31,7 +31,7 @@
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
     "minecraft": $compatible_mc_versions,
-    "java": ">=21"
+    "java": ">=${java_version}"
   },
   "suggests": {
     "modmenu": "*"
