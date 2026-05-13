@@ -77,7 +77,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Build with Gradle
-        run: ./gradlew build --no-daemon -x test -x compileTestJava
+        run: |
+          if [ "${{ steps.props.outputs.BUILDS_FOR }}" = "fabric" ]; then
+            ./gradlew :fabric:build --no-daemon -x test -x compileTestJava
+          else
+            ./gradlew build --no-daemon -x test -x compileTestJava
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -117,6 +122,7 @@ jobs:
 
       # Publish Forgix Merged JAR to Modrinth & CurseForge
       - name: Publish Universal (Forgix) to Modrinth & CurseForge
+        if: contains(steps.props.outputs.BUILDS_FOR, ',')
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           modrinth-id: LZu4H9cp
