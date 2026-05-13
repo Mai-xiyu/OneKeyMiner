@@ -44,9 +44,9 @@ jobs:
       - name: Build with Gradle
         run: |
           if [ "${{ steps.props.outputs.BUILDS_FOR }}" = "fabric" ]; then
-            ./gradlew :fabric:build --no-daemon -x test -x compileTestJava
+            ./gradlew :fabric:build --no-daemon --max-workers=1 -x test -x compileTestJava
           else
-            ./gradlew build --no-daemon -x test -x compileTestJava
+            ./gradlew build --no-daemon --max-workers=1 -x test -x compileTestJava
           fi
 
       - name: Upload Fabric artifact
