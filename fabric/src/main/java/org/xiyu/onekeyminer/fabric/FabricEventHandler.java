@@ -394,7 +394,8 @@ public class FabricEventHandler {
         }
         
         // 检查是否是交互操作
-        if (ChainActionLogic.isValidInteractionTarget(heldItem, targetState)) {
+        if (ChainActionLogic.isValidInteractionTarget(heldItem, targetState) ||
+                ChainActionLogic.canAttemptBlockInteraction(heldItem)) {
             return ChainActionType.INTERACTION;
         }
         

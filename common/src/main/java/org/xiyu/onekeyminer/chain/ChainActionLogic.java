@@ -691,6 +691,24 @@ public final class ChainActionLogic {
     }
     
     /**
+     * Checks whether an item can attempt chained block interaction.
+     */
+    public static boolean canAttemptBlockInteraction(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+
+        Item item = stack.getItem();
+        return item instanceof HoeItem ||
+                item instanceof AxeItem ||
+                item instanceof ShovelItem ||
+                item instanceof BrushItem ||
+                OneKeyMinerAPI.isInteractionToolAllowed(stack) ||
+                OneKeyMinerAPI.hasToolActionRule(stack, ChainActionType.INTERACTION) ||
+                OneKeyMinerAPI.isInteractiveItemAllowed(stack);
+    }
+
+    /**
      * 交互类型枚举
      */
     private enum InteractionType {
@@ -909,10 +927,10 @@ public final class ChainActionLogic {
         
         // 根据交互类型检查方块是否匹配
         return switch (interactionType) {
-            case TILLING -> canTill(state);
-            case STRIPPING -> canStrip(state);
-            case PATH_MAKING -> canMakePath(state);
-            case BRUSHING -> canBrush(state);
+            case TILLING -> canTill(state) || isSameBlock(state, originState);
+            case STRIPPING -> canStrip(state) || isSameBlock(state, originState);
+            case PATH_MAKING -> canMakePath(state) || isSameBlock(state, originState);
+            case BRUSHING -> canBrush(state) || isSameBlock(state, originState);
             case ITEM_USE -> canItemUseOnBlock(null, state);
             case GENERIC -> state.getBlock() == originState.getBlock();
             default -> false;
@@ -922,6 +940,10 @@ public final class ChainActionLogic {
     /**
      * 检查方块是否可以耕地
      */
+    private static boolean isSameBlock(BlockState state, BlockState originState) {
+        return originState != null && state.getBlock() == originState.getBlock();
+    }
+
     private static boolean canTill(BlockState state) {
         // 检查是否在可耕地标签中
         String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
