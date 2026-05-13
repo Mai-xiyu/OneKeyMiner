@@ -79,9 +79,9 @@ jobs:
       - name: Build with Gradle
         run: |
           if [ "${{ steps.props.outputs.BUILDS_FOR }}" = "fabric" ]; then
-            ./gradlew :fabric:build --no-daemon -x test -x compileTestJava
+            ./gradlew :fabric:build --no-daemon --max-workers=1 -x test -x compileTestJava
           else
-            ./gradlew build --no-daemon -x test -x compileTestJava
+            ./gradlew build --no-daemon --max-workers=1 -x test -x compileTestJava
           fi
 
       - name: Create Release
@@ -117,6 +117,7 @@ jobs:
             build/forgix/!(*-sources).jar
           draft: false
           prerelease: false
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -133,7 +134,7 @@ jobs:
           
           files: build/forgix/!(*-sources).jar
           name: OneKeyMiner ${{ steps.props.outputs.TAG_NAME }} (Universal)
-          version: ${{ steps.props.outputs.MOD_VERSION }}-universal
+          version: ${{ steps.props.outputs.TAG_NAME }}-universal
           version-type: release
           changelog: |
             ## OneKeyMiner ${{ steps.props.outputs.TAG_NAME }} (Universal)
