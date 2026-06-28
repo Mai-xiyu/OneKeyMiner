@@ -71,11 +71,11 @@ public class ForgeConfigScreen {
 
             this.addRenderableWidget(Button.builder(
                     Component.literal("Discord"),
-                    button -> this.minecraft.setScreen(new ConfirmLinkScreen(confirmed -> {
+                    button -> this.minecraft.gui.setScreen(new ConfirmLinkScreen(confirmed -> {
                         if (confirmed) {
                             Util.getPlatform().openUri(DISCORD_URL);
                         }
-                        this.minecraft.setScreen(this);
+                        this.minecraft.gui.setScreen(this);
                     }, DISCORD_URL, true))
             ).bounds(discordButtonX, discordButtonY, discordButtonWidth, discordButtonHeight).build());
             
@@ -310,7 +310,7 @@ public class ForgeConfigScreen {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
         
         @Override

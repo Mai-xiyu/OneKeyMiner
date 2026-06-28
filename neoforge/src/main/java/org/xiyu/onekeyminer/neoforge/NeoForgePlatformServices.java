@@ -18,6 +18,7 @@ import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
@@ -73,10 +74,10 @@ public class NeoForgePlatformServices implements PlatformServices {
             return false;
         }
         
-        // 使用 NeoForge 的 BlockEvent.BreakEvent 进行权限检查
+        // 使用 NeoForge 的 BreakBlockEvent 进行权限检查
         // 创建并触发事件来检查权限
         try {
-            BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(level, pos, state, player);
+            BreakBlockEvent event = new BreakBlockEvent(level, pos, state, player);
             NeoForge.EVENT_BUS.post(event);
             return !event.isCanceled();
         } catch (Exception e) {

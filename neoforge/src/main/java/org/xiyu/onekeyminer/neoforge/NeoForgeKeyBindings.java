@@ -74,7 +74,7 @@ public class NeoForgeKeyBindings {
         }
 
         if (OPEN_CONFIG != null && OPEN_CONFIG.consumeClick()) {
-            minecraft.setScreen(NeoForgeConfigScreen.createConfigScreen(minecraft.screen));
+            minecraft.gui.setScreen(NeoForgeConfigScreen.createConfigScreen(minecraft.gui.screen()));
         }
 
         if (CHAIN_MINING_KEY == null) {

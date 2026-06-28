@@ -15,6 +15,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.chain.ChainActionContext;
@@ -30,7 +31,7 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
  * 
  * <p>监听并处理与链式操作相关的游戏事件：</p>
  * <ul>
- *   <li>{@link BlockEvent.BreakEvent} - 方块破坏事件（连锁挖掘）</li>
+ *   <li>{@link BreakBlockEvent} - 方块破坏事件（连锁挖掘）</li>
  *   <li>{@link PlayerInteractEvent.RightClickBlock} - 右键方块事件（连锁交互/种植）</li>
  * </ul>
  * 
@@ -51,7 +52,7 @@ public class NeoForgeEventHandler {
      * @param event 方块破坏事件
      */
     @SubscribeEvent(priority = EventPriority.LOW)
-    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+    public static void onBlockBreak(BreakBlockEvent event) {
         // 防止重入（链式挖掘时不触发新的链式操作）
         if (IS_CHAIN_BREAKING.get()) {
             return;
