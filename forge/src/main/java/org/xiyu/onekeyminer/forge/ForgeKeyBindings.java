@@ -59,8 +59,8 @@ public class ForgeKeyBindings {
         try {
             Method createMethod = ForgeConfigScreen.class.getDeclaredMethod("createConfigScreen", Screen.class);
             createMethod.setAccessible(true);
-            Screen configScreen = (Screen) createMethod.invoke(null, minecraft.screen);
-            minecraft.setScreen(configScreen);
+            Screen configScreen = (Screen) createMethod.invoke(null, minecraft.gui.screen());
+            minecraft.gui.setScreen(configScreen);
         } catch (Exception e) {
             OneKeyMiner.LOGGER.error("Failed to open Forge config screen: {}", e.getMessage());
         }

@@ -45,7 +45,7 @@ public class OneKeyMinerForge {
             CustomizeGuiOverlayEvent.Chat.BUS.addListener(ForgeKeyBindings::renderPreviewHud);
 
             // 注册配置界面（仅客户端）
-            ForgeConfigScreen.register(ModLoadingContext.get());
+            ForgeConfigScreen.register(context);
         }
         
         // 注册游戏事件处理器到 Forge 事件总线

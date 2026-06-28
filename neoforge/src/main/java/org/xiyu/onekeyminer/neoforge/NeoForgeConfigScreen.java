@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  * @version 1.2.0
  * @since Minecraft 1.21.9
  */
-@OnlyIn(Dist.CLIENT)
+//@OnlyIn(Dist.CLIENT)
 public class NeoForgeConfigScreen {
 
     private static final String DISCORD_URL = "https://discord.com/invite/h88UDxwUHm";
@@ -71,11 +71,11 @@ public class NeoForgeConfigScreen {
 
             this.addRenderableWidget(Button.builder(
                     Component.literal("Discord"),
-                    button -> this.minecraft.setScreen(new ConfirmLinkScreen(confirmed -> {
+                    button -> this.minecraft.gui.setScreen(new ConfirmLinkScreen(confirmed -> {
                         if (confirmed) {
                             Util.getPlatform().openUri(DISCORD_URL);
                         }
-                        this.minecraft.setScreen(this);
+                        this.minecraft.gui.setScreen(this);
                     }, DISCORD_URL, true))
             ).bounds(discordButtonX, discordButtonY, discordButtonWidth, discordButtonHeight).build());
             
@@ -224,7 +224,7 @@ public class NeoForgeConfigScreen {
 
         @Override
         public void onClose() {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
         
         @Override
