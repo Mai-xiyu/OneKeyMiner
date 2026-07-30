@@ -39,8 +39,7 @@ public class OneKeyMinerNeoForge {
 
     private void onClientSetup(FMLClientSetupEvent event) {
         ConfigSyncHelper.registerSyncCallback(() -> {
-            var config = ConfigManager.getConfig();
-            NeoForgeNetworking.sendTeleportSettings(config.teleportDrops, config.teleportExp);
+            NeoForgeKeyBindings.sendCurrentPreferences();
         });
         NeoForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("NeoForge client setup complete");

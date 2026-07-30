@@ -6,6 +6,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -79,6 +80,7 @@ public class FabricConfigScreen extends Screen {
                 Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                 button -> {
                     ConfigManager.updateConfig(configCopy);
+                    ConfigSyncHelper.triggerSync();
                     this.onClose();
                 }
         ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());

@@ -2,8 +2,8 @@ package org.xiyu.onekeyminer.config;
 
 import org.xiyu.onekeyminer.OneKeyMiner;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
@@ -26,10 +26,10 @@ import java.util.function.Consumer;
 public final class ConfigSyncHelper {
     
     /** 同步回调（由平台模块注册） */
-    private static Runnable syncCallback = null;
+    private static volatile Runnable syncCallback = null;
     
     /** 配置变更监听器列表 */
-    private static final List<Consumer<String>> CONFIG_CHANGE_LISTENERS = new ArrayList<>();
+    private static final List<Consumer<String>> CONFIG_CHANGE_LISTENERS = new CopyOnWriteArrayList<>();
     
     private ConfigSyncHelper() {
         // 工具类不允许实例化
