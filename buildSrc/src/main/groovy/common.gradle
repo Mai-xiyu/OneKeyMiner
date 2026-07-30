@@ -24,7 +24,14 @@ dependencies {
 }
 
 processResources {
-    def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "").replaceAll("]", ",)")
+    // Every maintenance branch targets one Minecraft protocol/version exactly.
+    def compatible_forgemc_versions = "[${gradle.ext.minecraft_version}]"
+    def forge_loader_major = "${gradle.ext.forge_loader}".tokenize('.')[0]
+    def minecraftVersion = "${gradle.ext.minecraft_version}"
+    def neoMinecraftPrefix = minecraftVersion.startsWith("1.")
+            ? minecraftVersion.substring(2)
+            : "${minecraftVersion}.0"
+    def neoforge_full_version = "${neoMinecraftPrefix}.${gradle.ext.neoforge_loader}"
 
     var expandProps = ['version'                      : mod_version,
                        'group'                        : project.group,
@@ -35,9 +42,13 @@ processResources {
                        'mod_authors'                  : mod_authors,
                        'mod_id'                       : mod_id,
                        'license'                      : license,
-                       'description'                  : project.description,
+                       'description'                  : mod_description,
+                       'fabric_loader'                : gradle.ext.fabric_loader,
+                       'fabric_api_version'           : gradle.ext.fabric_api_version,
                        'neoforge_loader'              : gradle.ext.neoforge_loader,
+                       'neoforge_full_version'         : neoforge_full_version,
                        'forge_loader'                 : gradle.ext.forge_loader,
+                       'forge_loader_major'           : forge_loader_major,
                        'credits'                      : credits,
                        'java_version'                 : gradle.ext.java_version]
 

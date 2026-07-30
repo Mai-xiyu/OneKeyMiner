@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.listener.Priority;
 import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -23,6 +24,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -50,10 +52,10 @@ public class ForgeEventHandler {
      * 
      * @param event 方块破坏事件
      */
-    @SubscribeEvent(priority = Priority.LOW)
+    @SubscribeEvent(priority = Priority.LOWEST)
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         // 防止重入（链式挖掘时不触发新的链式操作）
-        if (IS_CHAIN_BREAKING.get()) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
         
@@ -117,31 +119,31 @@ public class ForgeEventHandler {
      * @param event 右键方块事件
      */
     @SubscribeEvent(priority = Priority.LOW)
-    public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+    public boolean onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         // 防止重入
         if (IS_CHAIN_INTERACTING.get()) {
-            return;
+            return false;
         }
         
         // 只处理服务端事件
         if (event.getLevel().isClientSide()) {
-            return;
+            return false;
         }
         
         // 检查玩家
         if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
+            return false;
         }
         
         // 检查配置
         MinerConfig config = ConfigManager.getConfig();
         if (!config.enabled) {
-            return;
+            return false;
         }
         
         // 检查链式模式是否激活
         if (!PlatformServices.getInstance().isChainModeActive(player)) {
-            return;
+            return false;
         }
         
         BlockPos pos = event.getPos();
@@ -160,36 +162,43 @@ public class ForgeEventHandler {
             if (actionType == ChainActionType.INTERACTION) {
                 interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
                 if (interactionOverride == null) {
-                    return;
+                    return false;
                 }
             }
         } else {
             actionType = determineActionType(player, hand, state);
         }
         if (actionType == null) {
-            return;
+            return false;
         }
         
         // 检查对应功能是否启用
         if (actionType == ChainActionType.INTERACTION && !config.enableInteraction) {
-            return;
+            return false;
         }
         if (actionType == ChainActionType.PLANTING && !config.enablePlanting) {
-            return;
+            return false;
         }
         if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
-            return;
+            return false;
         }
         
         try {
             IS_CHAIN_INTERACTING.set(true);
+
+            BlockPos originPos = actionType == ChainActionType.PLANTING
+                    ? pos.relative(event.getFace())
+                    : pos;
+            BlockState originState = actionType == ChainActionType.PLANTING
+                    ? level.getBlockState(originPos)
+                    : state;
             
             // 构建上下文
-                ChainActionContext context = ChainActionContext.builder()
+            ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(originPos)
+                    .originState(originState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
@@ -217,8 +226,10 @@ public class ForgeEventHandler {
                 OneKeyMiner.LOGGER.debug("{} 完成: {}", 
                         actionType.getDisplayName(), 
                         result.getSummary());
+                event.setCancellationResult(InteractionResult.SUCCESS);
+                return true;
             }
-            
+            return false;
         } finally {
             IS_CHAIN_INTERACTING.set(false);
         }
@@ -230,33 +241,33 @@ public class ForgeEventHandler {
      * @param event 右键实体事件
      */
     @SubscribeEvent(priority = Priority.LOW)
-    public void onRightClickEntity(PlayerInteractEvent.EntityInteractSpecific event) {
+    public boolean onRightClickEntity(PlayerInteractEvent.EntityInteractSpecific event) {
         if (IS_CHAIN_INTERACTING.get()) {
-            return;
+            return false;
         }
 
         if (event.getLevel().isClientSide()) {
-            return;
+            return false;
         }
 
         if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
+            return false;
         }
 
         MinerConfig config = ConfigManager.getConfig();
         if (!config.enabled || !config.enableInteraction) {
-            return;
+            return false;
         }
 
         if (!PlatformServices.getInstance().isChainModeActive(player)) {
-            return;
+            return false;
         }
 
         Entity target = event.getTarget();
         InteractionHand hand = event.getHand();
         var heldItem = player.getItemInHand(hand);
         if (heldItem.isEmpty()) {
-            return;
+            return false;
         }
 
         OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForEntity(heldItem, target).orElse(null);
@@ -264,18 +275,18 @@ public class ForgeEventHandler {
 
         if (customRule != null) {
             if (customRule.actionType() != ChainActionType.INTERACTION) {
-                return;
+                return false;
             }
             interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
             if (interactionOverride == null) {
-                return;
+                return false;
             }
             if (interactionOverride != ChainActionContext.InteractionOverride.SHEARING) {
-                return;
+                return false;
             }
         } else {
             if (!(target instanceof Shearable shearable) || !shearable.readyForShearing()) {
-                return;
+                return false;
             }
             interactionOverride = ChainActionContext.InteractionOverride.SHEARING;
         }
@@ -311,7 +322,9 @@ public class ForgeEventHandler {
                 }
 
                 event.setCancellationResult(InteractionResult.SUCCESS);
+                return true;
             }
+            return false;
         } finally {
             IS_CHAIN_INTERACTING.set(false);
         }
@@ -327,6 +340,11 @@ public class ForgeEventHandler {
         if (event.getEntity() instanceof ServerPlayer player) {
             ForgePlatformServices.cleanupPlayer(player.getUUID());
         }
+    }
+
+    @SubscribeEvent
+    public void onServerStopped(ServerStoppedEvent event) {
+        MiningStateManager.clearAll();
     }
     
     /**

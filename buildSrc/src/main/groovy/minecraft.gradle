@@ -30,10 +30,6 @@ unimined.minecraft(sourceSets.main, true) {
     }
 }
 
-dependencies {
-    implementation(project(":common"))
-}
-
 processResources {
     from project(":common").sourceSets.main.resources
 }

@@ -7,7 +7,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -20,12 +19,11 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * NeoForge 平台服务实现
@@ -39,8 +37,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NeoForgePlatformServices implements PlatformServices {
     
     /** 存储玩家链式模式状态（使用 UUID 作为 key） */
-    private static final Map<UUID, Boolean> CHAIN_MODE_STATES = new ConcurrentHashMap<>();
-    
     @Override
     public String getPlatformName() {
         return "neoforge";
@@ -68,6 +64,10 @@ public class NeoForgePlatformServices implements PlatformServices {
         if (player.isSpectator()) {
             return false;
         }
+
+        if (!level.mayInteract(player, pos)) {
+            return false;
+        }
         
         // 检查方块是否可被破坏（基岩等不可破坏方块）
         if (state.getDestroySpeed(level, pos) < 0 && !player.isCreative()) {
@@ -82,7 +82,7 @@ public class NeoForgePlatformServices implements PlatformServices {
             return !event.isCanceled();
         } catch (Exception e) {
             OneKeyMiner.LOGGER.debug("权限检查事件触发失败: {}", e.getMessage());
-            return true; // 默认允许
+            return false;
         }
     }
     
@@ -92,10 +92,8 @@ public class NeoForgePlatformServices implements PlatformServices {
         if (player.isSpectator()) {
             return false;
         }
-        
-        // 使用破坏权限作为基础检查
-        // 实际上交互权限可能与破坏权限不同，但这是安全的默认行为
-        return canPlayerBreakBlock(player, level, pos, state);
+
+        return level.mayInteract(player, pos);
     }
     
     @Override
@@ -136,12 +134,7 @@ public class NeoForgePlatformServices implements PlatformServices {
                     false
             );
             
-            // 创建使用上下文
-            UseOnContext context = new UseOnContext(player, hand, hitResult);
-            
-            // 调用物品的 useOn 方法 - 这是原版的通用交互入口
-            // 会触发 PlayerInteractEvent.RightClickBlock 等相关事件
-            InteractionResult result = item.useOn(context);
+            InteractionResult result = player.gameMode.useItemOn(player, level, item, hand, hitResult);
             
             return result.consumesAction();
         } catch (Exception e) {
@@ -164,17 +157,13 @@ public class NeoForgePlatformServices implements PlatformServices {
     @Override
     public boolean isChainModeActive(ServerPlayer player) {
         // 始终使用按住按键激活模式，检查状态存储
-        return CHAIN_MODE_STATES.getOrDefault(player.getUUID(), false);
+        return MiningStateManager.isHoldingKey(player);
     }
     
     @Override
     public void setChainModeActive(ServerPlayer player, boolean active) {
         // 设置玩家的链式模式状态
-        CHAIN_MODE_STATES.put(player.getUUID(), active);
-        
-        // 同时更新 MiningStateManager 的按键状态（用于 MiningLogic 检查）
-        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
-        
+        MiningStateManager.setHoldingKey(player, active);
     }
     
     @Override
@@ -193,6 +182,6 @@ public class NeoForgePlatformServices implements PlatformServices {
      * @param playerUuid 玩家 UUID
      */
     public static void cleanupPlayer(UUID playerUuid) {
-        CHAIN_MODE_STATES.remove(playerUuid);
+        MiningStateManager.clearState(playerUuid);
     }
 }

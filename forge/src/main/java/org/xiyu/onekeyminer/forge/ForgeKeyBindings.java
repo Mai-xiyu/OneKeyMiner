@@ -9,14 +9,10 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
@@ -25,7 +21,6 @@ import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
 import java.lang.reflect.Method;
 
-@OnlyIn(Dist.CLIENT)
 public class ForgeKeyBindings {
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
             Identifier.parse("key.categories.onekeyminer"));
@@ -50,6 +45,8 @@ public class ForgeKeyBindings {
     }
 
     private static boolean wasKeyDown = false;
+    private static boolean syncPending = true;
+    private static int syncRetryDelay = 0;
 
     public static void register() {
         OneKeyMiner.LOGGER.debug("Forge key bindings initialized");
@@ -76,14 +73,11 @@ public class ForgeKeyBindings {
         ChainPreviewHud.render(event.getGuiGraphics());
     }
 
-    @Mod.EventBusSubscriber(modid = OneKeyMiner.MOD_ID, value = Dist.CLIENT)
     public static class Events {
-        @SubscribeEvent
         public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
             registerKeyMappings(event);
         }
 
-        @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent.Post event) {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft.player == null) {
@@ -96,14 +90,23 @@ public class ForgeKeyBindings {
 
             boolean isKeyDown = CHAIN_MINING_KEY.isDown();
 
-            if (isKeyDown != wasKeyDown) {
-                wasKeyDown = isKeyDown;
-                if (minecraft.getConnection() != null) {
-                    try {
-                        ForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
-                    } catch (Exception e) {
-                        OneKeyMiner.LOGGER.debug("Failed to send Forge key state: {}", e.getMessage());
-                    }
+            if (syncPending && minecraft.getConnection() != null) {
+                if (syncRetryDelay > 0) {
+                    syncRetryDelay--;
+                } else {
+                    syncCurrentState();
+                }
+            }
+
+            if (!syncPending && isKeyDown != wasKeyDown && minecraft.getConnection() != null) {
+                if (ForgeClientNetworking.trySendKeyState(
+                        isKeyDown,
+                        ConfigManager.getConfig().selectedShape
+                )) {
+                    wasKeyDown = isKeyDown;
+                } else {
+                    syncPending = true;
+                    syncRetryDelay = 20;
                 }
             }
 
@@ -117,5 +120,41 @@ public class ForgeKeyBindings {
             ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
         }
 
+    }
+
+    public static void syncCurrentState() {
+        MinerConfigSnapshot snapshot = MinerConfigSnapshot.read();
+        boolean holding = CHAIN_MINING_KEY.isDown();
+        boolean keySent = ForgeClientNetworking.trySendKeyState(holding, snapshot.shapeId());
+        boolean settingsSent = ForgeClientNetworking.trySendTeleportSettings(
+                snapshot.teleportDrops(),
+                snapshot.teleportExp()
+        );
+        syncPending = !(keySent && settingsSent);
+        syncRetryDelay = syncPending ? 20 : 0;
+        if (!syncPending) {
+            wasKeyDown = holding;
+        }
+    }
+
+    public static void resetConnectionState() {
+        wasKeyDown = false;
+        syncPending = true;
+        syncRetryDelay = 0;
+    }
+
+    private record MinerConfigSnapshot(
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        private static MinerConfigSnapshot read() {
+            var config = ConfigManager.getConfig();
+            return new MinerConfigSnapshot(
+                    config.selectedShape,
+                    config.teleportDrops,
+                    config.teleportExp
+            );
+        }
     }
 }

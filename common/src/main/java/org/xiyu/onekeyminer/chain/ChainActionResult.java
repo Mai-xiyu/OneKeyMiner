@@ -7,6 +7,7 @@ import net.minecraft.world.level.Level;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 链式操作结果记录
@@ -49,6 +50,25 @@ public record ChainActionResult(
         /** 收集到的经验值 */
         int experienceCollected
 ) {
+    public ChainActionResult {
+        actionType = Objects.requireNonNull(actionType, "actionType");
+        stopReason = Objects.requireNonNull(stopReason, "stopReason");
+        successPositions = successPositions == null
+                ? List.of()
+                : successPositions.stream()
+                        .filter(Objects::nonNull)
+                        .map(BlockPos::immutable)
+                        .toList();
+        collectedDrops = collectedDrops == null
+                ? List.of()
+                : collectedDrops.stream().map(ItemStack::copy).toList();
+        totalCount = successPositions.size();
+    }
+
+    @Override
+    public List<ItemStack> collectedDrops() {
+        return collectedDrops.stream().map(ItemStack::copy).toList();
+    }
     
     /**
      * 链式操作停止原因枚举
@@ -141,12 +161,12 @@ public record ChainActionResult(
     ) {
         return new ChainActionResult(
                 actionType,
-                Collections.unmodifiableList(positions),
+                List.copyOf(positions),
                 positions.size(),
                 durabilityUsed,
                 hungerUsed,
                 stopReason,
-                collectedDrops != null ? Collections.unmodifiableList(collectedDrops) : Collections.emptyList(),
+                collectedDrops != null ? collectedDrops : Collections.emptyList(),
                 experienceCollected
         );
     }

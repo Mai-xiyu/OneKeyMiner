@@ -10,8 +10,11 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 public class NeoForgeNetworking {
+    private static final String NETWORK_PROTOCOL_VERSION = "2";
+
     public record ChainKeyStatePayload(boolean holding, String shapeId) implements CustomPacketPayload {
         public static final Identifier ID = Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
         public static final CustomPacketPayload.Type<ChainKeyStatePayload> TYPE = new CustomPacketPayload.Type<>(ID);
@@ -47,7 +50,7 @@ public class NeoForgeNetworking {
     }
 
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar(OneKeyMiner.MOD_ID);
+        var registrar = event.registrar(NETWORK_PROTOCOL_VERSION);
         registrar.playToServer(
                 ChainKeyStatePayload.TYPE,
                 ChainKeyStatePayload.STREAM_CODEC,
@@ -61,34 +64,12 @@ public class NeoForgeNetworking {
         OneKeyMiner.LOGGER.debug("Registered NeoForge networking payloads");
     }
 
-    public static void sendKeyState(boolean pressed, String shapeId) {
-        try {
-            var connection = net.minecraft.client.Minecraft.getInstance().getConnection();
-            if (connection != null) {
-                connection.send(new ChainKeyStatePayload(pressed, shapeId));
-            }
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("Failed to send NeoForge key state: {}", e.getMessage());
-        }
-    }
-
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
-        try {
-            var connection = net.minecraft.client.Minecraft.getInstance().getConnection();
-            if (connection != null) {
-                connection.send(new TeleportSettingsPayload(teleportDrops, teleportExp));
-            }
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("Failed to send NeoForge teleport settings: {}", e.getMessage());
-        }
-    }
-
     private static void handleChainKeyState(ChainKeyStatePayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (context.player() instanceof ServerPlayer serverPlayer) {
                 PlatformServices.getInstance().setChainModeActive(serverPlayer, payload.holding());
                 Identifier shapeId = Identifier.tryParse(payload.shapeId());
-                if (shapeId != null) {
+                if (shapeId != null && ShapeRegistry.getShape(shapeId) != null) {
                     MiningStateManager.setPlayerShape(serverPlayer, shapeId);
                 }
             }

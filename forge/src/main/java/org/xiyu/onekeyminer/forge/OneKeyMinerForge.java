@@ -1,17 +1,12 @@
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
-import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -41,11 +36,7 @@ public class OneKeyMinerForge {
         
         // 客户端专用事件
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            FMLClientSetupEvent.getBus(modBusGroup).addListener(this::onClientSetup);
-            CustomizeGuiOverlayEvent.Chat.BUS.addListener(ForgeKeyBindings::renderPreviewHud);
-
-            // 注册配置界面（仅客户端）
-            ForgeConfigScreen.register(context);
+            ForgeClientBootstrap.register(context);
         }
         
         // 注册游戏事件处理器到 Forge 事件总线
@@ -63,17 +54,4 @@ public class OneKeyMinerForge {
         OneKeyMiner.LOGGER.debug("Forge 通用设置完成");
     }
     
-    /**
-     * 客户端设置事件处理
-     */
-    private void onClientSetup(FMLClientSetupEvent event) {
-        // 注册配置同步回调
-        ConfigSyncHelper.registerSyncCallback(() -> {
-            var config = ConfigManager.getConfig();
-            ForgeNetworking.sendTeleportSettings(config.teleportDrops, config.teleportExp);
-        });
-        // 注册按键绑定
-        ForgeKeyBindings.register();
-        OneKeyMiner.LOGGER.debug("Forge 客户端设置完成");
-    }
 }

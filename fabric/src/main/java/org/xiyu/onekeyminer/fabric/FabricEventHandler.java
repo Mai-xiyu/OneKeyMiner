@@ -27,6 +27,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -69,10 +70,7 @@ public class FabricEventHandler {
         
         // 注册服务器停止事件（清理所有状态）
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            // 清理所有玩家状态
-            server.getPlayerList().getPlayers().forEach(player -> 
-                FabricPlatformServices.cleanupPlayer(player.getUUID())
-            );
+            MiningStateManager.clearAll();
         });
         
         OneKeyMiner.LOGGER.info("Fabric 事件处理器已注册");
@@ -95,7 +93,7 @@ public class FabricEventHandler {
             BlockEntity blockEntity
     ) {
         // 防止重入（链式挖掘时不触发新的链式操作）
-        if (IS_CHAIN_BREAKING.get()) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
         
@@ -227,13 +225,20 @@ public class FabricEventHandler {
         
         try {
             IS_CHAIN_INTERACTING.set(true);
+
+            BlockPos originPos = actionType == ChainActionType.PLANTING
+                    ? pos.relative(hitResult.getDirection())
+                    : pos;
+            BlockState originState = actionType == ChainActionType.PLANTING
+                    ? level.getBlockState(originPos)
+                    : state;
             
             // 构建上下文
-                ChainActionContext context = ChainActionContext.builder()
+            ChainActionContext context = ChainActionContext.builder()
                     .player(serverPlayer)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(originPos)
+                    .originState(originState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)

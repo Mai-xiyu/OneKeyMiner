@@ -7,8 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
@@ -21,12 +19,13 @@ import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
-@OnlyIn(Dist.CLIENT)
 public class NeoForgeKeyBindings {
     public static KeyMapping CHAIN_MINING_KEY;
     public static KeyMapping OPEN_CONFIG;
 
     private static boolean wasKeyDown = false;
+    private static boolean syncPending = true;
+    private static int syncRetryDelay = 0;
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
@@ -82,10 +81,23 @@ public class NeoForgeKeyBindings {
         }
 
         boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-        if (isKeyDown != wasKeyDown) {
-            wasKeyDown = isKeyDown;
-            if (minecraft.getConnection() != null) {
-                NeoForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
+        if (syncPending && minecraft.getConnection() != null) {
+            if (syncRetryDelay > 0) {
+                syncRetryDelay--;
+            } else {
+                syncCurrentState();
+            }
+        }
+
+        if (!syncPending && isKeyDown != wasKeyDown && minecraft.getConnection() != null) {
+            if (NeoForgeClientNetworking.trySendKeyState(
+                    isKeyDown,
+                    ConfigManager.getConfig().selectedShape
+            )) {
+                wasKeyDown = isKeyDown;
+            } else {
+                syncPending = true;
+                syncRetryDelay = 20;
             }
         }
 
@@ -97,6 +109,30 @@ public class NeoForgeKeyBindings {
         Direction playerFacing = minecraft.player.getDirection();
         float playerPitch = minecraft.player.getXRot();
         ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
+    }
+
+    public static void syncCurrentState() {
+        if (CHAIN_MINING_KEY == null || Minecraft.getInstance().getConnection() == null) {
+            return;
+        }
+        var config = ConfigManager.getConfig();
+        boolean holding = CHAIN_MINING_KEY.isDown();
+        boolean keySent = NeoForgeClientNetworking.trySendKeyState(holding, config.selectedShape);
+        boolean settingsSent = NeoForgeClientNetworking.trySendTeleportSettings(
+                config.teleportDrops,
+                config.teleportExp
+        );
+        syncPending = !(keySent && settingsSent);
+        syncRetryDelay = syncPending ? 20 : 0;
+        if (!syncPending) {
+            wasKeyDown = holding;
+        }
+    }
+
+    public static void resetConnectionState() {
+        wasKeyDown = false;
+        syncPending = true;
+        syncRetryDelay = 0;
     }
 
 }

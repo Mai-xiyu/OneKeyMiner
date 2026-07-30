@@ -9,6 +9,7 @@ import org.xiyu.onekeyminer.chain.ChainActionType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 链式操作前事件（可取消）
@@ -90,12 +91,12 @@ public final class PreActionEvent {
             ItemStack tool,
             ChainActionType actionType
     ) {
-        this.player = player;
-        this.level = level;
-        this.originPos = originPos;
-        this.targetPositions = new ArrayList<>(targetPositions);
-        this.tool = tool;
-        this.actionType = actionType;
+        this.player = Objects.requireNonNull(player, "player");
+        this.level = Objects.requireNonNull(level, "level");
+        this.originPos = Objects.requireNonNull(originPos, "originPos").immutable();
+        this.targetPositions = new ArrayList<>(Objects.requireNonNull(targetPositions, "targetPositions"));
+        this.tool = Objects.requireNonNull(tool, "tool");
+        this.actionType = Objects.requireNonNull(actionType, "actionType");
     }
     
     // ==================== Getters ====================
@@ -212,7 +213,7 @@ public final class PreActionEvent {
      * @param positions 新的目标位置列表
      */
     public void setTargetPositions(List<BlockPos> positions) {
-        this.targetPositions = new ArrayList<>(positions);
+        this.targetPositions = new ArrayList<>(Objects.requireNonNull(positions, "positions"));
     }
     
     /**
@@ -232,8 +233,9 @@ public final class PreActionEvent {
      * @return 如果成功添加返回 true
      */
     public boolean addTarget(BlockPos pos) {
+        Objects.requireNonNull(pos, "pos");
         if (!targetPositions.contains(pos)) {
-            return targetPositions.add(pos);
+            return targetPositions.add(pos.immutable());
         }
         return false;
     }

@@ -6,6 +6,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 
 import java.nio.file.Path;
 
@@ -58,7 +59,7 @@ public interface PlatformServices {
     
     /** 用于存储实例的持有者类 */
     class Holder {
-        PlatformServices instance;
+        volatile PlatformServices instance;
     }
     
     // ========== 便捷访问器（兼容旧代码） ==========
@@ -191,8 +192,7 @@ public interface PlatformServices {
      * @return 如果链式模式激活返回 true
      */
     default boolean isChainModeActive(ServerPlayer player) {
-        // 由各平台实现，可能使用 Capability 或 DataAttachment
-        return true;
+        return MiningStateManager.isHoldingKey(player);
     }
     
     /**
@@ -202,7 +202,7 @@ public interface PlatformServices {
      * @param active 是否激活
      */
     default void setChainModeActive(ServerPlayer player, boolean active) {
-        // 由各平台实现
+        MiningStateManager.setHoldingKey(player, active);
     }
     
     /**

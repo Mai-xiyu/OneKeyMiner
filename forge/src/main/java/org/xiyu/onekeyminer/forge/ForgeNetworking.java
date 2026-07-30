@@ -1,7 +1,5 @@
 package org.xiyu.onekeyminer.forge;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -12,13 +10,16 @@ import net.minecraftforge.network.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 /**
  * Forge C2S networking.
  */
 public class ForgeNetworking {
+    private static final int NETWORK_PROTOCOL_VERSION = 2;
     private static final SimpleChannel CHANNEL = ChannelBuilder
             .named(Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
+            .networkProtocolVersion(NETWORK_PROTOCOL_VERSION)
             .optional()
             .simpleChannel();
 
@@ -49,7 +50,7 @@ public class ForgeNetworking {
                 if (player != null) {
                     PlatformServices.getInstance().setChainModeActive(player, packet.pressed);
                     Identifier id = Identifier.tryParse(packet.shapeId);
-                    if (id != null) {
+                    if (id != null && ShapeRegistry.getShape(id) != null) {
                         MiningStateManager.setPlayerShape(player, id);
                     }
                 }
@@ -107,17 +108,7 @@ public class ForgeNetworking {
                 .add();
     }
 
-    public static void sendKeyState(boolean pressed, String shapeId) {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            CHANNEL.send(new ChainKeyStatePacket(pressed, shapeId), connection.getConnection());
-        }
-    }
-
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            CHANNEL.send(new TeleportSettingsPacket(teleportDrops, teleportExp), connection.getConnection());
-        }
+    static SimpleChannel channel() {
+        return CHANNEL;
     }
 }

@@ -9,6 +9,7 @@ import org.xiyu.onekeyminer.chain.ChainActionType;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 链式操作后事件（不可取消）
@@ -68,10 +69,10 @@ public final class PostActionEvent {
             BlockPos originPos,
             ChainActionResult result
     ) {
-        this.player = player;
-        this.level = level;
-        this.originPos = originPos;
-        this.result = result;
+        this.player = Objects.requireNonNull(player, "player");
+        this.level = Objects.requireNonNull(level, "level");
+        this.originPos = Objects.requireNonNull(originPos, "originPos").immutable();
+        this.result = Objects.requireNonNull(result, "result");
     }
     
     // ==================== Getters ====================

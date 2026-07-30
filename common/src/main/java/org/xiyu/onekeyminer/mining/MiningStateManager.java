@@ -3,104 +3,198 @@ package org.xiyu.onekeyminer.mining;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 
 /**
- * Per-player chain mining state synchronized from clients.
+ * Atomic per-player state synchronized from the physical client.
  */
-public class MiningStateManager {
-    private static final Map<UUID, Boolean> PLAYER_KEY_STATES = new ConcurrentHashMap<>();
-    private static final Map<UUID, Boolean> PLAYER_STATES = new ConcurrentHashMap<>();
-    private static final Map<UUID, Identifier> PLAYER_SHAPES = new ConcurrentHashMap<>();
-    private static final Map<UUID, Boolean> PLAYER_TELEPORT_DROPS = new ConcurrentHashMap<>();
-    private static final Map<UUID, Boolean> PLAYER_TELEPORT_EXP = new ConcurrentHashMap<>();
+public final class MiningStateManager {
+    private static final ConcurrentHashMap<UUID, PlayerState> PLAYER_STATES =
+            new ConcurrentHashMap<>();
+
+    private MiningStateManager() {
+    }
+
+    private record PlayerState(
+            boolean holding,
+            boolean activated,
+            Identifier shape,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        private static final PlayerState DEFAULT =
+                new PlayerState(false, false, null, false, false);
+
+        private boolean isEmpty() {
+            return !holding
+                    && !activated
+                    && shape == null
+                    && !teleportDrops
+                    && !teleportExp;
+        }
+    }
+
+    private static PlayerState state(UUID uuid) {
+        return PLAYER_STATES.getOrDefault(
+                Objects.requireNonNull(uuid, "uuid"),
+                PlayerState.DEFAULT
+        );
+    }
+
+    private static void update(UUID uuid, UnaryOperator<PlayerState> updater) {
+        Objects.requireNonNull(uuid, "uuid");
+        Objects.requireNonNull(updater, "updater");
+        PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
+            PlayerState updated = Objects.requireNonNull(
+                    updater.apply(oldState != null ? oldState : PlayerState.DEFAULT),
+                    "updated state"
+            );
+            return updated.isEmpty() ? null : updated;
+        });
+    }
 
     public static boolean isHoldingKey(ServerPlayer player) {
-        return PLAYER_KEY_STATES.getOrDefault(player.getUUID(), false);
+        return state(player.getUUID()).holding();
     }
 
     public static void setHoldingKey(ServerPlayer player, boolean holding) {
-        PLAYER_KEY_STATES.put(player.getUUID(), holding);
+        setHoldingKey(player.getUUID(), holding);
     }
 
     public static void setHoldingKey(UUID uuid, boolean holding) {
-        PLAYER_KEY_STATES.put(uuid, holding);
+        update(uuid, old -> new PlayerState(
+                holding,
+                old.activated(),
+                old.shape(),
+                old.teleportDrops(),
+                old.teleportExp()
+        ));
     }
 
     public static boolean isActivated(ServerPlayer player) {
-        return PLAYER_STATES.getOrDefault(player.getUUID(), false);
+        return state(player.getUUID()).activated();
     }
 
     public static void setActivated(ServerPlayer player, boolean activated) {
-        PLAYER_STATES.put(player.getUUID(), activated);
+        update(player.getUUID(), old -> new PlayerState(
+                old.holding(),
+                activated,
+                old.shape(),
+                old.teleportDrops(),
+                old.teleportExp()
+        ));
     }
 
     public static boolean toggle(ServerPlayer player) {
-        boolean newState = !isActivated(player);
-        setActivated(player, newState);
-        return newState;
+        AtomicBoolean result = new AtomicBoolean();
+        update(player.getUUID(), old -> {
+            boolean activated = !old.activated();
+            result.set(activated);
+            return new PlayerState(
+                    old.holding(),
+                    activated,
+                    old.shape(),
+                    old.teleportDrops(),
+                    old.teleportExp()
+            );
+        });
+        return result.get();
     }
 
     public static Identifier getPlayerShape(ServerPlayer player) {
-        return PLAYER_SHAPES.get(player.getUUID());
+        return getPlayerShape(player.getUUID());
     }
 
     public static Identifier getPlayerShape(UUID uuid) {
-        return PLAYER_SHAPES.get(uuid);
+        return state(uuid).shape();
     }
 
     public static void setPlayerShape(ServerPlayer player, Identifier shapeId) {
-        if (shapeId != null) {
-            PLAYER_SHAPES.put(player.getUUID(), shapeId);
-        }
+        setPlayerShape(player.getUUID(), shapeId);
     }
 
     public static void setPlayerShape(UUID uuid, Identifier shapeId) {
-        if (shapeId != null) {
-            PLAYER_SHAPES.put(uuid, shapeId);
+        if (shapeId == null) {
+            return;
         }
+        Identifier immutableId = Identifier.parse(shapeId.toString());
+        update(uuid, old -> new PlayerState(
+                old.holding(),
+                old.activated(),
+                immutableId,
+                old.teleportDrops(),
+                old.teleportExp()
+        ));
     }
 
     public static boolean isTeleportDrops(ServerPlayer player) {
-        return PLAYER_TELEPORT_DROPS.getOrDefault(player.getUUID(), false);
+        return state(player.getUUID()).teleportDrops();
     }
 
     public static boolean isTeleportExp(ServerPlayer player) {
-        return PLAYER_TELEPORT_EXP.getOrDefault(player.getUUID(), false);
+        return state(player.getUUID()).teleportExp();
     }
 
     public static void setTeleportDrops(ServerPlayer player, boolean enabled) {
-        PLAYER_TELEPORT_DROPS.put(player.getUUID(), enabled);
+        setTeleportDrops(player.getUUID(), enabled);
     }
 
     public static void setTeleportDrops(UUID uuid, boolean enabled) {
-        PLAYER_TELEPORT_DROPS.put(uuid, enabled);
+        update(uuid, old -> new PlayerState(
+                old.holding(),
+                old.activated(),
+                old.shape(),
+                enabled,
+                old.teleportExp()
+        ));
     }
 
     public static void setTeleportExp(ServerPlayer player, boolean enabled) {
-        PLAYER_TELEPORT_EXP.put(player.getUUID(), enabled);
+        setTeleportExp(player.getUUID(), enabled);
     }
 
     public static void setTeleportExp(UUID uuid, boolean enabled) {
-        PLAYER_TELEPORT_EXP.put(uuid, enabled);
+        update(uuid, old -> new PlayerState(
+                old.holding(),
+                old.activated(),
+                old.shape(),
+                old.teleportDrops(),
+                enabled
+        ));
+    }
+
+    /**
+     * Applies one validated client preference snapshot atomically.
+     */
+    public static void updatePreferences(
+            UUID uuid,
+            boolean holding,
+            Identifier shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        update(uuid, old -> new PlayerState(
+                holding,
+                old.activated(),
+                shapeId != null ? Identifier.parse(shapeId.toString()) : old.shape(),
+                teleportDrops,
+                teleportExp
+        ));
     }
 
     public static void clearState(ServerPlayer player) {
-        UUID uuid = player.getUUID();
-        PLAYER_STATES.remove(uuid);
-        PLAYER_KEY_STATES.remove(uuid);
-        PLAYER_SHAPES.remove(uuid);
-        PLAYER_TELEPORT_DROPS.remove(uuid);
-        PLAYER_TELEPORT_EXP.remove(uuid);
+        clearState(player.getUUID());
+    }
+
+    public static void clearState(UUID uuid) {
+        PLAYER_STATES.remove(Objects.requireNonNull(uuid, "uuid"));
     }
 
     public static void clearAll() {
         PLAYER_STATES.clear();
-        PLAYER_KEY_STATES.clear();
-        PLAYER_SHAPES.clear();
-        PLAYER_TELEPORT_DROPS.clear();
-        PLAYER_TELEPORT_EXP.clear();
     }
 }
