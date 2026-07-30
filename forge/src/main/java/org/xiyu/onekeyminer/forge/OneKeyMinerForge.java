@@ -2,7 +2,6 @@ package org.xiyu.onekeyminer.forge;
 
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -26,7 +25,7 @@ public class OneKeyMinerForge {
             modEventBus.addListener(this::onClientSetup);
             modEventBus.addListener(ForgeKeyBindings::registerKeyMappings);
             modEventBus.addListener(ForgeKeyBindings::registerGuiOverlay);
-            ForgeConfigScreen.register(ModLoadingContext.get());
+            ForgeConfigScreen.register(context);
         }
 
         MinecraftForge.EVENT_BUS.register(new ForgeEventHandler());
@@ -40,8 +39,7 @@ public class OneKeyMinerForge {
 
     private void onClientSetup(FMLClientSetupEvent event) {
         ConfigSyncHelper.registerSyncCallback(() -> {
-            var config = ConfigManager.getConfig();
-            ForgeNetworking.sendTeleportSettings(config.teleportDrops, config.teleportExp);
+            ForgeKeyBindings.sendCurrentPreferences();
         });
         ForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("Forge client setup complete");

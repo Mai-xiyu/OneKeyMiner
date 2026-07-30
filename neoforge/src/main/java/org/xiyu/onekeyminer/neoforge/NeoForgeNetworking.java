@@ -9,35 +9,44 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
-import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
-public class NeoForgeNetworking {
-    public record ChainKeyStatePayload(boolean holding, String shapeId) implements CustomPacketPayload {
-        public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
-        public static final CustomPacketPayload.Type<ChainKeyStatePayload> TYPE = new CustomPacketPayload.Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, ChainKeyStatePayload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> {
-                    buf.writeBoolean(payload.holding);
-                    buf.writeUtf(payload.shapeId == null ? "" : payload.shapeId);
-                },
-                buf -> new ChainKeyStatePayload(buf.readBoolean(), buf.readUtf(256))
-        );
+/**
+ * Server-safe NeoForge payload declarations and handlers.
+ */
+public final class NeoForgeNetworking {
+    public static final String PROTOCOL_VERSION = "2";
+    public static final int WIRE_VERSION = 2;
+    public static final int MAX_SHAPE_ID_LENGTH = 128;
 
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
+    private NeoForgeNetworking() {
     }
 
-    public record TeleportSettingsPayload(boolean teleportDrops, boolean teleportExp) implements CustomPacketPayload {
-        public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "teleport_settings");
-        public static final CustomPacketPayload.Type<TeleportSettingsPayload> TYPE = new CustomPacketPayload.Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, TeleportSettingsPayload> STREAM_CODEC = StreamCodec.of(
+    public record ClientPreferencesPayload(
+            int wireVersion,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) implements CustomPacketPayload {
+        public static final ResourceLocation ID =
+                ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "client_preferences");
+        public static final Type<ClientPreferencesPayload> TYPE = new Type<>(ID);
+        public static final StreamCodec<FriendlyByteBuf, ClientPreferencesPayload> STREAM_CODEC = StreamCodec.of(
                 (buf, payload) -> {
+                    buf.writeVarInt(payload.wireVersion);
+                    buf.writeBoolean(payload.holding);
+                    buf.writeUtf(payload.shapeId == null ? "" : payload.shapeId, MAX_SHAPE_ID_LENGTH);
                     buf.writeBoolean(payload.teleportDrops);
                     buf.writeBoolean(payload.teleportExp);
                 },
-                buf -> new TeleportSettingsPayload(buf.readBoolean(), buf.readBoolean())
+                buf -> new ClientPreferencesPayload(
+                        buf.readVarInt(),
+                        buf.readBoolean(),
+                        buf.readUtf(MAX_SHAPE_ID_LENGTH),
+                        buf.readBoolean(),
+                        buf.readBoolean()
+                )
         );
 
         @Override
@@ -47,60 +56,44 @@ public class NeoForgeNetworking {
     }
 
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar(OneKeyMiner.MOD_ID);
-        registrar.playToServer(
-                ChainKeyStatePayload.TYPE,
-                ChainKeyStatePayload.STREAM_CODEC,
-                NeoForgeNetworking::handleChainKeyState
-        );
-        registrar.playToServer(
-                TeleportSettingsPayload.TYPE,
-                TeleportSettingsPayload.STREAM_CODEC,
-                NeoForgeNetworking::handleTeleportSettings
+        event.registrar(PROTOCOL_VERSION).playToServer(
+                ClientPreferencesPayload.TYPE,
+                ClientPreferencesPayload.STREAM_CODEC,
+                NeoForgeNetworking::handleClientPreferences
         );
         OneKeyMiner.LOGGER.debug("Registered NeoForge networking payloads");
     }
 
-    public static void sendKeyState(boolean pressed, String shapeId) {
-        try {
-            var connection = net.minecraft.client.Minecraft.getInstance().getConnection();
-            if (connection != null) {
-                connection.send(new ChainKeyStatePayload(pressed, shapeId));
-            }
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("Failed to send NeoForge key state: {}", e.getMessage());
+    private static void handleClientPreferences(ClientPreferencesPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer serverPlayer)) {
+            return;
         }
-    }
-
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
-        try {
-            var connection = net.minecraft.client.Minecraft.getInstance().getConnection();
-            if (connection != null) {
-                connection.send(new TeleportSettingsPayload(teleportDrops, teleportExp));
-            }
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("Failed to send NeoForge teleport settings: {}", e.getMessage());
+        if (payload.wireVersion() != WIRE_VERSION) {
+            OneKeyMiner.LOGGER.warn(
+                    "Ignoring client preferences from {} with unsupported wire version {}",
+                    serverPlayer.getGameProfile().getName(),
+                    payload.wireVersion()
+            );
+            return;
         }
-    }
-
-    private static void handleChainKeyState(ChainKeyStatePayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer serverPlayer) {
-                PlatformServices.getInstance().setChainModeActive(serverPlayer, payload.holding());
-                ResourceLocation shapeId = ResourceLocation.tryParse(payload.shapeId());
-                if (shapeId != null) {
-                    MiningStateManager.setPlayerShape(serverPlayer, shapeId);
-                }
+        ResourceLocation shapeId = ResourceLocation.tryParse(payload.shapeId());
+        if (shapeId == null || !ShapeRegistry.isRegistered(shapeId)) {
+            OneKeyMiner.LOGGER.warn(
+                    "Replacing invalid shape preference '{}' from {} with the server default",
+                    payload.shapeId(),
+                    serverPlayer.getGameProfile().getName()
+            );
+            shapeId = ShapeRegistry.DEFAULT_SHAPE_ID;
+            if (!ShapeRegistry.isRegistered(shapeId)) {
+                return;
             }
-        });
-    }
-
-    private static void handleTeleportSettings(TeleportSettingsPayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer serverPlayer) {
-                MiningStateManager.setTeleportDrops(serverPlayer, payload.teleportDrops());
-                MiningStateManager.setTeleportExp(serverPlayer, payload.teleportExp());
-            }
-        });
+        }
+        MiningStateManager.updatePreferences(
+                serverPlayer.getUUID(),
+                payload.holding(),
+                shapeId,
+                payload.teleportDrops(),
+                payload.teleportExp()
+        );
     }
 }

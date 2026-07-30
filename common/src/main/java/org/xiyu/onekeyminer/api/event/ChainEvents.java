@@ -3,8 +3,8 @@ package org.xiyu.onekeyminer.api.event;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -42,15 +42,15 @@ import java.util.function.Predicate;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.5
  */
 public final class ChainEvents {
     
     /** 操作前事件监听器列表 */
-    private static final List<ListenerEntry<PreActionEvent>> PRE_ACTION_LISTENERS = new ArrayList<>();
+    private static final List<ListenerEntry<PreActionEvent>> PRE_ACTION_LISTENERS = new CopyOnWriteArrayList<>();
     
     /** 操作后事件监听器列表 */
-    private static final List<ListenerEntry<PostActionEvent>> POST_ACTION_LISTENERS = new ArrayList<>();
+    private static final List<ListenerEntry<PostActionEvent>> POST_ACTION_LISTENERS = new CopyOnWriteArrayList<>();
     
     private ChainEvents() {
         // 工具类，禁止实例化

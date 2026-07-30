@@ -1,7 +1,6 @@
 package org.xiyu.onekeyminer.forge;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -11,78 +10,86 @@ import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
-import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 /**
- * Forge C2S networking.
+ * Server-safe Forge C2S networking.
  */
-public class ForgeNetworking {
+public final class ForgeNetworking {
+    public static final int WIRE_VERSION = 2;
+    public static final int MAX_SHAPE_ID_LENGTH = 128;
+
     private static final SimpleChannel CHANNEL = ChannelBuilder
             .named(ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
-            .optional()
+            .networkProtocolVersion(WIRE_VERSION)
             .simpleChannel();
+    private static boolean registered;
 
-    private static int packetIndex = 0;
-    private static boolean registered = false;
-
-    public static class ChainKeyStatePacket {
-        private final boolean pressed;
-        private final String shapeId;
-
-        public ChainKeyStatePacket(boolean pressed, String shapeId) {
-            this.pressed = pressed;
-            this.shapeId = shapeId != null ? shapeId : "onekeyminer:amorphous";
-        }
-
-        public static ChainKeyStatePacket fromNetwork(FriendlyByteBuf buf) {
-            return new ChainKeyStatePacket(buf.readBoolean(), buf.readUtf(256));
-        }
-
-        public void write(FriendlyByteBuf buf) {
-            buf.writeBoolean(pressed);
-            buf.writeUtf(shapeId);
-        }
-
-        public static void handleOnServer(ChainKeyStatePacket packet, CustomPayloadEvent.Context context) {
-            context.enqueueWork(() -> {
-                ServerPlayer player = context.getSender();
-                if (player != null) {
-                    PlatformServices.getInstance().setChainModeActive(player, packet.pressed);
-                    ResourceLocation id = ResourceLocation.tryParse(packet.shapeId);
-                    if (id != null) {
-                        MiningStateManager.setPlayerShape(player, id);
-                    }
-                }
-            });
-            context.setPacketHandled(true);
-        }
+    private ForgeNetworking() {
     }
 
-    public static class TeleportSettingsPacket {
-        private final boolean teleportDrops;
-        private final boolean teleportExp;
-
-        public TeleportSettingsPacket(boolean teleportDrops, boolean teleportExp) {
-            this.teleportDrops = teleportDrops;
-            this.teleportExp = teleportExp;
+    public record ClientPreferencesPacket(
+            int wireVersion,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        public ClientPreferencesPacket {
+            shapeId = shapeId != null ? shapeId : "";
         }
 
-        public static TeleportSettingsPacket fromNetwork(FriendlyByteBuf buf) {
-            return new TeleportSettingsPacket(buf.readBoolean(), buf.readBoolean());
+        public static ClientPreferencesPacket fromNetwork(FriendlyByteBuf buf) {
+            return new ClientPreferencesPacket(
+                    buf.readVarInt(),
+                    buf.readBoolean(),
+                    buf.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buf.readBoolean(),
+                    buf.readBoolean()
+            );
         }
 
         public void write(FriendlyByteBuf buf) {
+            buf.writeVarInt(wireVersion);
+            buf.writeBoolean(holding);
+            buf.writeUtf(shapeId, MAX_SHAPE_ID_LENGTH);
             buf.writeBoolean(teleportDrops);
             buf.writeBoolean(teleportExp);
         }
 
-        public static void handleOnServer(TeleportSettingsPacket packet, CustomPayloadEvent.Context context) {
+        public static void handleOnServer(ClientPreferencesPacket packet, CustomPayloadEvent.Context context) {
             context.enqueueWork(() -> {
                 ServerPlayer player = context.getSender();
-                if (player != null) {
-                    MiningStateManager.setTeleportDrops(player, packet.teleportDrops);
-                    MiningStateManager.setTeleportExp(player, packet.teleportExp);
+                if (player == null) {
+                    return;
                 }
+                if (packet.wireVersion != WIRE_VERSION) {
+                    OneKeyMiner.LOGGER.warn(
+                            "Ignoring client preferences from {} with unsupported wire version {}",
+                            player.getGameProfile().getName(),
+                            packet.wireVersion
+                    );
+                    return;
+                }
+                ResourceLocation shapeId = ResourceLocation.tryParse(packet.shapeId);
+                if (shapeId == null || !ShapeRegistry.isRegistered(shapeId)) {
+                    OneKeyMiner.LOGGER.warn(
+                            "Replacing invalid shape preference '{}' from {} with the server default",
+                            packet.shapeId,
+                            player.getGameProfile().getName()
+                    );
+                    shapeId = ShapeRegistry.DEFAULT_SHAPE_ID;
+                    if (!ShapeRegistry.isRegistered(shapeId)) {
+                        return;
+                    }
+                }
+                MiningStateManager.updatePreferences(
+                        player.getUUID(),
+                        packet.holding,
+                        shapeId,
+                        packet.teleportDrops,
+                        packet.teleportExp
+                );
             });
             context.setPacketHandled(true);
         }
@@ -93,31 +100,50 @@ public class ForgeNetworking {
             return;
         }
         registered = true;
-
-        CHANNEL.messageBuilder(ChainKeyStatePacket.class, packetIndex++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(ChainKeyStatePacket::write)
-                .decoder(ChainKeyStatePacket::fromNetwork)
-                .consumerNetworkThread(ChainKeyStatePacket::handleOnServer)
-                .add();
-
-        CHANNEL.messageBuilder(TeleportSettingsPacket.class, packetIndex++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(TeleportSettingsPacket::write)
-                .decoder(TeleportSettingsPacket::fromNetwork)
-                .consumerNetworkThread(TeleportSettingsPacket::handleOnServer)
+        CHANNEL.messageBuilder(ClientPreferencesPacket.class, 0, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(ClientPreferencesPacket::write)
+                .decoder(ClientPreferencesPacket::fromNetwork)
+                .consumerNetworkThread(ClientPreferencesPacket::handleOnServer)
                 .add();
     }
 
-    public static void sendKeyState(boolean pressed, String shapeId) {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            CHANNEL.send(new ChainKeyStatePacket(pressed, shapeId), connection.getConnection());
+    public static void sendPreferences(
+            Connection connection,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        trySendPreferences(connection, holding, shapeId, teleportDrops, teleportExp);
+    }
+
+    public static boolean trySendPreferences(
+            Connection connection,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        if (connection == null) {
+            return false;
         }
-    }
-
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
-        ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        if (connection != null) {
-            CHANNEL.send(new TeleportSettingsPacket(teleportDrops, teleportExp), connection.getConnection());
+        try {
+            if (!CHANNEL.isRemotePresent(connection)) {
+                return false;
+            }
+            CHANNEL.send(
+                    new ClientPreferencesPacket(
+                            WIRE_VERSION,
+                            holding,
+                            shapeId,
+                            teleportDrops,
+                            teleportExp
+                    ),
+                    connection
+            );
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
         }
     }
 }

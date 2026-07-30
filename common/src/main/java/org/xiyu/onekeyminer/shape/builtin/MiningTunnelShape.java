@@ -42,6 +42,9 @@ public class MiningTunnelShape implements ChainShape {
                 if (pos.equals(context.getOriginPos())) {
                     continue;
                 }
+                if (!level.hasChunkAt(pos)) {
+                    return result;
+                }
                 BlockState state = level.getBlockState(pos);
                 if (context.isMatchingBlock(state)) {
                     result.add(pos);

@@ -22,8 +22,7 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ConfigSyncHelper.registerSyncCallback(() -> {
-            var config = ConfigManager.getConfig();
-            KeyBindings.sendTeleportSettings(config.teleportDrops, config.teleportExp);
+            KeyBindings.sendCurrentPreferences();
         });
 
         KeyBindings.register();
