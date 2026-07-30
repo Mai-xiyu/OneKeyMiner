@@ -42,7 +42,7 @@ import java.util.List;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.5
  * @see ChainEvents
  * @see PostActionEvent
  */

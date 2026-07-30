@@ -7,16 +7,11 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -29,11 +24,8 @@ import java.util.function.Supplier;
  * <p>提供分页的图形化配置界面，使用翻译键支持多语言。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.5
  */
-@OnlyIn(Dist.CLIENT)
-@OnlyIn(Dist.CLIENT)
-@OnlyIn(Dist.CLIENT)
 @OnlyIn(Dist.CLIENT)
 public class ForgeConfigScreen {
     
@@ -109,6 +101,7 @@ public class ForgeConfigScreen {
                     Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                     button -> {
                         ConfigManager.updateConfig(configCopy);
+                        ConfigSyncHelper.triggerSync();
                         this.onClose();
                     }
             ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());

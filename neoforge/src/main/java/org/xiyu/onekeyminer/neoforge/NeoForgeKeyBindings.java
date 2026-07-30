@@ -14,6 +14,8 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -26,7 +28,10 @@ public class NeoForgeKeyBindings {
     public static KeyMapping CHAIN_MINING_KEY;
     public static KeyMapping OPEN_CONFIG;
 
-    private static boolean wasKeyDown = false;
+    private static boolean wasKeyDown;
+    private static boolean wasConnected;
+    private static boolean syncPending = true;
+    private static int syncRetryDelay;
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
@@ -67,9 +72,51 @@ public class NeoForgeKeyBindings {
         );
     }
 
+    public static void sendCurrentPreferences() {
+        boolean sent = trySendCurrentPreferences();
+        syncPending = !sent;
+        syncRetryDelay = sent ? 0 : 20;
+        if (sent && CHAIN_MINING_KEY != null) {
+            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        }
+    }
+
+    private static boolean trySendCurrentPreferences() {
+        if (CHAIN_MINING_KEY == null) {
+            return false;
+        }
+        try {
+            Minecraft minecraft = Minecraft.getInstance();
+            var connection = minecraft.getConnection();
+            if (connection == null
+                    || !NetworkRegistry.hasChannel(
+                            connection,
+                            NeoForgeNetworking.ClientPreferencesPayload.ID
+                    )) {
+                return false;
+            }
+            var config = ConfigManager.getConfig();
+            PacketDistributor.sendToServer(new NeoForgeNetworking.ClientPreferencesPayload(
+                    NeoForgeNetworking.WIRE_VERSION,
+                    CHAIN_MINING_KEY.isDown(),
+                    config.selectedShape,
+                    config.teleportDrops,
+                    config.teleportExp
+            ));
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
+        boolean connected = minecraft.player != null && minecraft.getConnection() != null;
+        if (!connected) {
+            wasConnected = false;
+            wasKeyDown = false;
+            syncPending = true;
+            syncRetryDelay = 0;
             return;
         }
 
@@ -82,10 +129,24 @@ public class NeoForgeKeyBindings {
         }
 
         boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-        if (isKeyDown != wasKeyDown) {
-            wasKeyDown = isKeyDown;
-            if (minecraft.getConnection() != null) {
-                NeoForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
+        if (!wasConnected) {
+            wasConnected = true;
+            syncPending = true;
+            syncRetryDelay = 0;
+        }
+
+        if (syncPending) {
+            if (syncRetryDelay > 0) {
+                syncRetryDelay--;
+            } else {
+                sendCurrentPreferences();
+            }
+        } else if (isKeyDown != wasKeyDown) {
+            if (trySendCurrentPreferences()) {
+                wasKeyDown = isKeyDown;
+            } else {
+                syncPending = true;
+                syncRetryDelay = 20;
             }
         }
 

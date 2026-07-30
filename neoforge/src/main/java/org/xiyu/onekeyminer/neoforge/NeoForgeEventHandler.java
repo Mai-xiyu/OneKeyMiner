@@ -14,7 +14,9 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.chain.ChainActionContext;
@@ -23,6 +25,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -36,7 +39,7 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.5
  */
 @EventBusSubscriber(modid = OneKeyMiner.MOD_ID)
 public class NeoForgeEventHandler {
@@ -53,7 +56,7 @@ public class NeoForgeEventHandler {
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         // 防止重入（链式挖掘时不触发新的链式操作）
-        if (IS_CHAIN_BREAKING.get()) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
         
@@ -177,6 +180,14 @@ public class NeoForgeEventHandler {
         if (actionType == ChainActionType.PLANTING && !config.enablePlanting) {
             return;
         }
+        if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
+            return;
+        }
+
+        BlockPos actionOrigin = actionType == ChainActionType.PLANTING
+                ? pos.relative(event.getFace())
+                : pos;
+        BlockState actionOriginState = level.getBlockState(actionOrigin);
         
         try {
             IS_CHAIN_INTERACTING.set(true);
@@ -185,8 +196,8 @@ public class NeoForgeEventHandler {
                 ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(actionOrigin)
+                    .originState(actionOriginState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
@@ -314,6 +325,18 @@ public class NeoForgeEventHandler {
             IS_CHAIN_INTERACTING.set(false);
         }
     }
+
+    @SubscribeEvent
+    public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            MiningStateManager.clearState(player.getUUID());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        MiningStateManager.clearAll();
+    }
     
     /**
      * 根据手持物品和目标方块确定操作类型
@@ -331,6 +354,9 @@ public class NeoForgeEventHandler {
         var heldItem = player.getItemInHand(hand);
         
         if (heldItem.isEmpty()) {
+            if (ChainActionLogic.isMatureCrop(targetState)) {
+                return ChainActionType.HARVESTING;
+            }
             return null;
         }
         
