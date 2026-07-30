@@ -27,6 +27,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -70,9 +71,7 @@ public class FabricEventHandler {
         // 注册服务器停止事件（清理所有状态）
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             // 清理所有玩家状态
-            server.getPlayerList().getPlayers().forEach(player -> 
-                FabricPlatformServices.cleanupPlayer(player.getUUID())
-            );
+            MiningStateManager.clearAll();
         });
         
         OneKeyMiner.LOGGER.info("Fabric 事件处理器已注册");
@@ -226,13 +225,18 @@ public class FabricEventHandler {
         
         try {
             IS_CHAIN_INTERACTING.set(true);
+
+            BlockPos actionOrigin = actionType == ChainActionType.PLANTING
+                    ? pos.relative(hitResult.getDirection())
+                    : pos;
+            BlockState actionOriginState = level.getBlockState(actionOrigin);
             
             // 构建上下文
                 ChainActionContext context = ChainActionContext.builder()
                     .player(serverPlayer)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(actionOrigin)
+                    .originState(actionOriginState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)

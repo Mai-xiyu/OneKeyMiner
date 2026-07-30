@@ -3,76 +3,103 @@ package org.xiyu.onekeyminer.fabric;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
-/**
- * Fabric 平台模组入口点
- * 
- * <p>负责在 Fabric 平台上初始化 OneKeyMiner 模组，
- * 包括注册事件监听器和配置界面。</p>
- * 
- * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
- */
-public class OneKeyMinerFabric implements ModInitializer {
-    
+/** Fabric 1.20.1 entrypoint and C2S receiver registration. */
+public final class OneKeyMinerFabric implements ModInitializer {
+
     @Override
     public void onInitialize() {
-        // 首先初始化平台服务（必须在 OneKeyMiner.init() 之前）
         PlatformServices.setInstance(new FabricPlatformServices());
-        
-        // 初始化通用模块
         OneKeyMiner.init();
-        
-        // 注册事件处理器
         FabricEventHandler.register();
-        
-        // 注册网络包
         registerNetworking();
-        
-        OneKeyMiner.LOGGER.info("OneKeyMiner Fabric 模块初始化完成");
+        OneKeyMiner.LOGGER.info("OneKeyMiner Fabric module initialized");
     }
-    
-    /**
-     * 注册网络包处理
-     */
-    private void registerNetworking() {
-        // 注册服务端接收处理 - 按键状态包
+
+    private static void registerNetworking() {
         ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.CHAIN_KEY_STATE_ID,
+                FabricNetworkingIds.CLIENT_STATE,
+                (server, player, handler, buf, responseSender) -> {
+                    int wireVersion = buf.readUnsignedByte();
+                    boolean holding = buf.readBoolean();
+                    String shapeId = buf.readUtf(FabricNetworkingIds.MAX_SHAPE_ID_LENGTH);
+                    boolean teleportDrops = buf.readBoolean();
+                    boolean teleportExp = buf.readBoolean();
+
+                    if (wireVersion != FabricNetworkingIds.WIRE_VERSION) {
+                        OneKeyMiner.LOGGER.warn(
+                                "Rejected Fabric state wire version {} from {}",
+                                wireVersion,
+                                player.getGameProfile().getName()
+                        );
+                        return;
+                    }
+
+                    server.execute(() -> applyClientState(
+                            player,
+                            holding,
+                            shapeId,
+                            teleportDrops,
+                            teleportExp
+                    ));
+                }
+        );
+
+        // Legacy receivers keep rolling upgrades safe while new clients prefer
+        // the versioned full-state payload above.
+        ServerPlayNetworking.registerGlobalReceiver(
+                FabricNetworkingIds.LEGACY_CHAIN_KEY_STATE,
                 (server, player, handler, buf, responseSender) -> {
                     boolean holding = buf.readBoolean();
-                    String shapeId = buf.readUtf(256);
+                    String shapeId = buf.readUtf(FabricNetworkingIds.MAX_SHAPE_ID_LENGTH);
                     server.execute(() -> {
                         PlatformServices.getInstance().setChainModeActive(player, holding);
-                        try {
-                            ResourceLocation shapeRL = new ResourceLocation(shapeId);
-                            MiningStateManager.setPlayerShape(player, shapeRL);
-                        } catch (Exception e) {
-                            OneKeyMiner.LOGGER.debug("无效的形状 ID: {}", shapeId);
-                        }
+                        applyShape(player, shapeId);
                     });
                 }
         );
-        
-        // 注册服务端接收处理 - 传送设置包
         ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.TELEPORT_SETTINGS_ID,
+                FabricNetworkingIds.LEGACY_TELEPORT_SETTINGS,
                 (server, player, handler, buf, responseSender) -> {
                     boolean teleportDrops = buf.readBoolean();
                     boolean teleportExp = buf.readBoolean();
                     server.execute(() -> {
                         MiningStateManager.setTeleportDrops(player, teleportDrops);
                         MiningStateManager.setTeleportExp(player, teleportExp);
-                        OneKeyMiner.LOGGER.debug("玩家 {} 更新传送设置: 掉落物={}, 经验={}",
-                                player.getName().getString(), teleportDrops, teleportExp);
                     });
                 }
         );
-        
-        OneKeyMiner.LOGGER.debug("已注册 Fabric 网络包处理");
+    }
+
+    private static void applyClientState(
+            ServerPlayer player,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        PlatformServices.getInstance().setChainModeActive(player, holding);
+        applyShape(player, shapeId);
+        MiningStateManager.setTeleportDrops(player, teleportDrops);
+        MiningStateManager.setTeleportExp(player, teleportExp);
+    }
+
+    private static void applyShape(ServerPlayer player, String shapeId) {
+        ResourceLocation parsed = ResourceLocation.tryParse(shapeId);
+        if (parsed != null && ShapeRegistry.isRegistered(parsed)) {
+            MiningStateManager.setPlayerShape(player, parsed);
+            return;
+        }
+
+        OneKeyMiner.LOGGER.warn(
+                "Rejected unregistered shape id from {}: {}",
+                player.getGameProfile().getName(),
+                shapeId
+        );
     }
 }

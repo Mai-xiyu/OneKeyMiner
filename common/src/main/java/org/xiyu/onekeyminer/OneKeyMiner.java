@@ -11,11 +11,11 @@ import org.xiyu.onekeyminer.shape.builtin.*;
  * OneKeyMiner 模组主类
  * 
  * <p>一键连锁挖矿模组的核心入口点，负责初始化模组的所有核心组件。
- * 本模组采用多加载器架构，支持 Fabric、NeoForge 和 Forge 平台。</p>
+ * 本模组采用多加载器架构，支持 Fabric 和 Forge 平台。</p>
  * 
  * @author OneKeyMiner Team
- * @version 1.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.6
+ * @since Minecraft 1.20.1
  */
 public class OneKeyMiner {
     
@@ -24,6 +24,9 @@ public class OneKeyMiner {
     
     /** 模组名称 */
     public static final String MOD_NAME = "OneKeyMiner";
+
+    /** 与构建元数据一致的模组版本。 */
+    public static final String VERSION = "1.6.6";
     
     
     /** 模组日志记录器 */
@@ -48,13 +51,13 @@ public class OneKeyMiner {
             return;
         }
         
-        LOGGER.info("正在初始化 {}", MOD_NAME);
-        
-        // 加载配置
-        ConfigManager.load();
+        LOGGER.info("正在初始化 {} v{}", MOD_NAME, VERSION);
         
         // 注册内置形状
         registerBuiltinShapes();
+
+        // 加载配置（形状必须先注册，才能验证 selectedShape）
+        ConfigManager.load();
         
         // 初始化 API
         OneKeyMinerAPI.init();

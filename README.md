@@ -11,8 +11,8 @@
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Mai-xiyu/OneKeyMiner?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/Minecraft-1.21.9-green?style=flat-square" alt="Minecraft Version">
-  <img src="https://img.shields.io/badge/Java-21+-orange?style=flat-square" alt="Java Version">
+  <img src="https://img.shields.io/badge/Minecraft-1.20.1-green?style=flat-square" alt="Minecraft Version">
+  <img src="https://img.shields.io/badge/Java-17+-orange?style=flat-square" alt="Java Version">
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 - ⛏️ **Chain Mining** - Break connected blocks of the same type at once
 - ✂️ **Chain Interaction** - Batch shearing, hoeing, stripping, path making
 - 🌱 **Chain Planting** - Auto-plant crops on adjacent farmland
-- 🎮 **Multi-Platform** - Supports Fabric, NeoForge, and Forge
+- 🎮 **Multi-Platform** - Supports Fabric and Forge
 - ⚙️ **Highly Configurable** - Customize max blocks, distance, activation mode
 - 🏷️ **Tag Support** - Use tags like `#minecraft:logs`, `#c:ores`
 - 🛡️ **Protection** - Auto-stop when tool durability or hunger is low
@@ -42,21 +42,23 @@
 
 | Component | Version |
 |-----------|---------|
-| Minecraft | 1.21.9 |
-| Java | 21+ |
+| Minecraft | 1.20.1 |
+| Java | 17+ |
 | Fabric Loader | 0.15.0+ |
-| NeoForge | 21.0+ |
-| Forge | 59.0+ |
+| Forge | 47.2.0+ |
 
 ### Download
 
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-x.x.x-1.21.9.jar` for Fabric
-- `onekeyminer-neoforge-x.x.x-1.21.9.jar` for NeoForge  
-- `onekeyminer-forge-x.x.x-1.21.9.jar` for Forge
-- `onekeyminer-x.x.x-1.21.9.jar` for universal (auto-detect)
+- `onekeyminer-fabric-x.x.x-1.20.1.jar` for Fabric
+- `onekeyminer-forge-x.x.x-1.20.1.jar` for Forge
+
+Install the matching loader artifact and the same OneKeyMiner version on both
+the dedicated server and every connecting client. Forge rejects an
+incompatible wire protocol; Fabric negotiates the versioned channel and falls
+back to the legacy state packets when the server advertises only those.
 
 ---
 
@@ -85,6 +87,10 @@ Choose the correct version for your platform:
 ## ⚙️ Configuration
 
 Configuration file location: `config/onekeyminer.json`
+
+On a dedicated server, global limits and feature switches are authoritative in
+the server's config file. The in-game client screen synchronizes only the
+selected shape and the per-player drop/experience teleport preferences.
 
 ### Key Settings
 
@@ -123,10 +129,10 @@ OneKeyMiner provides a comprehensive API for mod developers.
 
 ```groovy
 // Fabric
-modImplementation "org.xiyu:onekeyminer-fabric:2.0.0"
+modImplementation "org.xiyu:onekeyminer-fabric:1.6.6"
 
-// NeoForge/Forge
-implementation "org.xiyu:onekeyminer-neoforge:2.0.0"
+// Forge
+implementation "org.xiyu:onekeyminer-forge:1.6.6"
 ```
 
 ### Basic API Usage
@@ -161,7 +167,6 @@ Want to build addon mods or integrations? You can use our API to register blocks
 
 ### Supported Mod Loaders
 - ✅ Fabric (with Fabric API)
-- ✅ NeoForge
 - ✅ Forge
 
 ### Tested Mods
@@ -178,9 +183,9 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 ## 🌿 Branching & Releases
 
-- **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.9`).
+- **Branching**: Each Minecraft version uses its own branch (e.g., `1.20.1`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.9-1.6.0`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.20.1-1.6.6`).
 
 
 ## 🐛 Issues & Contributions

@@ -100,10 +100,10 @@ public final class ChainActionLogic {
     private static final ThreadLocal<Boolean> IS_PROCESSING = ThreadLocal.withInitial(() -> false);
     
     /** 操作超时时间（毫秒） */
-    private static final long OPERATION_TIMEOUT_MS = 2000;
+    private static final long OPERATION_TIMEOUT_MS = 100;
     
     /** 最大迭代次数（防止无限循环） */
-    private static final int MAX_ITERATIONS = 10000;
+    private static final int MAX_ITERATIONS = 4096;
     
     private ChainActionLogic() {
         // 工具类，禁止实例化
@@ -714,17 +714,23 @@ public final class ChainActionLogic {
     ) {
         List<BlockPos> result = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPos> queue = new LinkedList<>();
+        Queue<BlockPos> queue = new ArrayDeque<>();
         
         BlockPos originPos = context.getOriginPos();
         BlockState originState = context.getOriginState();
         Level level = context.getLevel();
         
         int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int maxDistance = config.maxDistance;
+        int maxDistance = context.getMaxDistance() > 0
+                ? context.getMaxDistance()
+                : config.maxDistance;
         boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
         
         BlockPos[] offsets = allowDiagonal ? DIAGONAL_OFFSETS : ORTHOGONAL_OFFSETS;
+
+        if (!level.hasChunkAt(originPos)) {
+            return result;
+        }
         
         // 从起始位置开始（包括起始位置）
         queue.add(originPos);
@@ -733,7 +739,8 @@ public final class ChainActionLogic {
         long startTime = System.currentTimeMillis();
         int iterations = 0;
         
-        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+        int scanBudget = calculateScanBudget(maxBlocks);
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < scanBudget) {
             if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
                 break;
             }
@@ -755,9 +762,19 @@ public final class ChainActionLogic {
             // 添加相邻方块到队列
             for (BlockPos offset : offsets) {
                 BlockPos neighbor = current.offset(offset);
-                if (!visited.contains(neighbor)) {
-                    visited.add(neighbor);
-                    queue.add(neighbor);
+                if (visited.add(neighbor)
+                        && neighbor.distManhattan(originPos) <= maxDistance
+                        && level.hasChunkAt(neighbor)) {
+                    BlockState neighborState = level.getBlockState(neighbor);
+                    if (canInteractAt(
+                            level,
+                            neighbor,
+                            neighborState,
+                            interactionType,
+                            originState
+                    )) {
+                        queue.add(neighbor);
+                    }
                 }
             }
         }
@@ -1089,11 +1106,21 @@ public final class ChainActionLogic {
 
         List<ItemStack> collected = new ArrayList<>();
         for (ItemEntity itemEntity : newItems) {
-            ItemStack stack = itemEntity.getItem().copy();
-            collected.add(stack.copy());
-            if (player.getInventory().add(stack)) {
+            ItemStack remainder = itemEntity.getItem().copy();
+            int originalCount = remainder.getCount();
+            player.getInventory().add(remainder);
+            int insertedCount = originalCount - remainder.getCount();
+
+            if (insertedCount > 0) {
+                ItemStack inserted = itemEntity.getItem().copy();
+                inserted.setCount(insertedCount);
+                collected.add(inserted);
+            }
+
+            if (remainder.isEmpty()) {
                 itemEntity.discard();
             } else {
+                itemEntity.setItem(remainder);
                 itemEntity.teleportTo(player.getX(), player.getY(), player.getZ());
             }
         }
@@ -1275,7 +1302,7 @@ public final class ChainActionLogic {
     private static List<BlockPos> collectPlantablePositions(ChainActionContext context, MinerConfig config) {
         List<BlockPos> result = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPos> queue = new LinkedList<>();
+        Queue<BlockPos> queue = new ArrayDeque<>();
         
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
@@ -1283,11 +1310,17 @@ public final class ChainActionLogic {
         ItemStack seedItem = context.getHeldItem();
         
         int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int maxDistance = config.maxDistance;
+        int maxDistance = context.getMaxDistance() > 0
+                ? context.getMaxDistance()
+                : config.maxDistance;
         
         // 计算可用种子数量
         int availableSeeds = context.isCreativeMode() ? Integer.MAX_VALUE 
                 : countItemsInInventory(player, seedItem.getItem());
+
+        if (!level.hasChunkAt(originPos)) {
+            return result;
+        }
         
         queue.add(originPos);
         visited.add(originPos);
@@ -1295,8 +1328,9 @@ public final class ChainActionLogic {
         long startTime = System.currentTimeMillis();
         int iterations = 0;
         
-        while (!queue.isEmpty() && result.size() < maxBlocks && 
-               result.size() < availableSeeds && iterations < MAX_ITERATIONS) {
+        int scanBudget = calculateScanBudget(maxBlocks);
+        while (!queue.isEmpty() && result.size() < maxBlocks &&
+               result.size() < availableSeeds && iterations < scanBudget) {
             
             if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
                 break;
@@ -1317,8 +1351,10 @@ public final class ChainActionLogic {
             // 只在水平方向搜索相邻位置（种植通常是平面的）
             for (Direction dir : Direction.Plane.HORIZONTAL) {
                 BlockPos neighbor = current.relative(dir);
-                if (!visited.contains(neighbor)) {
-                    visited.add(neighbor);
+                if (visited.add(neighbor)
+                        && neighbor.distManhattan(originPos) <= maxDistance
+                        && level.hasChunkAt(neighbor)
+                        && canPlantAt(level, neighbor, seedItem, config)) {
                     queue.add(neighbor);
                 }
             }
@@ -1412,7 +1448,13 @@ public final class ChainActionLogic {
             
             // 权限检查
             if (!context.isSkipPermissionCheck()) {
-                if (!PlatformServices.getInstance().canPlayerBreakBlock(player, level, pos, level.getBlockState(pos))) {
+                BlockPos supportPos = pos.below();
+                if (!PlatformServices.getInstance().canPlayerInteract(
+                        player,
+                        level,
+                        supportPos,
+                        level.getBlockState(supportPos)
+                )) {
                     continue;
                 }
             }
@@ -1571,7 +1613,7 @@ public final class ChainActionLogic {
     private static List<BlockPos> collectHarvestTargets(ChainActionContext context, MinerConfig config) {
         List<BlockPos> result = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPos> queue = new LinkedList<>();
+        Queue<BlockPos> queue = new ArrayDeque<>();
         
         BlockPos originPos = context.getOriginPos();
         BlockState originState = context.getOriginState();
@@ -1579,9 +1621,15 @@ public final class ChainActionLogic {
         Block targetBlock = originState.getBlock();
         
         int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int maxDistance = config.maxDistance;
+        int maxDistance = context.getMaxDistance() > 0
+                ? context.getMaxDistance()
+                : config.maxDistance;
         boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
         BlockPos[] offsets = allowDiagonal ? DIAGONAL_OFFSETS : ORTHOGONAL_OFFSETS;
+
+        if (!level.hasChunkAt(originPos)) {
+            return result;
+        }
         
         queue.add(originPos);
         visited.add(originPos);
@@ -1589,7 +1637,8 @@ public final class ChainActionLogic {
         long startTime = System.currentTimeMillis();
         int iterations = 0;
         
-        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+        int scanBudget = calculateScanBudget(maxBlocks);
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < scanBudget) {
             if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
                 break;
             }
@@ -1611,9 +1660,14 @@ public final class ChainActionLogic {
             // 搜索邻居
             for (BlockPos offset : offsets) {
                 BlockPos neighbor = current.offset(offset);
-                if (!visited.contains(neighbor)) {
-                    visited.add(neighbor);
-                    queue.add(neighbor);
+                if (visited.add(neighbor)
+                        && neighbor.distManhattan(originPos) <= maxDistance
+                        && level.hasChunkAt(neighbor)) {
+                    BlockState neighborState = level.getBlockState(neighbor);
+                    if (neighborState.getBlock() == targetBlock
+                            && isMatureCrop(neighborState)) {
+                        queue.add(neighbor);
+                    }
                 }
             }
         }
@@ -1796,5 +1850,14 @@ public final class ChainActionLogic {
         }
         
         return ItemStack.EMPTY;
+    }
+
+    /**
+     * Bounds scans independently from the configured success count. This keeps
+     * malformed/custom matchers from monopolizing the server thread.
+     */
+    private static int calculateScanBudget(int maxResults) {
+        long requested = Math.max(64L, (long) Math.max(1, maxResults) * 4L);
+        return (int) Math.min(MAX_ITERATIONS, requested);
     }
 }

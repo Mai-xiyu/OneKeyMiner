@@ -54,7 +54,7 @@ public class MiningStateManager {
      * @param holding 是否正在按住
      */
     public static void setHoldingKey(ServerPlayer player, boolean holding) {
-        PLAYER_KEY_STATES.put(player.getUUID(), holding);
+        setHoldingKey(player.getUUID(), holding);
     }
     
     /**
@@ -65,7 +65,11 @@ public class MiningStateManager {
      * @param holding 是否正在按住
      */
     public static void setHoldingKey(UUID uuid, boolean holding) {
-        PLAYER_KEY_STATES.put(uuid, holding);
+        if (holding) {
+            PLAYER_KEY_STATES.put(uuid, true);
+        } else {
+            PLAYER_KEY_STATES.remove(uuid);
+        }
     }
     
     // ==================== 兼容 API ====================
@@ -87,7 +91,11 @@ public class MiningStateManager {
      * @param activated 是否激活
      */
     public static void setActivated(ServerPlayer player, boolean activated) {
-        PLAYER_STATES.put(player.getUUID(), activated);
+        if (activated) {
+            PLAYER_STATES.put(player.getUUID(), true);
+        } else {
+            PLAYER_STATES.remove(player.getUUID());
+        }
     }
     
     /**
@@ -177,7 +185,7 @@ public class MiningStateManager {
      * @param enabled 是否启用
      */
     public static void setTeleportDrops(ServerPlayer player, boolean enabled) {
-        PLAYER_TELEPORT_DROPS.put(player.getUUID(), enabled);
+        setTeleportDrops(player.getUUID(), enabled);
     }
     
     /**
@@ -187,7 +195,11 @@ public class MiningStateManager {
      * @param enabled 是否启用
      */
     public static void setTeleportDrops(UUID uuid, boolean enabled) {
-        PLAYER_TELEPORT_DROPS.put(uuid, enabled);
+        if (enabled) {
+            PLAYER_TELEPORT_DROPS.put(uuid, true);
+        } else {
+            PLAYER_TELEPORT_DROPS.remove(uuid);
+        }
     }
     
     /**
@@ -197,7 +209,7 @@ public class MiningStateManager {
      * @param enabled 是否启用
      */
     public static void setTeleportExp(ServerPlayer player, boolean enabled) {
-        PLAYER_TELEPORT_EXP.put(player.getUUID(), enabled);
+        setTeleportExp(player.getUUID(), enabled);
     }
     
     /**
@@ -207,7 +219,11 @@ public class MiningStateManager {
      * @param enabled 是否启用
      */
     public static void setTeleportExp(UUID uuid, boolean enabled) {
-        PLAYER_TELEPORT_EXP.put(uuid, enabled);
+        if (enabled) {
+            PLAYER_TELEPORT_EXP.put(uuid, true);
+        } else {
+            PLAYER_TELEPORT_EXP.remove(uuid);
+        }
     }
     
     // ==================== 清理 API ====================
@@ -218,11 +234,16 @@ public class MiningStateManager {
      * @param player 玩家
      */
     public static void clearState(ServerPlayer player) {
-        PLAYER_STATES.remove(player.getUUID());
-        PLAYER_KEY_STATES.remove(player.getUUID());
-        PLAYER_SHAPES.remove(player.getUUID());
-        PLAYER_TELEPORT_DROPS.remove(player.getUUID());
-        PLAYER_TELEPORT_EXP.remove(player.getUUID());
+        clearState(player.getUUID());
+    }
+
+    /** Clears every server-owned state entry for a disconnected player. */
+    public static void clearState(UUID playerId) {
+        PLAYER_STATES.remove(playerId);
+        PLAYER_KEY_STATES.remove(playerId);
+        PLAYER_SHAPES.remove(playerId);
+        PLAYER_TELEPORT_DROPS.remove(playerId);
+        PLAYER_TELEPORT_EXP.remove(playerId);
     }
     
     /**

@@ -83,7 +83,7 @@ public class FabricConfigScreen extends Screen {
                 button -> {
                     ConfigManager.updateConfig(configCopy);
                     // 将传送设置同步到服务端
-                    KeyBindings.sendTeleportSettings(configCopy.teleportDrops, configCopy.teleportExp);
+                    KeyBindings.sendCurrentState();
                     this.onClose();
                 }
         ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
@@ -246,5 +246,25 @@ public class FabricConfigScreen extends Screen {
     @Override
     public void onClose() {
         this.minecraft.setScreen(parent);
+    }
+
+    @Override
+    public void render(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+        guiGraphics.drawCenteredString(
+                this.font,
+                Component.literal("Dedicated-server global settings are controlled by the server config"),
+                this.width / 2,
+                24,
+                0xAAAAAA
+        );
+        guiGraphics.drawCenteredString(
+                this.font,
+                Component.literal((currentPage + 1) + " / " + totalPages),
+                this.width / 2,
+                this.height - 45,
+                0xAAAAAA
+        );
     }
 }
