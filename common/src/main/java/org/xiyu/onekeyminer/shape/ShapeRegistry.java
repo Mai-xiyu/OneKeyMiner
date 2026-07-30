@@ -5,93 +5,97 @@ import org.xiyu.onekeyminer.OneKeyMiner;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Registry for built-in and addon-provided chain shapes.
+ * Copy-on-write shape registry.
+ *
+ * <p>Readers always observe one ordered, immutable snapshot. Registration is
+ * rare and serialized, while preview and server packet validation stay
+ * lock-free.</p>
  */
 public final class ShapeRegistry {
-    private static final Map<ResourceLocation, ChainShape> SHAPES = new ConcurrentHashMap<>();
-    private static final List<ResourceLocation> SHAPE_ORDER = Collections.synchronizedList(new ArrayList<>());
 
-    public static final ResourceLocation DEFAULT_SHAPE_ID = new ResourceLocation(OneKeyMiner.MOD_ID, "amorphous");
+    public static final ResourceLocation DEFAULT_SHAPE_ID =
+            new ResourceLocation(OneKeyMiner.MOD_ID, "amorphous");
+
+    private static final Object WRITE_LOCK = new Object();
+    private static volatile Map<ResourceLocation, ChainShape> shapes =
+            Collections.emptyMap();
 
     private ShapeRegistry() {
     }
 
     public static void register(ChainShape shape) {
-        Objects.requireNonNull(shape, "Shape must not be null");
-        Objects.requireNonNull(shape.getId(), "Shape ID must not be null");
+        Objects.requireNonNull(shape, "shape");
+        ResourceLocation id = Objects.requireNonNull(shape.getId(), "shape id");
 
-        ResourceLocation id = shape.getId();
-        if (!SHAPES.containsKey(id)) {
-            SHAPE_ORDER.add(id);
-        } else {
-            OneKeyMiner.LOGGER.warn("Shape {} was registered more than once; replacing previous instance", id);
+        synchronized (WRITE_LOCK) {
+            Map<ResourceLocation, ChainShape> next = new LinkedHashMap<>(shapes);
+            if (next.put(id, shape) != null) {
+                OneKeyMiner.LOGGER.warn("Shape {} was replaced", id);
+            }
+            shapes = Collections.unmodifiableMap(next);
         }
-        SHAPES.put(id, shape);
     }
 
     public static ChainShape getShape(ResourceLocation id) {
-        return SHAPES.get(id);
+        return shapes.get(id);
     }
 
     public static ChainShape getShapeOrDefault(ResourceLocation id) {
-        ChainShape shape = SHAPES.get(id);
+        Map<ResourceLocation, ChainShape> snapshot = shapes;
+        ChainShape shape = snapshot.get(id);
         if (shape == null) {
-            shape = SHAPES.get(DEFAULT_SHAPE_ID);
+            shape = snapshot.get(DEFAULT_SHAPE_ID);
         }
-        if (shape == null && !SHAPES.isEmpty()) {
-            shape = SHAPES.values().iterator().next();
+        if (shape == null && !snapshot.isEmpty()) {
+            shape = snapshot.values().iterator().next();
         }
         return shape;
     }
 
-    public static ChainShape getShapeOrDefault(String idStr) {
-        ResourceLocation id = ResourceLocation.tryParse(idStr);
-        return getShapeOrDefault(id != null ? id : DEFAULT_SHAPE_ID);
+    public static ChainShape getShapeOrDefault(String id) {
+        ResourceLocation parsed = id == null ? null : ResourceLocation.tryParse(id);
+        if (parsed == null) {
+            OneKeyMiner.LOGGER.warn("Invalid shape id {}, using default", id);
+            parsed = DEFAULT_SHAPE_ID;
+        }
+        return getShapeOrDefault(parsed);
     }
 
     public static boolean isRegistered(ResourceLocation id) {
-        return SHAPES.containsKey(id);
+        return id != null && shapes.containsKey(id);
     }
 
-    public static boolean isValidShapeId(String idStr) {
-        ResourceLocation id = ResourceLocation.tryParse(idStr);
-        return id != null && SHAPES.containsKey(id);
+    public static boolean isValidShapeId(String id) {
+        return id != null && isRegistered(ResourceLocation.tryParse(id));
     }
 
     public static List<ChainShape> getAllShapes() {
-        List<ChainShape> result = new ArrayList<>();
-        for (ResourceLocation id : SHAPE_ORDER) {
-            ChainShape shape = SHAPES.get(id);
-            if (shape != null) {
-                result.add(shape);
-            }
-        }
-        return Collections.unmodifiableList(result);
+        return List.copyOf(shapes.values());
     }
 
     public static List<ResourceLocation> getAllShapeIds() {
-        return Collections.unmodifiableList(new ArrayList<>(SHAPE_ORDER));
+        return List.copyOf(shapes.keySet());
     }
 
     public static int getShapeCount() {
-        return SHAPES.size();
+        return shapes.size();
     }
 
     public static String getNextShapeId(String currentId) {
-        List<ResourceLocation> ids = getAllShapeIds();
+        List<ResourceLocation> ids = new ArrayList<>(shapes.keySet());
         if (ids.isEmpty()) {
             return DEFAULT_SHAPE_ID.toString();
         }
 
-        for (int i = 0; i < ids.size(); i++) {
-            if (ids.get(i).toString().equals(currentId)) {
-                return ids.get((i + 1) % ids.size()).toString();
+        for (int index = 0; index < ids.size(); index++) {
+            if (ids.get(index).toString().equals(currentId)) {
+                return ids.get((index + 1) % ids.size()).toString();
             }
         }
         return ids.get(0).toString();

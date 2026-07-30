@@ -5,8 +5,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 链式操作结果记录
@@ -49,6 +51,33 @@ public record ChainActionResult(
         /** 收集到的经验值 */
         int experienceCollected
 ) {
+
+    public ChainActionResult {
+        actionType = Objects.requireNonNull(actionType, "actionType");
+        stopReason = Objects.requireNonNull(stopReason, "stopReason");
+        successPositions = successPositions == null
+                ? List.of()
+                : List.copyOf(successPositions);
+
+        List<ItemStack> dropCopies = new ArrayList<>();
+        if (collectedDrops != null) {
+            for (ItemStack stack : collectedDrops) {
+                if (stack != null && !stack.isEmpty()) {
+                    dropCopies.add(stack.copy());
+                }
+            }
+        }
+        collectedDrops = List.copyOf(dropCopies);
+        totalCount = successPositions.size();
+        durabilityUsed = Math.max(0, durabilityUsed);
+        hungerUsed = Math.max(0f, hungerUsed);
+        experienceCollected = Math.max(0, experienceCollected);
+    }
+
+    @Override
+    public List<ItemStack> collectedDrops() {
+        return collectedDrops.stream().map(ItemStack::copy).toList();
+    }
     
     /**
      * 链式操作停止原因枚举

@@ -21,10 +21,7 @@ import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 public class OneKeyMinerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        ConfigSyncHelper.registerSyncCallback(() -> {
-            var config = ConfigManager.getConfig();
-            KeyBindings.sendTeleportSettings(config.teleportDrops, config.teleportExp);
-        });
+        ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentState);
 
         KeyBindings.register();
         registerPreviewSystem();

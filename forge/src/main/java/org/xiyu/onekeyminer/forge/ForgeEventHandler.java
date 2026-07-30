@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -182,13 +183,18 @@ public class ForgeEventHandler {
         
         try {
             IS_CHAIN_INTERACTING.set(true);
+
+            BlockPos actionOrigin = actionType == ChainActionType.PLANTING
+                    ? pos.relative(event.getFace())
+                    : pos;
+            BlockState actionOriginState = level.getBlockState(actionOrigin);
             
             // 构建上下文
                 ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(actionOrigin)
+                    .originState(actionOriginState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
@@ -216,6 +222,8 @@ public class ForgeEventHandler {
                 OneKeyMiner.LOGGER.debug("{} 完成: {}", 
                         actionType.getDisplayName(), 
                         result.getSummary());
+                event.setCanceled(true);
+                event.setCancellationResult(InteractionResult.SUCCESS);
             }
             
         } finally {
@@ -309,6 +317,7 @@ public class ForgeEventHandler {
                             SoundSource.PLAYERS, 0.6f, 1.0f);
                 }
 
+                event.setCanceled(true);
                 event.setCancellationResult(InteractionResult.SUCCESS);
             }
         } finally {
@@ -326,6 +335,11 @@ public class ForgeEventHandler {
         if (event.getEntity() instanceof ServerPlayer player) {
             ForgePlatformServices.cleanupPlayer(player.getUUID());
         }
+    }
+
+    @SubscribeEvent
+    public void onServerStopped(ServerStoppedEvent event) {
+        org.xiyu.onekeyminer.mining.MiningStateManager.clearAll();
     }
     
     /**
