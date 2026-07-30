@@ -1,7 +1,6 @@
 plugins {
     id 'java'
     id 'maven-publish'
-    id 'xyz.wagyourtail.manifold'
     id 'xyz.wagyourtail.jvmdowngrader'
 }
 
@@ -10,12 +9,19 @@ base {
     archivesName = "${mod_id}-${project == rootProject ? "" : project.name}"
 }
 
-manifold {
-    version = manifold_version
-}
-
 repositories {
     mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Sponge"
+                url = uri("https://repo.spongepowered.org/repository/maven-public")
+            }
+        }
+        filter {
+            includeGroupAndSubgroups("org.spongepowered")
+        }
+    }
 }
 
 java {
@@ -28,13 +34,8 @@ tasks.withType(JavaCompile).configureEach {
     options.release = gradle.ext.java_version as int
 }
 
-dependencies {
-    annotationProcessor(manifold.module("preprocessor"))
-    annotationProcessor(manifold.module("strings"))
-}
-
 processResources {
-    def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "").replaceAll("]", ",)")
+    def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "")
 
     var expandProps = ['version'                      : mod_version,
                        'group'                        : project.group,
@@ -43,6 +44,7 @@ processResources {
                        'compatible_forgemc_versions'  : compatible_forgemc_versions,
                        'mod_name'                     : mod_name,
                        'mod_authors'                  : mod_authors,
+                       'mod_authors_display'          : mod_authors_display,
                        'mod_id'                       : mod_id,
                        'license'                      : license,
                        'description'                  : project.description,
@@ -54,6 +56,8 @@ processResources {
     filesMatching(['pack.mcmeta', 'fabric.mod.json', 'META-INF/mods.toml', 'META-INF/neoforge.mods.toml', '*.mixins.json']) {
         expand expandProps
     }
+    from(rootProject.file('LICENSE_EN.md'))
+    from(rootProject.file('LICENSE_CN.md'))
     inputs.properties(expandProps)
 }
 

@@ -9,3 +9,9 @@ repositories {
 dependencies {
 
 }
+
+processResources {
+    from(project(":common").file("src/main/resources/assets/${mod_id}/icon.png")) {
+        rename { "onekeyminer.png" }
+    }
+}

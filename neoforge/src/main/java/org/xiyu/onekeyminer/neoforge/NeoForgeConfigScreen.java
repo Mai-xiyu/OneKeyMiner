@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * <p>提供分页的图形化配置界面，支持多语言。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 @OnlyIn(Dist.CLIENT)
 public class NeoForgeConfigScreen {

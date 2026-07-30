@@ -70,7 +70,7 @@ public class AmorphousShape implements ChainShape {
         visited.add(originPos);
         for (BlockPos offset : offsets) {
             BlockPos neighbor = originPos.offset(offset);
-            if (visited.add(neighbor)) {
+            if (visited.add(neighbor) && level.hasChunkAt(neighbor)) {
                 BlockState neighborState = level.getBlockState(neighbor);
                 if (context.isMatchingBlock(neighborState)) {
                     queue.add(neighbor);
@@ -93,7 +93,9 @@ public class AmorphousShape implements ChainShape {
 
             for (BlockPos offset : offsets) {
                 BlockPos neighbor = current.offset(offset);
-                if (neighbor.distManhattan(originPos) <= maxDistance && visited.add(neighbor)) {
+                if (neighbor.distManhattan(originPos) <= maxDistance
+                        && visited.add(neighbor)
+                        && level.hasChunkAt(neighbor)) {
                     BlockState neighborState = level.getBlockState(neighbor);
                     if (context.isMatchingBlock(neighborState)) {
                         queue.add(neighbor);
