@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 配置管理器
@@ -44,7 +45,8 @@ public class ConfigManager {
     private static final AtomicReference<MinerConfig> CONFIG = new AtomicReference<>(new MinerConfig());
     
     /** 配置变更监听器列表 */
-    private static final List<ConfigChangeListener> LISTENERS = new ArrayList<>();
+    private static final List<ConfigChangeListener> LISTENERS =
+            new CopyOnWriteArrayList<>();
     
     /**
      * 加载配置文件

@@ -30,10 +30,7 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         // 注册配置同步回调
-        ConfigSyncHelper.registerSyncCallback(() -> {
-            var config = ConfigManager.getConfig();
-            KeyBindings.sendTeleportSettings(config.teleportDrops, config.teleportExp);
-        });
+        ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentState);
         
         // 注册按键绑定（这会注册 ClientTickEvents）
         KeyBindings.register();
