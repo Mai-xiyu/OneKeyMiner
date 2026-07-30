@@ -64,7 +64,7 @@
   "config.onekeyminer.option.teleport_drops": "Teleport Drops",
   "config.onekeyminer.option.teleport_drops.tooltip": "Send chain-mined drops directly to player inventory",
   "config.onekeyminer.option.teleport_exp": "Teleport Experience",
-  "config.onekeyminer.option.teleport_exp.tooltip": "Give chain-mined experience directly to player",
+  "config.onekeyminer.option.teleport_exp.tooltip": "Move chain-mined XP orbs to the player for vanilla pickup",
   "config.onekeyminer.option.play_sound": "Play Sound",
   "config.onekeyminer.option.play_sound.tooltip": "Play sound effects during chain mining",
   "config.onekeyminer.option.strict_match": "Strict Metadata Match",

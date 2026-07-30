@@ -2,20 +2,26 @@ package org.xiyu.onekeyminer.chain;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.food.FoodData;
 import net.minecraft.world.item.*;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.entity.EntityTypeTest;
+import net.minecraft.world.level.storage.TagValueInput;
+import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -62,7 +68,7 @@ import java.util.*;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 public final class ChainActionLogic {
     
@@ -104,9 +110,21 @@ public final class ChainActionLogic {
     
     /** 最大迭代次数（防止无限循环） */
     private static final int MAX_ITERATIONS = 10000;
+
+    private static final String FOOD_LEVEL_KEY = "foodLevel";
+    private static final String FOOD_SATURATION_KEY = "foodSaturationLevel";
+    private static final String FOOD_EXHAUSTION_KEY = "foodExhaustionLevel";
     
     private ChainActionLogic() {
         // 工具类，禁止实例化
+    }
+
+    /**
+     * Returns whether the current server thread is already dispatching a
+     * derived chain action.
+     */
+    public static boolean isProcessing() {
+        return IS_PROCESSING.get();
     }
     
     // ==================== 公共入口方法 ====================
@@ -120,6 +138,7 @@ public final class ChainActionLogic {
      * @return 操作结果
      */
     public static ChainActionResult execute(ChainActionContext context) {
+        Objects.requireNonNull(context, "context");
         // 防止重入
         if (IS_PROCESSING.get()) {
             return ChainActionResult.cancelled(context.getActionType(), StopReason.ERROR);
@@ -140,7 +159,7 @@ public final class ChainActionLogic {
             OneKeyMiner.LOGGER.error("链式操作执行失败: {}", e.getMessage(), e);
             return ChainActionResult.cancelled(context.getActionType(), StopReason.ERROR);
         } finally {
-            IS_PROCESSING.set(false);
+            IS_PROCESSING.remove();
         }
     }
     
@@ -161,8 +180,49 @@ public final class ChainActionLogic {
             BlockPos pos,
             BlockState state
     ) {
-        ChainActionContext context = ChainActionContext.forMining(player, level, pos, state);
+        return onBlockBreak(player, level, pos, state, player.getMainHandItem());
+    }
+
+    /**
+     * Handles a completed original break using the tool snapshot that caused it.
+     */
+    public static ChainActionResult onBlockBreak(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            ItemStack originalTool
+    ) {
+        ChainActionContext context = ChainActionContext.builder()
+                .player(player)
+                .level(level)
+                .originPos(pos)
+                .originState(state)
+                .actionType(ChainActionType.MINING)
+                .heldItem(originalTool)
+                .hand(InteractionHand.MAIN_HAND)
+                .build();
         return execute(context);
+    }
+
+    /**
+     * Loader bridge for a break whose activation state was already observed
+     * before a loader-specific deferred after-break check.
+     */
+    public static ChainActionResult onVerifiedBlockBreak(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            ItemStack originalTool
+    ) {
+        return execute(ChainActionContext.forVerifiedMining(
+                player,
+                level,
+                pos,
+                state,
+                originalTool
+        ));
     }
     
     /**
@@ -214,6 +274,7 @@ public final class ChainActionLogic {
                 .heldItem(player.getItemInHand(hand))
                 .hand(hand)
                 .interactionOverride(ChainActionContext.InteractionOverride.SHEARING)
+                .originEntityId(entity.getUUID())
                 .build();
         return execute(context);
     }
@@ -237,30 +298,50 @@ public final class ChainActionLogic {
         }
         
         // 检查方块是否在白名单中（允许自定义工具规则绕过）
-        boolean allowedByRule = OneKeyMinerAPI.findToolActionForBlock(
-                context.getHeldItem(),
-                context.getOriginState()
-        ).map(rule -> rule.actionType() == ChainActionType.MINING).orElse(false);
+        OneKeyMinerAPI.ToolActionRule activeMiningRule =
+                OneKeyMinerAPI.findToolActionForBlock(
+                        context.getHeldItem(),
+                        context.getOriginState(),
+                        ChainActionType.MINING
+                )
+                .orElse(null);
+        boolean allowedByRule = activeMiningRule != null;
+        if (OneKeyMinerAPI.isBlockBlacklisted(
+                context.getOriginState().getBlock()
+        ) || OneKeyMinerAPI.isToolBlacklisted(context.getHeldItem())) {
+            return ChainActionResult.cancelled(
+                    ChainActionType.MINING,
+                    StopReason.EVENT_CANCELLED
+            );
+        }
         if (!OneKeyMinerAPI.isBlockAllowed(context.getOriginState().getBlock()) && !allowedByRule) {
             return ChainActionResult.cancelled(ChainActionType.MINING, StopReason.EVENT_CANCELLED);
         }
         
         // 检查工具是否允许（允许自定义工具规则绕过）
-        if (!OneKeyMinerAPI.isToolAllowed(context.getHeldItem()) &&
-                !OneKeyMinerAPI.hasToolActionRule(context.getHeldItem(), ChainActionType.MINING)) {
+        if (!OneKeyMinerAPI.isToolAllowed(context.getHeldItem()) && !allowedByRule) {
             return ChainActionResult.cancelled(ChainActionType.MINING, StopReason.EVENT_CANCELLED);
         }
         
         // 检查工具挖掘等级是否足够（方块需要正确工具才掉落物品时检查）
         // 例如：石镐无法让钻石矿掉落，此时不应触发连锁挖掘
         // 注意：如果允许空手且玩家空手，则跳过此检查（允许空手挖掘不需要特殊工具的方块）
-        if (!context.getHeldItem().isEmpty() && !canToolHarvestBlock(context.getHeldItem(), context.getOriginState())) {
+        if (!context.isCreativeMode()
+                && !context.getHeldItem().isEmpty()
+                && !canToolHarvestBlock(
+                        context.getHeldItem(),
+                        context.getOriginState()
+                )) {
             // 工具挖掘等级不足，不触发连锁，但放行原事件
             return ChainActionResult.cancelled(ChainActionType.MINING, StopReason.EVENT_CANCELLED);
         }
         
         // 收集要挖掘的方块
-        List<BlockPos> blocksToMine = collectMiningBlocks(context, config);
+        List<BlockPos> blocksToMine = sanitizeTargets(
+                context,
+                collectMiningBlocks(context, config, activeMiningRule),
+                config
+        );
         
         if (blocksToMine.isEmpty()) {
             return ChainActionResult.cancelled(ChainActionType.MINING, StopReason.COMPLETED);
@@ -283,19 +364,38 @@ public final class ChainActionLogic {
         }
         
         // 获取可能被修改的方块列表
-        List<BlockPos> finalBlocks = preEvent.getTargetPositions();
+        List<BlockPos> finalBlocks = sanitizeTargets(
+                context,
+                preEvent.getTargetPositions(),
+                getMaxTargetCount(context, config),
+                getMaxTargetDistance(context, config),
+                pos -> !pos.equals(context.getOriginPos())
+                        && isMatchingMiningBlock(
+                                context.getOriginState(),
+                                context.getLevel().getBlockState(pos),
+                                config
+                        )
+                        && matchesActiveBlockRule(
+                                activeMiningRule,
+                                context.getHeldItem(),
+                                context.getLevel().getBlockState(pos)
+                        )
+        );
         
         // 执行挖掘
-        return performMining(context, finalBlocks, config);
+        return performMining(context, finalBlocks, config, activeMiningRule);
     }
     
     /**
      * 使用 BFS 收集相连的同类方块
      */
-    private static List<BlockPos> collectMiningBlocks(ChainActionContext context, MinerConfig config) {
-        int maxBlocks = context.getMaxCount() > 0 ? context.getMaxCount()
-                : (context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks);
-        int maxDistance = context.getMaxDistance() > 0 ? context.getMaxDistance() : config.maxDistance;
+    private static List<BlockPos> collectMiningBlocks(
+            ChainActionContext context,
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeMiningRule
+    ) {
+        int maxBlocks = getMaxTargetCount(context, config);
+        int maxDistance = getMaxTargetDistance(context, config);
         boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
 
         ResourceLocation shapeId = MiningStateManager.getPlayerShape(context.getPlayer());
@@ -316,7 +416,14 @@ public final class ChainActionLogic {
                 .maxBlocks(maxBlocks)
                 .maxDistance(maxDistance)
                 .allowDiagonal(allowDiagonal)
-                .blockMatcher((origin, target) -> isMatchingMiningBlock(origin, target, config));
+                .blockMatcher((origin, target) ->
+                        isMatchingMiningBlock(origin, target, config)
+                                && matchesActiveBlockRule(
+                                        activeMiningRule,
+                                        context.getHeldItem(),
+                                        target
+                                )
+                );
 
         if (player != null) {
             builder.playerFacing(player.getDirection());
@@ -367,8 +474,12 @@ public final class ChainActionLogic {
 
         long startTime = System.currentTimeMillis();
         int iterations = 0;
+        int iterationBudget = Math.min(
+                MAX_ITERATIONS,
+                Math.max(256, maxBlocks * (allowDiagonal ? 32 : 8))
+        );
 
-        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < iterationBudget) {
             if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
                 OneKeyMiner.LOGGER.warn("连锁挖掘收集超时，已收集 {} 个方块", result.size());
                 break;
@@ -475,23 +586,34 @@ public final class ChainActionLogic {
     private static ChainActionResult performMining(
             ChainActionContext context,
             List<BlockPos> blocks,
-            MinerConfig config
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeMiningRule
     ) {
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
-        ItemStack tool = context.getHeldItem();
-        boolean hasTool = !tool.isEmpty();
+        InteractionHand hand = context.getHand();
+        boolean hasTool = !context.getHeldItem().isEmpty();
         float hungerPerBlock = config.hungerPerBlock * Math.max(0f, config.hungerMultiplier);
+        boolean chargesHunger = config.consumeHunger
+                && !context.isCreativeMode()
+                && hungerPerBlock > 0f;
+        boolean teleportDrops = MiningStateManager.isTeleportDrops(player);
+        boolean teleportExp = MiningStateManager.isTeleportExp(player);
 
         ServerLevel serverLevel = level instanceof ServerLevel sl ? sl : null;
         Set<Integer> existingEntityIds = new HashSet<>();
-        if (serverLevel != null && (config.teleportDrops || config.teleportExp)) {
+        Set<Integer> existingExperienceIds = new HashSet<>();
+        if (serverLevel != null && (teleportDrops || teleportExp)) {
             AABB searchArea = calculateSearchArea(blocks);
-            for (ItemEntity entity : serverLevel.getEntitiesOfClass(ItemEntity.class, searchArea)) {
-                existingEntityIds.add(entity.getId());
+            if (teleportDrops) {
+                for (ItemEntity entity : serverLevel.getEntitiesOfClass(ItemEntity.class, searchArea)) {
+                    existingEntityIds.add(entity.getId());
+                }
             }
-            for (ExperienceOrb entity : serverLevel.getEntitiesOfClass(ExperienceOrb.class, searchArea)) {
-                existingEntityIds.add(entity.getId());
+            if (teleportExp) {
+                for (ExperienceOrb entity : serverLevel.getEntitiesOfClass(ExperienceOrb.class, searchArea)) {
+                    existingExperienceIds.add(entity.getId());
+                }
             }
         }
         
@@ -501,6 +623,14 @@ public final class ChainActionLogic {
         StopReason stopReason = StopReason.COMPLETED;
         
         for (BlockPos pos : blocks) {
+            ItemStack tool = player.getItemInHand(hand);
+            BlockState currentState = level.getBlockState(pos);
+            if (!isMatchingMiningBlock(context.getOriginState(), currentState, config)
+                    || !matchesActiveBlockRule(activeMiningRule, tool, currentState)
+                    || (!context.isCreativeMode()
+                            && !canToolHarvestBlock(tool, currentState))) {
+                continue;
+            }
             // 工具耐久检查
             if (config.consumeDurability && config.stopOnLowDurability && !context.isCreativeMode()) {
                 if (tool.isDamageableItem()) {
@@ -513,37 +643,43 @@ public final class ChainActionLogic {
             }
             
             // 饥饿值检查
-            if (config.consumeHunger && !context.isCreativeMode()) {
-                if (player.getFoodData().getFoodLevel() <= config.minHungerLevel) {
-                    stopReason = StopReason.HUNGER_LOW;
-                    break;
-                }
+            if (chargesHunger
+                    && !canConsumeHunger(player, hungerPerBlock, config.minHungerLevel)) {
+                stopReason = StopReason.HUNGER_LOW;
+                break;
             }
             
-            // 权限检查
-            if (!context.isSkipPermissionCheck()) {
-                if (!PlatformServices.getInstance().canPlayerBreakBlock(player, level, pos, level.getBlockState(pos))) {
-                    continue; // 跳过没有权限的方块
-                }
-            }
-            
-            // 模拟玩家破坏方块 - 关键！不使用 setBlock
+            // The game-mode path is authoritative: loader protection, loot,
+            // tool hooks and cancellable break events run exactly once.
+            ItemStack toolBefore = tool.copy();
             boolean success = PlatformServices.getInstance().simulateBlockBreak(player, level, pos);
+            ItemStack toolAfter = player.getItemInHand(hand);
+            if (!config.consumeDurability && !context.isCreativeMode()) {
+                restoreDurability(player, hand, toolBefore);
+                toolAfter = player.getItemInHand(hand);
+            }
             
             if (success) {
                 minedBlocks.add(pos);
                 
                 if (!context.isCreativeMode()) {
-                    durabilityUsed++;
-                    if (config.consumeHunger && hungerPerBlock > 0f) {
+                    if (config.consumeDurability) {
+                        durabilityUsed += calculateDurabilityDelta(toolBefore, toolAfter);
+                    }
+                    if (chargesHunger
+                            && consumeHunger(player, hungerPerBlock, config.minHungerLevel)) {
                         hungerUsed += hungerPerBlock;
-                        player.getFoodData().addExhaustion(hungerPerBlock);
+                    } else if (chargesHunger) {
+                        // A break hook changed hunger after the pre-check.
+                        // Keep the completed block, but stop before another.
+                        stopReason = StopReason.HUNGER_LOW;
+                        break;
                     }
                 }
             }
             
             // 检查工具是否损坏
-            if (hasTool && tool.isEmpty()) {
+            if (hasTool && player.getItemInHand(hand).isEmpty()) {
                 stopReason = StopReason.TOOL_BROKEN;
                 break;
             }
@@ -553,11 +689,16 @@ public final class ChainActionLogic {
         int totalExpCollected = 0;
         if (serverLevel != null && !minedBlocks.isEmpty()) {
             AABB searchArea = calculateSearchArea(minedBlocks);
-            if (config.teleportDrops) {
+            if (teleportDrops) {
                 collectedDrops = collectAndTeleportDrops(serverLevel, player, searchArea, existingEntityIds);
             }
-            if (config.teleportExp) {
-                totalExpCollected = collectAndTeleportExp(serverLevel, player, searchArea, existingEntityIds);
+            if (teleportExp) {
+                totalExpCollected = collectAndTeleportExp(
+                        serverLevel,
+                        player,
+                        searchArea,
+                        existingExperienceIds
+                );
             }
         }
         
@@ -581,6 +722,127 @@ public final class ChainActionLogic {
         ChainEvents.firePostActionEvent(postEvent);
         
         return result;
+    }
+
+    private static int calculateDurabilityDelta(ItemStack before, ItemStack after) {
+        if (!before.isDamageableItem()) {
+            return 0;
+        }
+        if (after.isEmpty()) {
+            return Math.max(0, before.getMaxDamage() - before.getDamageValue());
+        }
+        if (!ItemStack.isSameItem(before, after)) {
+            return 0;
+        }
+        return Math.max(0, after.getDamageValue() - before.getDamageValue());
+    }
+
+    private static void restoreDurability(
+            ServerPlayer player,
+            InteractionHand hand,
+            ItemStack before
+    ) {
+        if (!before.isDamageableItem()) {
+            return;
+        }
+
+        ItemStack current = player.getItemInHand(hand);
+        if (current.isEmpty()) {
+            player.setItemInHand(hand, before.copy());
+        } else if (ItemStack.isSameItem(before, current)) {
+            current.setDamageValue(before.getDamageValue());
+        }
+    }
+
+    private static boolean canConsumeHunger(
+            ServerPlayer player,
+            float exhaustionCost,
+            int minimumFoodLevel
+    ) {
+        return updateHunger(player, exhaustionCost, minimumFoodLevel, false);
+    }
+
+    private static boolean consumeHunger(
+            ServerPlayer player,
+            float exhaustionCost,
+            int minimumFoodLevel
+    ) {
+        return updateHunger(player, exhaustionCost, minimumFoodLevel, true);
+    }
+
+    /**
+     * Applies exhaustion without FoodData#addExhaustion's 40 point clamp.
+     * FoodData exposes its exact exhaustion only through its public save API,
+     * so the same persisted fields are read and restored atomically here.
+     */
+    private static boolean updateHunger(
+            ServerPlayer player,
+            float exhaustionCost,
+            int minimumFoodLevel,
+            boolean apply
+    ) {
+        if (!Float.isFinite(exhaustionCost) || exhaustionCost < 0f) {
+            return false;
+        }
+        if (exhaustionCost == 0f) {
+            return true;
+        }
+
+        FoodData foodData = player.getFoodData();
+        TagValueOutput output = TagValueOutput.createWithContext(
+                ProblemReporter.DISCARDING,
+                player.level().registryAccess()
+        );
+        foodData.addAdditionalSaveData(output);
+        CompoundTag data = output.buildResult();
+
+        int foodLevel = data.getIntOr(FOOD_LEVEL_KEY, foodData.getFoodLevel());
+        if (foodLevel <= minimumFoodLevel) {
+            return false;
+        }
+
+        float saturation = data.getFloatOr(
+                FOOD_SATURATION_KEY,
+                foodData.getSaturationLevel()
+        );
+        float totalExhaustion = data.getFloatOr(FOOD_EXHAUSTION_KEY, 0f)
+                + exhaustionCost;
+        if (!Float.isFinite(totalExhaustion)) {
+            return false;
+        }
+
+        // Vanilla consumes one saturation/food point while exhaustion > 4,
+        // leaving a remainder in the inclusive range (0, 4].
+        long exhaustionUnits = totalExhaustion > 4f
+                ? (long) Math.ceil(((double) totalExhaustion - 4d) / 4d)
+                : 0L;
+        long saturationUnits = saturation > 0f
+                ? (long) Math.ceil(saturation)
+                : 0L;
+        long foodUnits = player.level().getDifficulty() == Difficulty.PEACEFUL
+                ? 0L
+                : Math.max(0L, exhaustionUnits - saturationUnits);
+        if (foodUnits > foodLevel - minimumFoodLevel) {
+            return false;
+        }
+
+        if (apply) {
+            data.putInt(FOOD_LEVEL_KEY, foodLevel - (int) foodUnits);
+            data.putFloat(
+                    FOOD_SATURATION_KEY,
+                    Math.max(0f, saturation - exhaustionUnits)
+            );
+            data.putFloat(
+                    FOOD_EXHAUSTION_KEY,
+                    totalExhaustion - exhaustionUnits * 4f
+            );
+            foodData.readAdditionalSaveData(TagValueInput.create(
+                    ProblemReporter.DISCARDING,
+                    player.level().registryAccess(),
+                    data
+            ));
+        }
+        return true;
     }
     
     /**
@@ -609,8 +871,9 @@ public final class ChainActionLogic {
             return true;
         }
         
-        // 检查是否共享同一个标签
-        return OneKeyMinerAPI.blocksShareTag(originBlock, targetBlock);
+        // API groups are checked first; the API method then falls back to
+        // configured whitelist tags for the legacy loose-matching behavior.
+        return OneKeyMinerAPI.areBlocksInSameGroup(originBlock, targetBlock);
     }
     
     // ==================== 连锁交互逻辑 ====================
@@ -627,7 +890,15 @@ public final class ChainActionLogic {
         
         // 检查手持物品是否支持交互
         ItemStack heldItem = context.getHeldItem();
-        if (!isInteractionTool(heldItem)) {
+        OneKeyMinerAPI.ToolActionRule activeInteractionRule =
+                findActiveInteractionRule(context);
+        if (OneKeyMinerAPI.isInteractionToolBlacklisted(heldItem)) {
+            return ChainActionResult.cancelled(
+                    ChainActionType.INTERACTION,
+                    StopReason.EVENT_CANCELLED
+            );
+        }
+        if (!isInteractionTool(heldItem) && activeInteractionRule == null) {
             return ChainActionResult.cancelled(ChainActionType.INTERACTION, StopReason.EVENT_CANCELLED);
         }
         
@@ -640,7 +911,22 @@ public final class ChainActionLogic {
         InteractionType interactionType = determineInteractionType(context);
         
         // 收集交互目标
-        List<BlockPos> targets = collectInteractionTargets(context, config, interactionType);
+        List<BlockPos> collectedTargets = collectInteractionTargets(
+                context,
+                config,
+                interactionType,
+                activeInteractionRule
+        );
+        List<BlockPos> targets = interactionType == InteractionType.SHEARING
+                ? sanitizeTargets(
+                        context,
+                        collectedTargets,
+                        getMaxTargetCount(context, config),
+                        getMaxTargetDistance(context, config),
+                        ignored -> true,
+                        true
+                )
+                : sanitizeTargets(context, collectedTargets, config);
         
         if (targets.isEmpty()) {
             return ChainActionResult.cancelled(ChainActionType.INTERACTION, StopReason.COMPLETED);
@@ -662,7 +948,38 @@ public final class ChainActionLogic {
         }
         
         // 执行交互
-        return performInteraction(context, preEvent.getTargetPositions(), config, interactionType);
+        List<BlockPos> finalTargets = sanitizeTargets(
+                context,
+                preEvent.getTargetPositions(),
+                getMaxTargetCount(context, config),
+                getMaxTargetDistance(context, config),
+                pos -> (pos.equals(context.getOriginPos())
+                        && context.isOriginAlreadyHandled())
+                        || (interactionType == InteractionType.SHEARING
+                                ? hasReadyShearableAt(
+                                        context,
+                                        pos,
+                                        activeInteractionRule
+                                )
+                                : isEligibleBlockInteractionTarget(
+                                        context,
+                                        pos,
+                                        interactionType,
+                                        activeInteractionRule,
+                                        heldItem
+                                )),
+                interactionType == InteractionType.SHEARING
+        );
+        if (interactionType != InteractionType.SHEARING || context.getOriginEntityId() != null) {
+            finalTargets = requireOriginFirst(context, finalTargets);
+        }
+        return performInteraction(
+                context,
+                finalTargets,
+                config,
+                interactionType,
+                activeInteractionRule
+        );
     }
     
     /**
@@ -671,7 +988,9 @@ public final class ChainActionLogic {
      * <p>使用通用类型检查，自动支持模组工具。</p>
      */
     private static boolean isInteractionTool(ItemStack stack) {
-        if (stack.isEmpty()) {
+        if (stack == null
+                || stack.isEmpty()
+                || OneKeyMinerAPI.isInteractionToolBlacklisted(stack)) {
             return false;
         }
         
@@ -683,17 +1002,17 @@ public final class ChainActionLogic {
                item instanceof AxeItem ||        // 斧头类（剥皮）
                item instanceof ShovelItem ||     // 铲子类（土径）
                item instanceof ShearsItem ||     // 剪刀类（剪羊毛）
-               item instanceof BrushItem ||      // 刷子类（刷除）
              OneKeyMinerAPI.isInteractionToolAllowed(stack) || // API 注册的工具
-             OneKeyMinerAPI.isInteractiveItemAllowed(stack) || // API 注册的交互物品
-             OneKeyMinerAPI.hasToolActionRule(stack, ChainActionType.INTERACTION); // 自定义动作规则
+             OneKeyMinerAPI.isInteractiveItemAllowed(stack); // API 注册的交互物品
     }
     
     /**
      * Checks whether an item can attempt chained block interaction.
      */
     public static boolean canAttemptBlockInteraction(ItemStack stack) {
-        if (stack.isEmpty()) {
+        if (stack == null
+                || stack.isEmpty()
+                || OneKeyMinerAPI.isInteractionToolBlacklisted(stack)) {
             return false;
         }
 
@@ -701,9 +1020,7 @@ public final class ChainActionLogic {
         return item instanceof HoeItem ||
                 item instanceof AxeItem ||
                 item instanceof ShovelItem ||
-                item instanceof BrushItem ||
                 OneKeyMinerAPI.isInteractionToolAllowed(stack) ||
-                OneKeyMinerAPI.hasToolActionRule(stack, ChainActionType.INTERACTION) ||
                 OneKeyMinerAPI.isInteractiveItemAllowed(stack);
     }
 
@@ -734,8 +1051,6 @@ public final class ChainActionLogic {
             return InteractionType.STRIPPING;
         } else if (item instanceof ShovelItem) {
             return InteractionType.PATH_MAKING;
-        } else if (item instanceof BrushItem) {
-            return InteractionType.BRUSHING;
         } else if (OneKeyMinerAPI.isInteractiveItemAllowed(stack)) {
             return InteractionType.ITEM_USE;
         }
@@ -769,6 +1084,7 @@ public final class ChainActionLogic {
             case STRIPPING -> ChainActionContext.InteractionOverride.STRIPPING;
             case PATH_MAKING -> ChainActionContext.InteractionOverride.PATH_MAKING;
             case BRUSHING -> ChainActionContext.InteractionOverride.BRUSHING;
+            case ITEM_USE -> ChainActionContext.InteractionOverride.ITEM_USE;
             case GENERIC -> ChainActionContext.InteractionOverride.GENERIC;
         };
     }
@@ -777,17 +1093,20 @@ public final class ChainActionLogic {
      * 检查工具是否可以与目标方块触发连锁交互
      */
     public static boolean isValidInteractionTarget(ItemStack stack, BlockState targetState) {
-        if (stack.isEmpty()) {
+        if (stack == null || stack.isEmpty() || targetState == null) {
             return false;
+        }
+
+        if (OneKeyMinerAPI.findToolActionForBlock(
+                stack,
+                targetState,
+                ChainActionType.INTERACTION
+        ).isPresent()) {
+            return true;
         }
 
         if (!isInteractionTool(stack)) {
             return false;
-        }
-
-        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForBlock(stack, targetState).orElse(null);
-        if (customRule != null) {
-            return customRule.actionType() == ChainActionType.INTERACTION;
         }
 
         InteractionType type = determineInteractionType(stack);
@@ -801,6 +1120,33 @@ public final class ChainActionLogic {
             case GENERIC -> true;
         };
     }
+
+    private static OneKeyMinerAPI.ToolActionRule findActiveInteractionRule(
+            ChainActionContext context
+    ) {
+        if (context.getMatchedToolActionRule() != null) {
+            return context.getMatchedToolActionRule();
+        }
+        ItemStack stack = context.getHeldItem();
+        if (context.getOriginEntityId() != null) {
+            Entity originEntity = findOriginEntity(context);
+            if (originEntity == null) {
+                return null;
+            }
+            return OneKeyMinerAPI.findToolActionForEntity(
+                            stack,
+                            originEntity,
+                            ChainActionType.INTERACTION
+                    )
+                    .orElse(null);
+        }
+        return OneKeyMinerAPI.findToolActionForBlock(
+                        stack,
+                        context.getOriginState(),
+                        ChainActionType.INTERACTION
+                )
+                .orElse(null);
+    }
     
     /**
      * 收集交互目标
@@ -808,43 +1154,73 @@ public final class ChainActionLogic {
     private static List<BlockPos> collectInteractionTargets(
             ChainActionContext context,
             MinerConfig config,
-            InteractionType interactionType
+            InteractionType interactionType,
+            OneKeyMinerAPI.ToolActionRule activeRule
     ) {
         // 剪羊毛需要特殊处理（搜索实体而非方块）
         if (interactionType == InteractionType.SHEARING) {
-            return collectShearingTargets(context, config);
+            return collectShearingTargets(context, config, activeRule);
         }
         
         // 其他交互类型：搜索相邻的可交互方块
-        return collectBlockInteractionTargets(context, config, interactionType);
+        return collectBlockInteractionTargets(
+                context,
+                config,
+                interactionType,
+                activeRule
+        );
     }
     
     /**
      * 收集剪羊毛目标（方块位置，实际表示可剪实体的位置）
      */
-    private static List<BlockPos> collectShearingTargets(ChainActionContext context, MinerConfig config) {
+    private static List<BlockPos> collectShearingTargets(
+            ChainActionContext context,
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeRule
+    ) {
         List<BlockPos> result = new ArrayList<>();
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
         BlockPos originPos = context.getOriginPos();
+        ItemStack heldItem = context.getHeldItem();
         
-        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int searchRadius = context.getMaxDistance() > 0 ? context.getMaxDistance() : config.maxDistance;
+        int maxBlocks = getMaxTargetCount(context, config);
+        int searchRadius = getMaxTargetDistance(context, config);
+
+        Entity originEntity = findOriginEntity(context);
+        if (context.isOriginAlreadyHandled()) {
+            result.add(context.getOriginPos());
+        } else if (isReadyShearable(originEntity)
+                && matchesActiveEntityRule(activeRule, heldItem, originEntity)) {
+            result.add(originEntity.blockPosition().immutable());
+        }
         
-        // 搜索范围内的所有可剪切实体
+        int remaining = Math.max(0, maxBlocks - result.size());
+        if (remaining == 0) {
+            return result;
+        }
+
+        // Bound the entity query itself. Materializing and sorting every
+        // entity in an unusually dense farm can otherwise stall the server.
         AABB searchBox = new AABB(originPos).inflate(searchRadius);
-        List<Entity> shearables = level.getEntities((Entity) null, searchBox, 
-                entity -> entity instanceof Shearable shearable && 
-                          shearable.readyForShearing() && 
-                          entity.isAlive());
+        List<Entity> shearables = new ArrayList<>(remaining);
+        level.getEntities(
+                EntityTypeTest.forClass(Entity.class),
+                searchBox,
+                entity -> isReadyShearable(entity)
+                        && matchesActiveEntityRule(activeRule, heldItem, entity)
+                        && (originEntity == null
+                                || !entity.getUUID().equals(originEntity.getUUID())),
+                shearables,
+                remaining
+        );
         
-        // 按距离排序，优先处理近的
+        // Sort only the bounded candidate set, preferring nearby entities.
         shearables.sort(Comparator.comparingDouble(e -> e.distanceToSqr(player)));
         
-        // 限制数量
-        int count = Math.min(shearables.size(), maxBlocks);
-        for (int i = 0; i < count; i++) {
-            result.add(shearables.get(i).blockPosition());
+        for (Entity shearable : shearables) {
+            result.add(shearable.blockPosition());
         }
         
         return result;
@@ -856,7 +1232,8 @@ public final class ChainActionLogic {
     private static List<BlockPos> collectBlockInteractionTargets(
             ChainActionContext context,
             MinerConfig config,
-            InteractionType interactionType
+            InteractionType interactionType,
+            OneKeyMinerAPI.ToolActionRule activeRule
     ) {
         List<BlockPos> result = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
@@ -865,9 +1242,10 @@ public final class ChainActionLogic {
         BlockPos originPos = context.getOriginPos();
         BlockState originState = context.getOriginState();
         Level level = context.getLevel();
+        ItemStack heldItem = context.getHeldItem();
         
-        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int maxDistance = config.maxDistance;
+        int maxBlocks = getMaxTargetCount(context, config);
+        int maxDistance = getMaxTargetDistance(context, config);
         boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
         
         BlockPos[] offsets = allowDiagonal ? DIAGONAL_OFFSETS : ORTHOGONAL_OFFSETS;
@@ -878,8 +1256,12 @@ public final class ChainActionLogic {
         
         long startTime = System.currentTimeMillis();
         int iterations = 0;
+        int iterationBudget = Math.min(
+                MAX_ITERATIONS,
+                Math.max(256, maxBlocks * (allowDiagonal ? 32 : 8))
+        );
         
-        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < iterationBudget) {
             if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
                 break;
             }
@@ -890,20 +1272,32 @@ public final class ChainActionLogic {
             if (current.distManhattan(originPos) > maxDistance) {
                 continue;
             }
-            
-            BlockState currentState = level.getBlockState(current);
-            
-            // 检查该位置是否可交互
-            if (canInteractAt(level, current, currentState, interactionType, originState)) {
-                result.add(current);
+            if (!level.hasChunkAt(current)) {
+                continue;
             }
             
-            // 添加相邻方块到队列
-            for (BlockPos offset : offsets) {
-                BlockPos neighbor = current.offset(offset);
-                if (!visited.contains(neighbor)) {
-                    visited.add(neighbor);
-                    queue.add(neighbor);
+            BlockState currentState = level.getBlockState(current);
+            boolean completedOrigin = context.isOriginAlreadyHandled()
+                    && current.equals(originPos);
+            
+            // A completed origin remains the authorization/traversal token,
+            // but only neighboring targets are simulated.
+            if (completedOrigin
+                    || canInteractAt(currentState, interactionType, originState, heldItem)
+                            && matchesActiveBlockRule(
+                                    activeRule,
+                                    heldItem,
+                                    currentState
+                            )) {
+                result.add(current);
+
+                // Only traverse the connected component of eligible targets.
+                for (BlockPos offset : offsets) {
+                    BlockPos neighbor = current.offset(offset);
+                    if (!visited.contains(neighbor) && level.hasChunkAt(neighbor)) {
+                        visited.add(neighbor);
+                        queue.add(neighbor);
+                    }
                 }
             }
         }
@@ -915,11 +1309,10 @@ public final class ChainActionLogic {
      * 检查指定位置是否可以进行交互
      */
     private static boolean canInteractAt(
-            Level level,
-            BlockPos pos,
             BlockState state,
             InteractionType interactionType,
-            BlockState originState
+            BlockState originState,
+            ItemStack heldItem
     ) {
         if (state.isAir()) {
             return false;
@@ -931,10 +1324,56 @@ public final class ChainActionLogic {
             case STRIPPING -> canStrip(state) || isSameBlock(state, originState);
             case PATH_MAKING -> canMakePath(state) || isSameBlock(state, originState);
             case BRUSHING -> canBrush(state) || isSameBlock(state, originState);
-            case ITEM_USE -> canItemUseOnBlock(null, state);
+            case ITEM_USE -> isSameBlock(state, originState)
+                    && canItemUseOnBlock(heldItem, state);
             case GENERIC -> state.getBlock() == originState.getBlock();
             default -> false;
         };
+    }
+
+    private static boolean isEligibleBlockInteractionTarget(
+            ChainActionContext context,
+            BlockPos pos,
+            InteractionType interactionType,
+            OneKeyMinerAPI.ToolActionRule activeRule,
+            ItemStack heldItem
+    ) {
+        if (!context.getLevel().hasChunkAt(pos)) {
+            return false;
+        }
+        BlockState state = context.getLevel().getBlockState(pos);
+        return canInteractAt(
+                state,
+                interactionType,
+                context.getOriginState(),
+                heldItem
+        ) && matchesActiveBlockRule(activeRule, heldItem, state);
+    }
+
+    private static boolean matchesActiveBlockRule(
+            OneKeyMinerAPI.ToolActionRule activeRule,
+            ItemStack stack,
+            BlockState state
+    ) {
+        return activeRule == null
+                || OneKeyMinerAPI.isToolActionRuleApplicableToBlock(
+                        activeRule,
+                        stack,
+                        state
+                );
+    }
+
+    private static boolean matchesActiveEntityRule(
+            OneKeyMinerAPI.ToolActionRule activeRule,
+            ItemStack stack,
+            Entity entity
+    ) {
+        return activeRule == null
+                || OneKeyMinerAPI.isToolActionRuleApplicableToEntity(
+                        activeRule,
+                        stack,
+                        entity
+                );
     }
     
     /**
@@ -999,14 +1438,15 @@ public final class ChainActionLogic {
             ChainActionContext context,
             List<BlockPos> targets,
             MinerConfig config,
-            InteractionType interactionType
+            InteractionType interactionType,
+            OneKeyMinerAPI.ToolActionRule activeRule
     ) {
         // 剪羊毛需要特殊处理
         if (interactionType == InteractionType.SHEARING) {
-            return performShearing(context, targets, config);
+            return performShearing(context, targets, config, activeRule);
         }
         
-        return performBlockInteraction(context, targets, config);
+        return performBlockInteraction(context, targets, config, activeRule);
     }
     
     /**
@@ -1015,30 +1455,86 @@ public final class ChainActionLogic {
     private static ChainActionResult performShearing(
             ChainActionContext context,
             List<BlockPos> entityPositions,
-            MinerConfig config
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeRule
     ) {
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
-        ItemStack shears = context.getHeldItem();
+        InteractionHand hand = context.getHand();
         
         List<BlockPos> shearedPositions = new ArrayList<>();
+        if (context.isOriginAlreadyHandled()) {
+            shearedPositions.add(context.getOriginPos());
+        }
         int durabilityUsed = 0;
         StopReason stopReason = StopReason.COMPLETED;
+        Set<UUID> processedEntities = new HashSet<>();
+        UUID originEntityId = context.getOriginEntityId();
+        if (context.isOriginAlreadyHandled() && originEntityId != null) {
+            processedEntities.add(originEntityId);
+        }
+        Map<BlockPos, ArrayDeque<Entity>> candidatesByPosition =
+                collectShearingCandidates(
+                        level,
+                        entityPositions,
+                        player.getItemInHand(hand),
+                        activeRule
+                );
         
         for (BlockPos pos : entityPositions) {
-            // 查找该位置的可剪切实体
-            AABB searchBox = new AABB(pos).inflate(1.5);
-            List<Entity> nearbyShearables = level.getEntities((Entity) null, searchBox,
-                    entity -> entity instanceof Shearable shearable && 
-                              shearable.readyForShearing() && 
-                              entity.isAlive());
-            
-            if (nearbyShearables.isEmpty()) {
+            Entity target = null;
+            boolean isOriginTarget = originEntityId != null && processedEntities.isEmpty();
+            if (isOriginTarget) {
+                Entity exactOrigin = findOriginEntity(context);
+                if (isReadyShearable(exactOrigin)
+                        && matchesActiveEntityRule(
+                                activeRule,
+                                player.getItemInHand(hand),
+                                exactOrigin
+                        )
+                        && exactOrigin.blockPosition().equals(pos)) {
+                    target = exactOrigin;
+                }
+            }
+
+            if (target == null && !isOriginTarget) {
+                ArrayDeque<Entity> candidates = candidatesByPosition.get(pos);
+                while (candidates != null && !candidates.isEmpty()) {
+                    Entity candidate = candidates.removeFirst();
+                    if (!processedEntities.contains(candidate.getUUID())
+                            && candidate.blockPosition().equals(pos)
+                            && isReadyShearable(candidate)
+                            && matchesActiveEntityRule(
+                                    activeRule,
+                                    player.getItemInHand(hand),
+                                    candidate
+                            )) {
+                        target = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (target == null) {
+                if (isOriginTarget) {
+                    stopReason = StopReason.PERMISSION_DENIED;
+                    break;
+                }
                 continue;
             }
-            
-            Entity target = nearbyShearables.get(0);
-            Shearable shearable = (Shearable) target;
+            ItemStack shears = player.getItemInHand(hand);
+            if (!isSameCapturedItem(context, shears)) {
+                stopReason = StopReason.TOOL_BROKEN;
+                break;
+            }
+            if (!matchesActiveEntityRule(activeRule, shears, target)) {
+                if (isOriginTarget) {
+                    stopReason = StopReason.PERMISSION_DENIED;
+                    break;
+                }
+                continue;
+            }
+            processedEntities.add(target.getUUID());
             
             // 工具耐久检查
             if (config.consumeDurability && config.stopOnLowDurability && !context.isCreativeMode()) {
@@ -1051,18 +1547,35 @@ public final class ChainActionLogic {
                 }
             }
             
-            // 使用 Shearable 接口的 shear 方法
-            // 在 1.21.9 中签名为: shear(ServerLevel, SoundSource, ItemStack)
-            if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                shearable.shear(serverLevel, net.minecraft.sounds.SoundSource.PLAYERS, shears);
+            ItemStack toolBefore = shears.copy();
+            ShearingCompletionVerifier.Snapshot shearingSnapshot =
+                    ShearingCompletionVerifier.capture(level, target);
+            InteractionResult interactionResult = PlatformServices.getInstance()
+                    .simulateEntityInteraction(player, level, target, hand);
+            ItemStack toolAfter = player.getItemInHand(hand);
+            if (!config.consumeDurability && !context.isCreativeMode()) {
+                restoreDurability(player, hand, toolBefore);
+                toolAfter = player.getItemInHand(hand);
+            }
+
+            boolean completedShearing = ShearingCompletionVerifier.completed(
+                    level,
+                    shearingSnapshot
+            );
+            if (!interactionResult.consumesAction() || !completedShearing) {
+                if (isOriginTarget) {
+                    stopReason = StopReason.PERMISSION_DENIED;
+                    break;
+                }
+                continue;
             }
             shearedPositions.add(pos);
             
-            if (!context.isCreativeMode()) {
-                durabilityUsed++;
+            if (!context.isCreativeMode() && config.consumeDurability) {
+                durabilityUsed += calculateDurabilityDelta(toolBefore, toolAfter);
             }
             
-            if (shears.isEmpty()) {
+            if (player.getItemInHand(hand).isEmpty()) {
                 stopReason = StopReason.TOOL_BROKEN;
                 break;
             }
@@ -1096,18 +1609,34 @@ public final class ChainActionLogic {
     private static ChainActionResult performBlockInteraction(
             ChainActionContext context,
             List<BlockPos> targets,
-            MinerConfig config
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeRule
     ) {
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
-        ItemStack tool = context.getHeldItem();
         InteractionHand hand = context.getHand();
         
         List<BlockPos> interactedPositions = new ArrayList<>();
+        if (context.isOriginAlreadyHandled()) {
+            interactedPositions.add(context.getOriginPos());
+        }
         int durabilityUsed = 0;
         StopReason stopReason = StopReason.COMPLETED;
         
         for (BlockPos pos : targets) {
+            ItemStack tool = player.getItemInHand(hand);
+            if (!isSameCapturedItem(context, tool)) {
+                stopReason = StopReason.TOOL_BROKEN;
+                break;
+            }
+            BlockState currentState = level.getBlockState(pos);
+            if (!matchesActiveBlockRule(activeRule, tool, currentState)) {
+                if (pos.equals(context.getOriginPos())) {
+                    stopReason = StopReason.PERMISSION_DENIED;
+                    break;
+                }
+                continue;
+            }
             // 工具耐久检查
             if (config.consumeDurability && config.stopOnLowDurability && !context.isCreativeMode() && tool.isDamageableItem()) {
                 int remaining = tool.getMaxDamage() - tool.getDamageValue();
@@ -1117,24 +1646,38 @@ public final class ChainActionLogic {
                 }
             }
             
-            // 权限检查
-            if (!context.isSkipPermissionCheck()) {
-                if (!PlatformServices.getInstance().canPlayerInteract(player, level, pos, level.getBlockState(pos))) {
-                    continue;
-                }
+            // Delegate to ServerPlayerGameMode so loader hooks and protection
+            // mods observe the authoritative interaction exactly once.
+            ItemStack toolBefore = tool.copy();
+            boolean accepted = simulateItemUse(context, pos, tool);
+            BlockState completedState = level.getBlockState(pos);
+            OriginalUseCompletionPolicy.BlockRequirement requirement =
+                    activeRule != null || !isNativeTransformTool(tool)
+                            ? OriginalUseCompletionPolicy.BlockRequirement.TRUST_RESULT
+                            : OriginalUseCompletionPolicy.BlockRequirement.STATE_CHANGE;
+            boolean success = accepted
+                    && OriginalUseCompletionPolicy.permitsDerivedBlockUse(
+                            requirement,
+                            !completedState.equals(currentState),
+                            !completedState.isAir()
+                    );
+            ItemStack toolAfter = player.getItemInHand(hand);
+            if (!config.consumeDurability && !context.isCreativeMode()) {
+                restoreDurability(player, hand, toolBefore);
+                toolAfter = player.getItemInHand(hand);
             }
-            
-            // 模拟物品使用 - 通用方法，支持模组物品
-            boolean success = simulateItemUse(player, level, pos, tool, hand);
             
             if (success) {
                 interactedPositions.add(pos);
-                if (!context.isCreativeMode()) {
-                    durabilityUsed++;
+                if (!context.isCreativeMode() && config.consumeDurability) {
+                    durabilityUsed += calculateDurabilityDelta(toolBefore, toolAfter);
                 }
+            } else if (pos.equals(context.getOriginPos())) {
+                stopReason = StopReason.PERMISSION_DENIED;
+                break;
             }
             
-            if (tool.isEmpty()) {
+            if (player.getItemInHand(hand).isEmpty()) {
                 stopReason = StopReason.TOOL_BROKEN;
                 break;
             }
@@ -1167,13 +1710,43 @@ public final class ChainActionLogic {
      * <p>使用原版的物品交互系统，确保模组兼容性。</p>
      */
     private static boolean simulateItemUse(
-            ServerPlayer player,
-            Level level,
+            ChainActionContext context,
             BlockPos pos,
-            ItemStack item,
-            InteractionHand hand
+            ItemStack item
     ) {
-        return PlatformServices.getInstance().simulateItemUseOnBlock(player, level, pos, hand, item);
+        return PlatformServices.getInstance().simulateItemUseOnBlock(
+                context.getPlayer(),
+                context.getLevel(),
+                translateHitResult(context.getBlockHitResult(), pos),
+                context.getHand(),
+                item
+        );
+    }
+
+    private static BlockHitResult translateHitResult(
+            BlockHitResult original,
+            BlockPos targetPos
+    ) {
+        if (original == null) {
+            return new BlockHitResult(
+                    net.minecraft.world.phys.Vec3.atCenterOf(targetPos),
+                    Direction.UP,
+                    targetPos,
+                    false
+            );
+        }
+
+        BlockPos sourcePos = original.getBlockPos();
+        return new BlockHitResult(
+                original.getLocation().add(
+                        (double) targetPos.getX() - sourcePos.getX(),
+                        (double) targetPos.getY() - sourcePos.getY(),
+                        (double) targetPos.getZ() - sourcePos.getZ()
+                ),
+                original.getDirection(),
+                targetPos,
+                original.isInside()
+        );
     }
 
     private static AABB calculateSearchArea(List<BlockPos> blocks) {
@@ -1207,12 +1780,24 @@ public final class ChainActionLogic {
 
         List<ItemStack> collectedDrops = new ArrayList<>();
         for (ItemEntity itemEntity : newItems) {
-            ItemStack stack = itemEntity.getItem().copy();
-            collectedDrops.add(stack.copy());
-            if (player.getInventory().add(stack)) {
-                itemEntity.discard();
-            } else {
+            ItemStack before = itemEntity.getItem().copy();
+            int beforeCount = before.getCount();
+            itemEntity.setNoPickUpDelay();
+            itemEntity.teleportTo(player.getX(), player.getY(), player.getZ());
+
+            // Use vanilla pickup so loader pickup events, advancements and
+            // inventory rules remain observable.
+            itemEntity.playerTouch(player);
+
+            int remainingCount = 0;
+            if (itemEntity.isAlive()
+                    && ItemStack.isSameItemSameComponents(before, itemEntity.getItem())) {
+                remainingCount = itemEntity.getItem().getCount();
                 itemEntity.teleportTo(player.getX(), player.getY(), player.getZ());
+            }
+            int pickedUp = Math.max(0, beforeCount - remainingCount);
+            if (pickedUp > 0) {
+                collectedDrops.add(before.copyWithCount(pickedUp));
             }
         }
         return collectedDrops;
@@ -1222,22 +1807,29 @@ public final class ChainActionLogic {
             ServerLevel level,
             ServerPlayer player,
             AABB area,
-            Set<Integer> existingEntityIds
+            Set<Integer> existingExperienceIds
     ) {
         List<ExperienceOrb> newOrbs = level.getEntitiesOfClass(ExperienceOrb.class, area,
-                entity -> !existingEntityIds.contains(entity.getId()) && entity.isAlive());
+                entity -> entity.isAlive()
+                        && !existingExperienceIds.contains(entity.getId()));
 
-        int totalExp = 0;
+        int immediatelyCollected = 0;
         for (ExperienceOrb orb : newOrbs) {
-            totalExp += orb.getValue();
-            orb.discard();
+            int pickupDelayBefore = player.takeXpDelay;
+            int orbValue = orb.getValue();
+            orb.teleportTo(player.getX(), player.getY(), player.getZ());
+
+            // Keep the vanilla pickup path: merged orbs contain a private
+            // count, and direct give/discard loses that count and bypasses
+            // Mending plus loader pickup hooks. One immediate touch is safe;
+            // any remaining count/orbs stay at the player for later ticks.
+            orb.playerTouch(player);
+            if (pickupDelayBefore == 0 && player.takeXpDelay != 0) {
+                immediatelyCollected += orbValue;
+            }
         }
 
-        if (totalExp > 0) {
-            player.giveExperiencePoints(totalExp);
-        }
-
-        return totalExp;
+        return immediatelyCollected;
     }
     
     // ==================== 连锁种植逻辑 ====================
@@ -1254,7 +1846,18 @@ public final class ChainActionLogic {
         
         // 检查手持物品是否为种子/树苗
         ItemStack heldItem = context.getHeldItem();
-        if (!isPlantableItem(heldItem)) {
+        BlockState originSupport = context.getLevel().getBlockState(
+                context.getOriginPos().below()
+        );
+        OneKeyMinerAPI.ToolActionRule activePlantingRule =
+                context.getMatchedToolActionRule() != null
+                        ? context.getMatchedToolActionRule()
+                        : OneKeyMinerAPI.findToolActionForBlock(
+                                heldItem,
+                                originSupport,
+                                ChainActionType.PLANTING
+                        ).orElse(null);
+        if (!isPlantableItem(heldItem) && activePlantingRule == null) {
             return ChainActionResult.cancelled(ChainActionType.PLANTING, StopReason.EVENT_CANCELLED);
         }
         
@@ -1269,7 +1872,15 @@ public final class ChainActionLogic {
         }
         
         // 收集可种植位置
-        List<BlockPos> plantablePositions = collectPlantablePositions(context, config);
+        List<BlockPos> plantablePositions = sanitizeTargets(
+                context,
+                collectPlantablePositions(
+                        context,
+                        config,
+                        activePlantingRule
+                ),
+                config
+        );
         
         if (plantablePositions.isEmpty()) {
             return ChainActionResult.cancelled(ChainActionType.PLANTING, StopReason.COMPLETED);
@@ -1291,7 +1902,32 @@ public final class ChainActionLogic {
         }
         
         // 执行种植
-        return performPlanting(context, preEvent.getTargetPositions(), config);
+        List<BlockPos> finalTargets = requireOriginFirst(
+                context,
+                sanitizeTargets(
+                        context,
+                        preEvent.getTargetPositions(),
+                        getMaxTargetCount(context, config),
+                        getMaxTargetDistance(context, config),
+                        pos -> pos.equals(context.getOriginPos())
+                                && context.isOriginAlreadyHandled()
+                                || canPlantAt(
+                                        context.getLevel(),
+                                        pos,
+                                        heldItem,
+                                        config
+                                ) && matchesActiveBlockRule(
+                                        activePlantingRule,
+                                        heldItem,
+                                        context.getLevel().getBlockState(pos.below())
+                                )
+                )
+        );
+        return performPlanting(
+                context,
+                finalTargets,
+                activePlantingRule
+        );
     }
     
     /**
@@ -1390,7 +2026,11 @@ public final class ChainActionLogic {
     /**
      * 收集可种植位置
      */
-    private static List<BlockPos> collectPlantablePositions(ChainActionContext context, MinerConfig config) {
+    private static List<BlockPos> collectPlantablePositions(
+            ChainActionContext context,
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activePlantingRule
+    ) {
         List<BlockPos> result = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new LinkedList<>();
@@ -1400,21 +2040,27 @@ public final class ChainActionLogic {
         BlockPos originPos = context.getOriginPos();
         ItemStack seedItem = context.getHeldItem();
         
-        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int maxDistance = config.maxDistance;
+        int maxBlocks = getMaxTargetCount(context, config);
+        int maxDistance = getMaxTargetDistance(context, config);
         
         // 计算可用种子数量
-        int availableSeeds = context.isCreativeMode() ? Integer.MAX_VALUE 
-                : countItemsInInventory(player, seedItem.getItem());
+        int availableSeeds = context.isCreativeMode()
+                ? Integer.MAX_VALUE
+                : player.getItemInHand(context.getHand()).getCount();
+        if (context.isOriginAlreadyHandled()
+                && availableSeeds < Integer.MAX_VALUE) {
+            availableSeeds++;
+        }
         
         queue.add(originPos);
         visited.add(originPos);
         
         long startTime = System.currentTimeMillis();
         int iterations = 0;
+        int iterationBudget = Math.min(MAX_ITERATIONS, Math.max(256, maxBlocks * 8));
         
         while (!queue.isEmpty() && result.size() < maxBlocks && 
-               result.size() < availableSeeds && iterations < MAX_ITERATIONS) {
+               result.size() < availableSeeds && iterations < iterationBudget) {
             
             if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
                 break;
@@ -1426,18 +2072,30 @@ public final class ChainActionLogic {
             if (current.distManhattan(originPos) > maxDistance) {
                 continue;
             }
-            
-            // 检查该位置是否可以种植
-            if (canPlantAt(level, current, seedItem, config)) {
-                result.add(current);
+            if (!level.hasChunkAt(current)) {
+                continue;
             }
             
-            // 只在水平方向搜索相邻位置（种植通常是平面的）
-            for (Direction dir : Direction.Plane.HORIZONTAL) {
-                BlockPos neighbor = current.relative(dir);
-                if (!visited.contains(neighbor)) {
-                    visited.add(neighbor);
-                    queue.add(neighbor);
+            boolean completedOrigin = context.isOriginAlreadyHandled()
+                    && current.equals(originPos);
+
+            // The original seed was placed by vanilla before the chain runs.
+            if (completedOrigin
+                    || canPlantAt(level, current, seedItem, config)
+                            && matchesActiveBlockRule(
+                                    activePlantingRule,
+                                    seedItem,
+                                    level.getBlockState(current.below())
+                            )) {
+                result.add(current);
+
+                // Keep planting traversal on the connected plantable surface.
+                for (Direction dir : Direction.Plane.HORIZONTAL) {
+                    BlockPos neighbor = current.relative(dir);
+                    if (!visited.contains(neighbor) && level.hasChunkAt(neighbor)) {
+                        visited.add(neighbor);
+                        queue.add(neighbor);
+                    }
                 }
             }
         }
@@ -1511,35 +2169,63 @@ public final class ChainActionLogic {
     private static ChainActionResult performPlanting(
             ChainActionContext context,
             List<BlockPos> positions,
-            MinerConfig config
+            OneKeyMinerAPI.ToolActionRule activePlantingRule
     ) {
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
-        ItemStack seedItem = context.getHeldItem();
         InteractionHand hand = context.getHand();
         
         List<BlockPos> plantedPositions = new ArrayList<>();
+        if (context.isOriginAlreadyHandled()) {
+            plantedPositions.add(context.getOriginPos());
+        }
         StopReason stopReason = StopReason.COMPLETED;
         
         for (BlockPos pos : positions) {
-            // 检查是否还有种子
-            if (!context.isCreativeMode() && !hasItem(player, seedItem.getItem())) {
+            ItemStack currentSeed = player.getItemInHand(hand);
+            // ServerPlayerGameMode uses the selected hand. Do not silently
+            // consume matching items from unrelated inventory slots.
+            if (!isSameCapturedItem(context, currentSeed)) {
                 stopReason = StopReason.ITEMS_EXHAUSTED;
                 break;
             }
-            
-            // 权限检查
-            if (!context.isSkipPermissionCheck()) {
-                if (!PlatformServices.getInstance().canPlayerBreakBlock(player, level, pos, level.getBlockState(pos))) {
-                    continue;
+            if (!matchesActiveBlockRule(
+                    activePlantingRule,
+                    currentSeed,
+                    level.getBlockState(pos.below())
+            )) {
+                if (pos.equals(context.getOriginPos())) {
+                    stopReason = StopReason.PERMISSION_DENIED;
+                    break;
                 }
+                continue;
             }
             
-            // 模拟使用种子
-            boolean success = simulateItemUse(player, level, pos.below(), seedItem, hand);
+            BlockState stateBeforePlanting = level.getBlockState(pos);
+            boolean accepted = simulateItemUse(
+                    context,
+                    pos.below(),
+                    currentSeed
+            );
+            BlockState stateAfterPlanting = level.getBlockState(pos);
+            OriginalUseCompletionPolicy.BlockRequirement requirement =
+                    OriginalUseCompletionPolicy.selectBlockRequirement(
+                            true,
+                            activePlantingRule != null,
+                            false
+                    );
+            boolean success = accepted
+                    && OriginalUseCompletionPolicy.permitsDerivedBlockUse(
+                            requirement,
+                            !stateAfterPlanting.equals(stateBeforePlanting),
+                            !stateAfterPlanting.isAir()
+                    );
             
             if (success) {
                 plantedPositions.add(pos);
+            } else if (pos.equals(context.getOriginPos())) {
+                stopReason = StopReason.PERMISSION_DENIED;
+                break;
             }
         }
         
@@ -1611,6 +2297,13 @@ public final class ChainActionLogic {
         if (!isMatureCrop(context.getOriginState())) {
             return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.EVENT_CANCELLED);
         }
+
+        OneKeyMinerAPI.ToolActionRule activeHarvestingRule =
+                OneKeyMinerAPI.findToolActionForBlock(
+                        context.getHeldItem(),
+                        context.getOriginState(),
+                        ChainActionType.HARVESTING
+                ).orElse(null);
         
         // 检查激活条件
         if (!checkActivationConditions(context, config)) {
@@ -1618,7 +2311,15 @@ public final class ChainActionLogic {
         }
         
         // 收集收割目标（同类型成熟作物）
-        List<BlockPos> targets = collectHarvestTargets(context, config);
+        List<BlockPos> targets = sanitizeTargets(
+                context,
+                collectHarvestTargets(
+                        context,
+                        config,
+                        activeHarvestingRule
+                ),
+                config
+        );
         
         if (targets.isEmpty()) {
             return ChainActionResult.cancelled(ChainActionType.HARVESTING, StopReason.COMPLETED);
@@ -1640,7 +2341,30 @@ public final class ChainActionLogic {
         }
         
         // 执行收割
-        return performHarvesting(context, preEvent.getTargetPositions(), config);
+        List<BlockPos> finalTargets = requireOriginFirst(
+                context,
+                sanitizeTargets(
+                        context,
+                        preEvent.getTargetPositions(),
+                        getMaxTargetCount(context, config),
+                        getMaxTargetDistance(context, config),
+                        pos -> {
+                            BlockState state = context.getLevel().getBlockState(pos);
+                            return isMatchingHarvestTarget(
+                                    context,
+                                    state,
+                                    activeHarvestingRule,
+                                    context.getHeldItem()
+                            );
+                        }
+                )
+        );
+        return performHarvesting(
+                context,
+                finalTargets,
+                config,
+                activeHarvestingRule
+        );
     }
     
     /**
@@ -1648,17 +2372,21 @@ public final class ChainActionLogic {
      * 
      * <p>使用水平BFS搜索同类型成熟作物</p>
      */
-    private static List<BlockPos> collectHarvestTargets(ChainActionContext context, MinerConfig config) {
+    private static List<BlockPos> collectHarvestTargets(
+            ChainActionContext context,
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeHarvestingRule
+    ) {
         List<BlockPos> result = new ArrayList<>();
         Set<BlockPos> visited = new HashSet<>();
         Queue<BlockPos> queue = new LinkedList<>();
         
         Level level = context.getLevel();
         BlockPos originPos = context.getOriginPos();
-        Block originBlock = context.getOriginState().getBlock();
+        ItemStack heldItem = context.getHeldItem();
         
-        int maxBlocks = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
-        int maxDistance = config.maxDistance;
+        int maxBlocks = getMaxTargetCount(context, config);
+        int maxDistance = getMaxTargetDistance(context, config);
         
         queue.add(originPos);
         visited.add(originPos);
@@ -1677,15 +2405,23 @@ public final class ChainActionLogic {
             if (current.distManhattan(originPos) > maxDistance) {
                 continue;
             }
+            if (!level.hasChunkAt(current)) {
+                continue;
+            }
             
             BlockState state = level.getBlockState(current);
-            if (state.getBlock() == originBlock && isMatureCrop(state)) {
+            if (isMatchingHarvestTarget(
+                    context,
+                    state,
+                    activeHarvestingRule,
+                    heldItem
+            )) {
                 result.add(current);
                 
                 // 仅从匹配位置扩展搜索（水平方向）
                 for (Direction dir : Direction.Plane.HORIZONTAL) {
                     BlockPos neighbor = current.relative(dir);
-                    if (!visited.contains(neighbor)) {
+                    if (!visited.contains(neighbor) && level.hasChunkAt(neighbor)) {
                         visited.add(neighbor);
                         queue.add(neighbor);
                     }
@@ -1695,6 +2431,80 @@ public final class ChainActionLogic {
         
         return result;
     }
+
+    private static Map<BlockPos, ArrayDeque<Entity>> collectShearingCandidates(
+            Level level,
+            List<BlockPos> positions,
+            ItemStack heldItem,
+            OneKeyMinerAPI.ToolActionRule activeRule
+    ) {
+        if (positions.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<BlockPos, Integer> remainingByPosition = new HashMap<>();
+        for (BlockPos pos : positions) {
+            remainingByPosition.merge(pos, 1, Integer::sum);
+        }
+
+        List<Entity> candidates = new ArrayList<>(positions.size());
+        level.getEntities(
+                EntityTypeTest.forClass(Entity.class),
+                calculateSearchArea(positions),
+                entity -> {
+                    BlockPos entityPos = entity.blockPosition();
+                    int remaining = remainingByPosition.getOrDefault(entityPos, 0);
+                    if (remaining == 0
+                            || !isReadyShearable(entity)
+                            || !matchesActiveEntityRule(activeRule, heldItem, entity)) {
+                        return false;
+                    }
+                    remainingByPosition.put(entityPos, remaining - 1);
+                    return true;
+                },
+                candidates,
+                positions.size()
+        );
+
+        Map<BlockPos, List<Entity>> sortedByPosition = new HashMap<>();
+        for (Entity candidate : candidates) {
+            sortedByPosition.computeIfAbsent(
+                    candidate.blockPosition().immutable(),
+                    ignored -> new ArrayList<>()
+            ).add(candidate);
+        }
+
+        Map<BlockPos, ArrayDeque<Entity>> result = new HashMap<>();
+        sortedByPosition.forEach((pos, entities) -> {
+            entities.sort(Comparator.comparingDouble(entity ->
+                    entity.distanceToSqr(
+                            pos.getX() + 0.5,
+                            pos.getY() + 0.5,
+                            pos.getZ() + 0.5
+                    )));
+            result.put(pos, new ArrayDeque<>(entities));
+        });
+        return result;
+    }
+
+    private static boolean isMatchingHarvestTarget(
+            ChainActionContext context,
+            BlockState state,
+            OneKeyMinerAPI.ToolActionRule activeHarvestingRule,
+            ItemStack heldItem
+    ) {
+        if (!isMatureCrop(state)) {
+            return false;
+        }
+        if (activeHarvestingRule == null) {
+            return state.getBlock() == context.getOriginState().getBlock();
+        }
+        return OneKeyMinerAPI.isToolActionRuleApplicableToBlock(
+                activeHarvestingRule,
+                heldItem,
+                state
+        );
+    }
     
     /**
      * 执行收割操作
@@ -1702,140 +2512,325 @@ public final class ChainActionLogic {
     private static ChainActionResult performHarvesting(
             ChainActionContext context,
             List<BlockPos> targets,
-            MinerConfig config
+            MinerConfig config,
+            OneKeyMinerAPI.ToolActionRule activeHarvestingRule
     ) {
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
+        InteractionHand hand = context.getHand();
+        ServerLevel serverLevel = level instanceof ServerLevel sl ? sl : null;
+        float hungerPerBlock = config.hungerPerBlock * Math.max(0f, config.hungerMultiplier);
+        boolean chargesHunger = config.consumeHunger
+                && !context.isCreativeMode()
+                && hungerPerBlock > 0f;
+        boolean teleportDrops = MiningStateManager.isTeleportDrops(player);
+        boolean teleportExp = MiningStateManager.isTeleportExp(player);
         
         List<BlockPos> harvestedPositions = new ArrayList<>();
-        List<ItemStack> allCollectedDrops = new ArrayList<>();
-        float exhaustion = 0f;
+        int durabilityUsed = 0;
+        float hungerUsed = 0f;
         StopReason stopReason = StopReason.COMPLETED;
+        Set<Integer> existingEntityIds = new HashSet<>();
+        Set<Integer> existingExperienceIds = new HashSet<>();
+        AABB searchArea = calculateSearchArea(targets);
+        if (serverLevel != null && (teleportDrops || teleportExp || config.harvestReplant)) {
+            if (teleportDrops || config.harvestReplant) {
+                for (ItemEntity entity : serverLevel.getEntitiesOfClass(ItemEntity.class, searchArea)) {
+                    existingEntityIds.add(entity.getId());
+                }
+            }
+            if (teleportExp) {
+                for (ExperienceOrb entity : serverLevel.getEntitiesOfClass(ExperienceOrb.class, searchArea)) {
+                    existingExperienceIds.add(entity.getId());
+                }
+            }
+        }
         
         for (BlockPos pos : targets) {
+            if (!level.hasChunkAt(pos)) {
+                continue;
+            }
+
             BlockState state = level.getBlockState(pos);
-            if (!isMatureCrop(state)) continue;
-            
-            // 权限检查
-            if (!context.isSkipPermissionCheck()) {
-                if (!PlatformServices.getInstance().canPlayerBreakBlock(player, level, pos, state)) {
-                    continue;
+            if (!isMatchingHarvestTarget(
+                    context,
+                    state,
+                    activeHarvestingRule,
+                    player.getItemInHand(hand)
+            )) {
+                if (pos.equals(context.getOriginPos())) {
+                    stopReason = StopReason.PERMISSION_DENIED;
+                    break;
+                }
+                continue;
+            }
+            if (chargesHunger
+                    && !canConsumeHunger(player, hungerPerBlock, config.minHungerLevel)) {
+                stopReason = StopReason.HUNGER_LOW;
+                break;
+            }
+
+            boolean berryHarvest = state.getBlock() instanceof SweetBerryBushBlock;
+            // ServerPlayerGameMode#destroyBlock always uses the main hand.
+            InteractionHand actionHand = berryHarvest ? hand : InteractionHand.MAIN_HAND;
+            ItemStack toolBefore = player.getItemInHand(actionHand).copy();
+            if (config.consumeDurability && config.stopOnLowDurability
+                    && !context.isCreativeMode() && toolBefore.isDamageableItem()) {
+                int remaining = toolBefore.getMaxDamage() - toolBefore.getDamageValue();
+                if (remaining <= config.preserveDurability) {
+                    stopReason = StopReason.TOOL_DURABILITY_LOW;
+                    break;
                 }
             }
-            
-            // 获取掉落物（在方块被移除之前）
-            List<ItemStack> drops = new ArrayList<>(
-                    Block.getDrops(state, (ServerLevel) level, pos, level.getBlockEntity(pos))
-            );
-            
-            // 移除方块（不触发自然掉落）
-            level.removeBlock(pos, false);
-            
-            // 尝试补种
-            if (config.harvestReplant) {
-                tryReplant(level, pos, state, drops);
-            }
-            
-            // 处理掉落物
-            allCollectedDrops.addAll(drops.stream().map(ItemStack::copy).toList());
-            if (config.teleportDrops) {
-                for (ItemStack drop : drops) {
-                    if (!drop.isEmpty()) {
-                        if (!player.getInventory().add(drop)) {
-                            Block.popResource(level, player.blockPosition(), drop);
-                        }
-                    }
-                }
+
+            boolean success;
+            if (berryHarvest) {
+                success = simulateItemUse(
+                        context,
+                        pos,
+                        player.getItemInHand(hand)
+                ) && !level.getBlockState(pos).equals(state);
             } else {
-                for (ItemStack drop : drops) {
-                    if (!drop.isEmpty()) {
-                        Block.popResource(level, pos, drop);
-                    }
-                }
+                // ServerPlayerGameMode is authoritative: protection, loot,
+                // experience and loader break hooks all run once.
+                success = PlatformServices.getInstance().simulateBlockBreak(player, level, pos);
             }
-            
-            harvestedPositions.add(pos);
-            
-            // 计算饥饿消耗
-            if (!context.isCreativeMode()) {
-                exhaustion += config.hungerPerBlock;
+
+            ItemStack toolAfter = player.getItemInHand(actionHand);
+            if (!config.consumeDurability && !context.isCreativeMode()) {
+                restoreDurability(player, actionHand, toolBefore);
+                toolAfter = player.getItemInHand(actionHand);
+            }
+
+            if (!success && pos.equals(context.getOriginPos())) {
+                stopReason = StopReason.PERMISSION_DENIED;
+                break;
+            }
+            if (!success) {
+                continue;
+            }
+
+            if (config.harvestReplant && serverLevel != null
+                    && !berryHarvest) {
+                tryReplantAfterBreak(serverLevel, pos, state, player, existingEntityIds);
+            }
+
+            harvestedPositions.add(pos.immutable());
+            if (!context.isCreativeMode() && config.consumeDurability) {
+                durabilityUsed += calculateDurabilityDelta(toolBefore, toolAfter);
+            }
+            if (chargesHunger
+                    && consumeHunger(player, hungerPerBlock, config.minHungerLevel)) {
+                hungerUsed += hungerPerBlock;
+            } else if (chargesHunger) {
+                stopReason = StopReason.HUNGER_LOW;
+                break;
+            }
+            if (!toolBefore.isEmpty() && player.getItemInHand(actionHand).isEmpty()) {
+                stopReason = StopReason.TOOL_BROKEN;
+                break;
             }
         }
-        
-        // 施加饥饿消耗
-        if (exhaustion > 0) {
-            player.causeFoodExhaustion(exhaustion);
+
+        List<ItemStack> collectedDrops = Collections.emptyList();
+        int experienceCollected = 0;
+        if (serverLevel != null && !harvestedPositions.isEmpty()) {
+            AABB harvestedArea = calculateSearchArea(harvestedPositions);
+            if (teleportDrops) {
+                collectedDrops = collectAndTeleportDrops(
+                        serverLevel,
+                        player,
+                        harvestedArea,
+                        existingEntityIds
+                );
+            }
+            if (teleportExp) {
+                experienceCollected = collectAndTeleportExp(
+                        serverLevel,
+                        player,
+                        harvestedArea,
+                        existingExperienceIds
+                );
+            }
         }
-        
+
         ChainActionResult result = ChainActionResult.success(
                 ChainActionType.HARVESTING,
                 harvestedPositions,
-                0,
-                exhaustion,
+                durabilityUsed,
+                hungerUsed,
                 stopReason,
-                allCollectedDrops,
-                (int) exhaustion
+                collectedDrops,
+                experienceCollected
         );
-        
-        PostActionEvent postEvent = new PostActionEvent(
+        ChainEvents.firePostActionEvent(new PostActionEvent(
                 player,
                 level,
                 context.getOriginPos(),
                 result
-        );
-        ChainEvents.firePostActionEvent(postEvent);
-        
+        ));
         return result;
+    }
+
+    private static Entity findOriginEntity(ChainActionContext context) {
+        UUID entityId = context.getOriginEntityId();
+        if (entityId == null || !(context.getLevel() instanceof ServerLevel serverLevel)) {
+            return null;
+        }
+        return serverLevel.getEntity(entityId);
+    }
+
+    private static boolean isReadyShearable(Entity entity) {
+        return entity instanceof Shearable shearable
+                && shearable.readyForShearing()
+                && entity.isAlive();
+    }
+
+    private static boolean isSameCapturedItem(
+            ChainActionContext context,
+            ItemStack current
+    ) {
+        return current != null
+                && !current.isEmpty()
+                && ItemStack.isSameItem(context.getHeldItem(), current);
+    }
+
+    private static boolean isNativeTransformTool(ItemStack stack) {
+        Item item = stack.getItem();
+        return item instanceof HoeItem
+                || item instanceof AxeItem
+                || item instanceof ShovelItem;
+    }
+
+    private static boolean hasReadyShearableAt(
+            ChainActionContext context,
+            BlockPos pos,
+            OneKeyMinerAPI.ToolActionRule activeRule
+    ) {
+        AABB searchBox = new AABB(pos).inflate(1.5);
+        ItemStack heldItem = context.getHeldItem();
+        List<Entity> matches = new ArrayList<>(1);
+        context.getLevel().getEntities(
+                EntityTypeTest.forClass(Entity.class),
+                searchBox,
+                entity -> entity.blockPosition().equals(pos)
+                        && isReadyShearable(entity)
+                        && matchesActiveEntityRule(activeRule, heldItem, entity),
+                matches,
+                1
+        );
+        return !matches.isEmpty();
     }
     
     /**
      * 尝试补种作物
      * 
-     * <p>从掉落物中取出一个种子用于补种，并将方块重新放置为初始状态</p>
+     * <p>从本次掉落或背包预留一个种子，再走服务端原版物品使用路径补种。
+     * 这样放置保护事件能够取消操作；失败时种子会退回玩家背包。</p>
      */
-    private static void tryReplant(Level level, BlockPos pos, BlockState harvestedState, List<ItemStack> drops) {
+    private static void tryReplantAfterBreak(
+            ServerLevel level,
+            BlockPos pos,
+            BlockState harvestedState,
+            ServerPlayer player,
+            Set<Integer> existingEntityIds
+    ) {
         Block block = harvestedState.getBlock();
-        
-        if (block instanceof CropBlock cropBlock) {
-            Item seedItem = findSeedForCrop(cropBlock, drops);
-            if (seedItem != null && removeItemFromDrops(seedItem, drops)) {
-                level.setBlock(pos, cropBlock.defaultBlockState(), Block.UPDATE_ALL);
-            }
+        Item seedItem;
+        BlockPos clickedPos;
+        Direction clickedFace;
+
+        if (block instanceof CropBlock crop) {
+            seedItem = findSeedForCrop(crop);
+            clickedPos = pos.below();
+            clickedFace = Direction.UP;
         } else if (block instanceof NetherWartBlock) {
-            if (removeItemFromDrops(Items.NETHER_WART, drops)) {
-                level.setBlock(pos, block.defaultBlockState(), Block.UPDATE_ALL);
-            }
-        } else if (block instanceof SweetBerryBushBlock) {
-            if (removeItemFromDrops(Items.SWEET_BERRIES, drops)) {
-                level.setBlock(pos, block.defaultBlockState().setValue(SweetBerryBushBlock.AGE, 1), Block.UPDATE_ALL);
-            }
+            seedItem = Items.NETHER_WART;
+            clickedPos = pos.below();
+            clickedFace = Direction.UP;
         } else if (block instanceof CocoaBlock) {
-            if (removeItemFromDrops(Items.COCOA_BEANS, drops)) {
-                level.setBlock(pos, harvestedState.setValue(CocoaBlock.AGE, 0), Block.UPDATE_ALL);
-            }
+            seedItem = Items.COCOA_BEANS;
+            Direction supportDirection = harvestedState.getValue(CocoaBlock.FACING);
+            clickedPos = pos.relative(supportDirection);
+            clickedFace = supportDirection.getOpposite();
+        } else {
+            return;
+        }
+
+        if (seedItem == null
+                || seedItem == Items.AIR
+                || OneKeyMinerAPI.isSeedBlacklisted(seedItem)) {
+            return;
+        }
+
+        boolean creative = player.isCreative();
+        if (!creative
+                && !consumeNewDropOrInventory(
+                        level,
+                        pos,
+                        player,
+                        seedItem,
+                        existingEntityIds
+                )) {
+            return;
+        }
+
+        ItemStack previousMainHand = player.getMainHandItem();
+        ItemStack plantingStack = new ItemStack(seedItem);
+        Vec3 hitLocation = Vec3.atCenterOf(clickedPos).add(
+                clickedFace.getStepX() * 0.5d,
+                clickedFace.getStepY() * 0.5d,
+                clickedFace.getStepZ() * 0.5d
+        );
+        BlockHitResult hitResult = new BlockHitResult(
+                hitLocation,
+                clickedFace,
+                clickedPos,
+                false
+        );
+
+        boolean accepted;
+        try {
+            player.setItemInHand(InteractionHand.MAIN_HAND, plantingStack);
+            accepted = PlatformServices.getInstance().simulateItemUseOnBlock(
+                    player,
+                    level,
+                    hitResult,
+                    InteractionHand.MAIN_HAND,
+                    plantingStack
+            );
+        } finally {
+            player.setItemInHand(InteractionHand.MAIN_HAND, previousMainHand);
+        }
+
+        BlockState plantedState = level.getBlockState(pos);
+        boolean planted = accepted && plantedState.getBlock() == block;
+        if (planted && block instanceof CropBlock crop) {
+            planted = crop.getAge(plantedState) == 0;
+        } else if (planted && block instanceof NetherWartBlock) {
+            planted = plantedState.getValue(NetherWartBlock.AGE) == 0;
+        } else if (planted && block instanceof CocoaBlock) {
+            planted = plantedState.getValue(CocoaBlock.AGE) == 0
+                    && plantedState.getValue(CocoaBlock.FACING)
+                    == harvestedState.getValue(CocoaBlock.FACING);
+        }
+
+        if (!planted
+                && !creative
+                && plantingStack.is(seedItem)
+                && !plantingStack.isEmpty()) {
+            player.getInventory().placeItemBackInInventory(new ItemStack(seedItem));
         }
     }
     
     /**
      * 查找作物对应的种子物品
      * 
-     * <p>优先检查掉落物中是否有该作物的种子（BlockItem → CropBlock 匹配），
-     * 如果找不到则查找任意可种植物品作为后备</p>
+     * <p>CropBlock 的注册物品就是原版种植使用的种子/作物物品。</p>
      */
-    private static Item findSeedForCrop(CropBlock cropBlock, List<ItemStack> drops) {
-        // 优先：检查掉落物中是否有直接对应的 BlockItem
-        for (ItemStack drop : drops) {
-            if (drop.getItem() instanceof BlockItem blockItem && blockItem.getBlock() == cropBlock) {
-                return drop.getItem();
-            }
-        }
-        // 后备：查找任意可种植物品
-        for (ItemStack drop : drops) {
-            if (!drop.isEmpty() && isPlantableItem(drop)) {
-                return drop.getItem();
-            }
-        }
-        return null;
+    private static Item findSeedForCrop(CropBlock crop) {
+        Item blockItem = crop.asItem();
+        return blockItem != Items.AIR ? blockItem : null;
     }
     
     /**
@@ -1843,12 +2838,41 @@ public final class ChainActionLogic {
      * 
      * @return 是否成功移除
      */
-    private static boolean removeItemFromDrops(Item item, List<ItemStack> drops) {
-        for (int i = 0; i < drops.size(); i++) {
-            if (drops.get(i).getItem() == item) {
-                drops.get(i).shrink(1);
-                if (drops.get(i).isEmpty()) {
-                    drops.remove(i);
+    private static boolean consumeNewDropOrInventory(
+            ServerLevel level,
+            BlockPos pos,
+            ServerPlayer player,
+            Item item,
+            Set<Integer> existingEntityIds
+    ) {
+        AABB area = new AABB(pos).inflate(1.5);
+        List<ItemEntity> drops = level.getEntitiesOfClass(
+                ItemEntity.class,
+                area,
+                entity -> !existingEntityIds.contains(entity.getId())
+                        && entity.isAlive()
+                        && entity.getItem().is(item)
+        );
+        for (ItemEntity entity : drops) {
+            ItemStack stack = entity.getItem();
+            if (stack.isEmpty()) {
+                continue;
+            }
+            stack.shrink(1);
+            if (stack.isEmpty()) {
+                entity.discard();
+            } else {
+                entity.setItem(stack);
+            }
+            return true;
+        }
+
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            if (stack.is(item) && !stack.isEmpty()) {
+                stack.shrink(1);
+                if (stack.isEmpty()) {
+                    player.getInventory().setItem(slot, ItemStack.EMPTY);
                 }
                 return true;
             }
@@ -1857,6 +2881,113 @@ public final class ChainActionLogic {
     }
     
     // ==================== 工具方法 ====================
+
+    /**
+     * Re-applies server-owned bounds after shape and API callbacks.
+     */
+    private static List<BlockPos> sanitizeTargets(
+            ChainActionContext context,
+            List<BlockPos> candidates,
+            MinerConfig config
+    ) {
+        return sanitizeTargets(
+                context,
+                candidates,
+                getMaxTargetCount(context, config),
+                getMaxTargetDistance(context, config),
+                ignored -> true
+        );
+    }
+
+    private static List<BlockPos> sanitizeTargets(
+            ChainActionContext context,
+            Collection<BlockPos> candidates,
+            int maxCount,
+            int maxDistance,
+            java.util.function.Predicate<BlockPos> validator
+    ) {
+        return sanitizeTargets(
+                context,
+                candidates,
+                maxCount,
+                maxDistance,
+                validator,
+                false
+        );
+    }
+
+    private static List<BlockPos> sanitizeTargets(
+            ChainActionContext context,
+            Collection<BlockPos> candidates,
+            int maxCount,
+            int maxDistance,
+            java.util.function.Predicate<BlockPos> validator,
+            boolean preserveDuplicates
+    ) {
+        if (candidates == null || candidates.isEmpty() || maxCount <= 0) {
+            return List.of();
+        }
+
+        Level level = context.getLevel();
+        BlockPos origin = context.getOriginPos();
+        List<BlockPos> result = new ArrayList<>();
+        Set<BlockPos> seen = preserveDuplicates ? null : new LinkedHashSet<>();
+        int inspected = 0;
+        int inspectionLimit = Math.min(40_960, Math.max(256, maxCount * 4));
+
+        for (BlockPos pos : candidates) {
+            if (++inspected > inspectionLimit) {
+                break;
+            }
+            if (pos == null) {
+                continue;
+            }
+            long dx = Math.abs((long) pos.getX() - origin.getX());
+            long dy = Math.abs((long) pos.getY() - origin.getY());
+            long dz = Math.abs((long) pos.getZ() - origin.getZ());
+            if (Math.max(dx, Math.max(dy, dz)) > maxDistance
+                    || !level.hasChunkAt(pos)
+                    || !validator.test(pos)) {
+                continue;
+            }
+            BlockPos immutablePos = pos.immutable();
+            if (seen != null && !seen.add(immutablePos)) {
+                continue;
+            }
+            result.add(immutablePos);
+            if (result.size() >= maxCount) {
+                break;
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    /**
+     * The clicked target is the authorization gate for a derived interaction.
+     * API listeners may filter it out, in which case the chain must not act on
+     * neighboring targets. If they only reorder it, restore it to the front.
+     */
+    private static List<BlockPos> requireOriginFirst(
+            ChainActionContext context,
+            List<BlockPos> targets
+    ) {
+        return OriginDispatchPolicy.authorizeAndOrder(
+                context.getOriginPos(),
+                targets,
+                context.isOriginAlreadyHandled()
+        );
+    }
+
+    private static int getMaxTargetCount(ChainActionContext context, MinerConfig config) {
+        int configured = context.isCreativeMode() ? config.maxBlocksCreative : config.maxBlocks;
+        int requested = context.getMaxCount() > 0 ? context.getMaxCount() : configured;
+        return Math.max(0, Math.min(requested, 10_240));
+    }
+
+    private static int getMaxTargetDistance(ChainActionContext context, MinerConfig config) {
+        int requested = context.getMaxDistance() > 0 ? context.getMaxDistance() : config.maxDistance;
+        return Math.max(0, Math.min(requested, 128));
+    }
     
     /**
      * 检查激活条件
@@ -1866,7 +2997,8 @@ public final class ChainActionLogic {
         ServerPlayer player = context.getPlayer();
         
         // 只检查按键按住状态
-        return MiningStateManager.isHoldingKey(player);
+        return context.isActivationVerified()
+                || MiningStateManager.isHoldingKey(player);
     }
     
     /**

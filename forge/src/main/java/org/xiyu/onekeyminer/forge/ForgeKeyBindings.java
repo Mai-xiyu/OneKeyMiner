@@ -44,6 +44,9 @@ public class ForgeKeyBindings {
     );
 
     private static boolean wasKeyDown = false;
+    private static boolean wasConnected = false;
+    private static boolean syncPending = true;
+    private static int syncRetryDelay;
 
     public static void register() {
         OneKeyMiner.LOGGER.debug("Forge key bindings initialized");
@@ -70,12 +73,26 @@ public class ForgeKeyBindings {
         ChainPreviewHud.render(event.getGuiGraphics());
     }
 
+    public static void sendCurrentPreferences() {
+        boolean sent = ForgeClientNetworking.trySyncPreferences(CHAIN_MINING_KEY.isDown());
+        syncPending = !sent;
+        syncRetryDelay = sent ? 0 : 20;
+        if (sent) {
+            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        }
+    }
+
     @Mod.EventBusSubscriber(modid = OneKeyMiner.MOD_ID, value = Dist.CLIENT)
     public static class Events {
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent.Post event) {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player == null) {
+            boolean connected = minecraft.player != null && minecraft.getConnection() != null;
+            if (!connected) {
+                wasConnected = false;
+                wasKeyDown = false;
+                syncPending = true;
+                syncRetryDelay = 0;
                 return;
             }
 
@@ -85,14 +102,24 @@ public class ForgeKeyBindings {
 
             boolean isKeyDown = CHAIN_MINING_KEY.isDown();
 
-            if (isKeyDown != wasKeyDown) {
-                wasKeyDown = isKeyDown;
-                if (minecraft.getConnection() != null) {
-                    try {
-                        ForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
-                    } catch (Exception e) {
-                        OneKeyMiner.LOGGER.debug("Failed to send Forge key state: {}", e.getMessage());
-                    }
+            if (!wasConnected) {
+                wasConnected = true;
+                syncPending = true;
+                syncRetryDelay = 0;
+            }
+
+            if (syncPending) {
+                if (syncRetryDelay > 0) {
+                    syncRetryDelay--;
+                } else {
+                    sendCurrentPreferences();
+                }
+            } else if (isKeyDown != wasKeyDown) {
+                if (ForgeClientNetworking.trySyncPreferences(isKeyDown)) {
+                    wasKeyDown = isKeyDown;
+                } else {
+                    syncPending = true;
+                    syncRetryDelay = 20;
                 }
             }
 
