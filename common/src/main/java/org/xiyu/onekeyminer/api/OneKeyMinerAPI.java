@@ -21,6 +21,8 @@ import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * OneKeyMiner 公共 API
@@ -57,31 +59,31 @@ import java.util.*;
 public final class OneKeyMinerAPI {
     
     /** 运行时方块白名单 */
-    private static final Set<ResourceLocation> BLOCK_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> BLOCK_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时方块黑名单 */
-    private static final Set<ResourceLocation> BLOCK_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> BLOCK_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时方块标签白名单 */
-    private static final Set<TagKey<Block>> BLOCK_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Block>> BLOCK_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时方块标签黑名单 */
-    private static final Set<TagKey<Block>> BLOCK_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Block>> BLOCK_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具白名单 */
-    private static final Set<ResourceLocation> TOOL_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> TOOL_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具黑名单 */
-    private static final Set<ResourceLocation> TOOL_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> TOOL_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具标签白名单 */
-    private static final Set<TagKey<Item>> TOOL_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Item>> TOOL_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具标签黑名单 */
-    private static final Set<TagKey<Item>> TOOL_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Item>> TOOL_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 方块分组映射（用于宽松匹配） */
-    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new HashMap<>();;
+    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new ConcurrentHashMap<>();
     
     private OneKeyMinerAPI() {
         // 私有构造函数，防止实例化
@@ -344,7 +346,7 @@ public final class OneKeyMinerAPI {
      */
     public static void addBlockToGroup(String blockId, String groupId) {
         ResourceLocation loc = ResourceLocation.tryParse(blockId);
-        if (loc != null) {
+        if (loc != null && groupId != null) {
             BLOCK_GROUPS.put(loc, groupId);
         }
     }
@@ -401,25 +403,26 @@ public final class OneKeyMinerAPI {
     // ==================== 交互工具 API ====================
     
     /** 交互工具白名单 */
-    private static final Set<ResourceLocation> INTERACTION_TOOL_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTION_TOOL_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 交互工具黑名单 */
-    private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 交互工具标签白名单 */
-    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 交互工具标签黑名单 */
-    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 通用交互物品白名单（骨粉、刷子等消耗型交互物品） */
-    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 通用交互物品黑名单 */
-    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 自定义交互验证器 */
-    private static final List<java.util.function.BiPredicate<ItemStack, BlockState>> INTERACTION_VALIDATORS = new ArrayList<>();
+    private static final List<java.util.function.BiPredicate<ItemStack, BlockState>> INTERACTION_VALIDATORS =
+            new CopyOnWriteArrayList<>();
     
     /**
      * 注册交互工具到白名单
@@ -518,7 +521,7 @@ public final class OneKeyMinerAPI {
     // ==================== 自定义工具动作规则 ======================================
 
     /** 自定义工具动作规则 */
-    private static final List<ToolActionRule> TOOL_ACTION_RULES = new ArrayList<>();
+    private static final List<ToolActionRule> TOOL_ACTION_RULES = new CopyOnWriteArrayList<>();
 
     /**
      * 目标类型（方块或实体）
@@ -794,16 +797,16 @@ public final class OneKeyMinerAPI {
     // ==================== 种植物品 API ====================
     
     /** 种植物品白名单 */
-    private static final Set<ResourceLocation> PLANTABLE_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> PLANTABLE_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 种植物品黑名单 */
-    private static final Set<ResourceLocation> PLANTABLE_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> PLANTABLE_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 种植物品标签白名单 */
-    private static final Set<TagKey<Item>> PLANTABLE_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Item>> PLANTABLE_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 种植物品标签黑名单 */
-    private static final Set<TagKey<Item>> PLANTABLE_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Item>> PLANTABLE_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /**
      * 注册可种植物品
@@ -941,6 +944,12 @@ public final class OneKeyMinerAPI {
         if (BLOCK_BLACKLIST.contains(loc)) {
             return false;
         }
+
+        for (TagKey<Block> tag : BLOCK_TAG_BLACKLIST) {
+            if (block.defaultBlockState().is(tag)) {
+                return false;
+            }
+        }
         
         // 如果开启了"挖掘所有方块"模式，不在黑名单中的方块都允许
         if (config.mineAllBlocks) {
@@ -1030,7 +1039,7 @@ public final class OneKeyMinerAPI {
      * @return 方块白名单的不可变集合
      */
     public static Set<ResourceLocation> getBlockWhitelist() {
-        return Collections.unmodifiableSet(BLOCK_WHITELIST);
+        return Set.copyOf(BLOCK_WHITELIST);
     }
     
     /**
@@ -1039,7 +1048,7 @@ public final class OneKeyMinerAPI {
      * @return 方块黑名单的不可变集合
      */
     public static Set<ResourceLocation> getBlockBlacklist() {
-        return Collections.unmodifiableSet(BLOCK_BLACKLIST);
+        return Set.copyOf(BLOCK_BLACKLIST);
     }
     
     /**
@@ -1063,6 +1072,7 @@ public final class OneKeyMinerAPI {
         INTERACTION_TOOL_TAG_BLACKLIST.clear();
         INTERACTIVE_ITEM_WHITELIST.clear();
         INTERACTIVE_ITEM_BLACKLIST.clear();
+        TOOL_ACTION_RULES.clear();
         PLANTABLE_WHITELIST.clear();
         PLANTABLE_BLACKLIST.clear();
         PLANTABLE_TAG_WHITELIST.clear();

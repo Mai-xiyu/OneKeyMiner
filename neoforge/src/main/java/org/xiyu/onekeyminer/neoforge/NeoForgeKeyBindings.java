@@ -9,29 +9,32 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RenderGuiOverlayEvent;
 import net.neoforged.neoforge.client.gui.overlay.VanillaGuiOverlay;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TickEvent;
 import org.lwjgl.glfw.GLFW;
-import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
+/** NeoForge physical-client key bindings and connection state. */
 @OnlyIn(Dist.CLIENT)
-public class NeoForgeKeyBindings {
+public final class NeoForgeKeyBindings {
+
     public static KeyMapping CHAIN_MINING_KEY;
     public static KeyMapping OPEN_CONFIG;
 
-    private static boolean wasKeyDown = false;
+    private static boolean wasKeyDown;
+
+    private NeoForgeKeyBindings() {
+    }
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
             return;
         }
-
         CHAIN_MINING_KEY = new KeyMapping(
                 "key.onekeyminer.hold",
                 InputConstants.Type.KEYSYM,
@@ -47,16 +50,22 @@ public class NeoForgeKeyBindings {
 
         NeoForge.EVENT_BUS.addListener(NeoForgeKeyBindings::onClientTick);
         NeoForge.EVENT_BUS.addListener(NeoForgeKeyBindings::onRenderGui);
-        OneKeyMiner.LOGGER.debug("Registered NeoForge key bindings");
+        NeoForge.EVENT_BUS.addListener(NeoForgeKeyBindings::onClientLogin);
+        NeoForge.EVENT_BUS.addListener(NeoForgeKeyBindings::onClientLogout);
     }
 
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
-        if (CHAIN_MINING_KEY == null) {
-            register();
-        }
+        register();
         event.register(CHAIN_MINING_KEY);
         event.register(OPEN_CONFIG);
-        OneKeyMiner.LOGGER.debug("Registered NeoForge key mappings");
+    }
+
+    public static boolean isChainKeyDown() {
+        return CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
+    }
+
+    public static void resetConnectionState() {
+        wasKeyDown = false;
     }
 
     private static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -65,35 +74,43 @@ public class NeoForgeKeyBindings {
             return;
         }
 
-        if (OPEN_CONFIG != null && OPEN_CONFIG.consumeClick()) {
+        if (OPEN_CONFIG.consumeClick()) {
             minecraft.setScreen(NeoForgeConfigScreen.createConfigScreen(minecraft.screen));
         }
 
-        if (CHAIN_MINING_KEY == null) {
-            return;
-        }
-
-        boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-        if (isKeyDown != wasKeyDown) {
-            wasKeyDown = isKeyDown;
-            if (minecraft.getConnection() != null) {
-                NeoForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
-            }
+        boolean keyDown = CHAIN_MINING_KEY.isDown();
+        if (keyDown != wasKeyDown) {
+            wasKeyDown = keyDown;
+            NeoForgeClientSetup.sendCurrentState();
         }
 
         BlockPos lookingAt = null;
-        if (minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
+        if (minecraft.hitResult != null
+                && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
             lookingAt = ((BlockHitResult) minecraft.hitResult).getBlockPos();
         }
-
-        Direction playerFacing = minecraft.player.getDirection();
-        float playerPitch = minecraft.player.getXRot();
-        ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
+        Direction facing = minecraft.player.getDirection();
+        ChainPreviewManager.getInstance().tick(
+                minecraft.level,
+                lookingAt,
+                facing,
+                minecraft.player.getXRot(),
+                keyDown
+        );
     }
 
     private static void onRenderGui(RenderGuiOverlayEvent.Post event) {
         if (event.getOverlay().id().equals(VanillaGuiOverlay.HOTBAR.id())) {
             ChainPreviewHud.render(event.getGuiGraphics());
         }
+    }
+
+    private static void onClientLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+        resetConnectionState();
+        NeoForgeClientSetup.sendCurrentState();
+    }
+
+    private static void onClientLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+        resetConnectionState();
     }
 }

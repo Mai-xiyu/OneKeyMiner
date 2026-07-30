@@ -28,8 +28,8 @@ public class AmorphousShape implements ChainShape {
     };
 
     private static final BlockPos[] DIAGONAL_OFFSETS;
-    private static final long TIMEOUT_MS = 2000;
-    private static final int MAX_ITERATIONS = 10000;
+    private static final long TIMEOUT_MS = 100;
+    private static final int MAX_ITERATIONS = 4096;
 
     static {
         List<BlockPos> offsets = new ArrayList<>();
@@ -67,10 +67,16 @@ public class AmorphousShape implements ChainShape {
         int maxDistance = context.getMaxDistance();
         BlockPos[] offsets = context.isAllowDiagonal() ? DIAGONAL_OFFSETS : ORTHOGONAL_OFFSETS;
 
+        if (!level.hasChunkAt(originPos)) {
+            return result;
+        }
+
         visited.add(originPos);
         for (BlockPos offset : offsets) {
             BlockPos neighbor = originPos.offset(offset);
-            if (visited.add(neighbor)) {
+            if (neighbor.distManhattan(originPos) <= maxDistance
+                    && level.hasChunkAt(neighbor)
+                    && visited.add(neighbor)) {
                 BlockState neighborState = level.getBlockState(neighbor);
                 if (context.isMatchingBlock(neighborState)) {
                     queue.add(neighbor);
@@ -80,7 +86,8 @@ public class AmorphousShape implements ChainShape {
 
         long start = System.currentTimeMillis();
         int iterations = 0;
-        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
+        int scanBudget = calculateScanBudget(maxBlocks);
+        while (!queue.isEmpty() && result.size() < maxBlocks && iterations < scanBudget) {
             if (System.currentTimeMillis() - start > TIMEOUT_MS) {
                 break;
             }
@@ -93,7 +100,9 @@ public class AmorphousShape implements ChainShape {
 
             for (BlockPos offset : offsets) {
                 BlockPos neighbor = current.offset(offset);
-                if (neighbor.distManhattan(originPos) <= maxDistance && visited.add(neighbor)) {
+                if (neighbor.distManhattan(originPos) <= maxDistance
+                        && level.hasChunkAt(neighbor)
+                        && visited.add(neighbor)) {
                     BlockState neighborState = level.getBlockState(neighbor);
                     if (context.isMatchingBlock(neighborState)) {
                         queue.add(neighbor);
@@ -102,5 +111,10 @@ public class AmorphousShape implements ChainShape {
             }
         }
         return result;
+    }
+
+    private static int calculateScanBudget(int maxResults) {
+        long requested = Math.max(64L, (long) Math.max(1, maxResults) * 4L);
+        return (int) Math.min(MAX_ITERATIONS, requested);
     }
 }

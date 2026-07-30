@@ -69,7 +69,11 @@ public class FabricConfigScreen extends Screen {
         
         this.addRenderableWidget(Button.builder(
             Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
-            button -> { ConfigManager.updateConfig(configCopy); this.onClose(); }
+            button -> {
+                ConfigManager.updateConfig(configCopy);
+                KeyBindings.sendCurrentState();
+                this.onClose();
+            }
         ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
         
         this.addRenderableWidget(Button.builder(
@@ -236,6 +240,13 @@ public class FabricConfigScreen extends Screen {
     public void render(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+        guiGraphics.drawCenteredString(
+                this.font,
+                Component.literal("Dedicated-server global settings are controlled by the server config"),
+                this.width / 2,
+                24,
+                0xAAAAAA
+        );
         guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
     }
 }

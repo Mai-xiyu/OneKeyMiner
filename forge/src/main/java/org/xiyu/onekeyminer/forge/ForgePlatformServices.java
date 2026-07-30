@@ -19,9 +19,7 @@ import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Forge 平台服务实现
@@ -35,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ForgePlatformServices implements PlatformServices {
     
     /** 玩家链式模式状态存储 */
-    private static final Map<UUID, Boolean> CHAIN_MODE_STATES = new ConcurrentHashMap<>();
+
     
     @Override
     public String getPlatformName() {
@@ -144,17 +142,13 @@ public class ForgePlatformServices implements PlatformServices {
     @Override
     public boolean isChainModeActive(ServerPlayer player) {
         // 始终使用按住按键激活模式，检查状态存储
-        return CHAIN_MODE_STATES.getOrDefault(player.getUUID(), false);
+        return org.xiyu.onekeyminer.mining.MiningStateManager.isHoldingKey(player);
     }
     
     @Override
     public void setChainModeActive(ServerPlayer player, boolean active) {
         // 设置链式模式状态
-        if (active) {
-            CHAIN_MODE_STATES.put(player.getUUID(), true);
-        } else {
-            CHAIN_MODE_STATES.remove(player.getUUID());
-        }
+
         // 同时更新 MiningStateManager 的按键状态（用于 MiningLogic 检查）
         org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
     }
@@ -189,7 +183,6 @@ public class ForgePlatformServices implements PlatformServices {
      * @param playerId 玩家 UUID
      */
     public static void cleanupPlayer(UUID playerId) {
-        CHAIN_MODE_STATES.remove(playerId);
-        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(playerId, false);
+        org.xiyu.onekeyminer.mining.MiningStateManager.clearState(playerId);
     }
 }

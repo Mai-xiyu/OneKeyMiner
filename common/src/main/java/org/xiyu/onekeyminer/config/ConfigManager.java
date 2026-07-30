@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -25,7 +26,8 @@ public class ConfigManager {
             .create();
 
     private static final AtomicReference<MinerConfig> CONFIG = new AtomicReference<>(new MinerConfig());
-    private static final List<ConfigChangeListener> LISTENERS = new ArrayList<>();
+    private static final List<ConfigChangeListener> LISTENERS =
+            new CopyOnWriteArrayList<>();
 
     public static void load() {
         Path configPath = getConfigPath();

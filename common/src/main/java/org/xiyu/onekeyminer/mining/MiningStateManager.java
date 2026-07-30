@@ -22,11 +22,15 @@ public class MiningStateManager {
     }
 
     public static void setHoldingKey(ServerPlayer player, boolean holding) {
-        PLAYER_KEY_STATES.put(player.getUUID(), holding);
+        setHoldingKey(player.getUUID(), holding);
     }
 
     public static void setHoldingKey(UUID uuid, boolean holding) {
-        PLAYER_KEY_STATES.put(uuid, holding);
+        if (holding) {
+            PLAYER_KEY_STATES.put(uuid, true);
+        } else {
+            PLAYER_KEY_STATES.remove(uuid);
+        }
     }
 
     public static boolean isActivated(ServerPlayer player) {
@@ -34,7 +38,11 @@ public class MiningStateManager {
     }
 
     public static void setActivated(ServerPlayer player, boolean activated) {
-        PLAYER_STATES.put(player.getUUID(), activated);
+        if (activated) {
+            PLAYER_STATES.put(player.getUUID(), true);
+        } else {
+            PLAYER_STATES.remove(player.getUUID());
+        }
     }
 
     public static boolean toggle(ServerPlayer player) {
@@ -72,28 +80,39 @@ public class MiningStateManager {
     }
 
     public static void setTeleportDrops(ServerPlayer player, boolean enabled) {
-        PLAYER_TELEPORT_DROPS.put(player.getUUID(), enabled);
+        setTeleportDrops(player.getUUID(), enabled);
     }
 
     public static void setTeleportDrops(UUID uuid, boolean enabled) {
-        PLAYER_TELEPORT_DROPS.put(uuid, enabled);
+        if (enabled) {
+            PLAYER_TELEPORT_DROPS.put(uuid, true);
+        } else {
+            PLAYER_TELEPORT_DROPS.remove(uuid);
+        }
     }
 
     public static void setTeleportExp(ServerPlayer player, boolean enabled) {
-        PLAYER_TELEPORT_EXP.put(player.getUUID(), enabled);
+        setTeleportExp(player.getUUID(), enabled);
     }
 
     public static void setTeleportExp(UUID uuid, boolean enabled) {
-        PLAYER_TELEPORT_EXP.put(uuid, enabled);
+        if (enabled) {
+            PLAYER_TELEPORT_EXP.put(uuid, true);
+        } else {
+            PLAYER_TELEPORT_EXP.remove(uuid);
+        }
     }
 
     public static void clearState(ServerPlayer player) {
-        UUID uuid = player.getUUID();
-        PLAYER_STATES.remove(uuid);
-        PLAYER_KEY_STATES.remove(uuid);
-        PLAYER_SHAPES.remove(uuid);
-        PLAYER_TELEPORT_DROPS.remove(uuid);
-        PLAYER_TELEPORT_EXP.remove(uuid);
+        clearState(player.getUUID());
+    }
+
+    public static void clearState(UUID playerId) {
+        PLAYER_STATES.remove(playerId);
+        PLAYER_KEY_STATES.remove(playerId);
+        PLAYER_SHAPES.remove(playerId);
+        PLAYER_TELEPORT_DROPS.remove(playerId);
+        PLAYER_TELEPORT_EXP.remove(playerId);
     }
 
     public static void clearAll() {

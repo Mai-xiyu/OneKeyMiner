@@ -3,108 +3,102 @@ package org.xiyu.onekeyminer.forge;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
-import net.minecraftforge.client.settings.IKeyConflictContext;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
-import java.lang.reflect.Method;
+/** Forge physical-client key bindings and connection state. */
+public final class ForgeKeyBindings {
 
-@OnlyIn(Dist.CLIENT)
-public class ForgeKeyBindings {
     private static final String CATEGORY = "key.categories.onekeyminer";
 
     public static final KeyMapping CHAIN_MINING_KEY = new KeyMapping(
             "key.onekeyminer.hold",
-            (IKeyConflictContext) KeyConflictContext.IN_GAME,
+            KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_GRAVE_ACCENT),
             CATEGORY
     );
-
     public static final KeyMapping OPEN_CONFIG = new KeyMapping(
             "key.onekeyminer.config",
-            (IKeyConflictContext) KeyConflictContext.IN_GAME,
+            KeyConflictContext.IN_GAME,
             InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_UNKNOWN),
             CATEGORY
     );
 
-    private static boolean wasKeyDown = false;
+    private static boolean wasKeyDown;
 
-    public static void register() {
-        OneKeyMiner.LOGGER.debug("Forge key bindings initialized");
+    private ForgeKeyBindings() {
     }
 
-    private static void openConfigScreen(Minecraft minecraft) {
-        try {
-            Method createMethod = ForgeConfigScreen.class.getDeclaredMethod("createConfigScreen", Screen.class);
-            createMethod.setAccessible(true);
-            Screen configScreen = (Screen) createMethod.invoke(null, minecraft.screen);
-            minecraft.setScreen(configScreen);
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.error("Failed to open Forge config screen: {}", e.getMessage());
-        }
+    public static void register() {
     }
 
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(CHAIN_MINING_KEY);
         event.register(OPEN_CONFIG);
-        OneKeyMiner.LOGGER.info("Registered Forge key mappings");
+    }
+
+    public static boolean isChainKeyDown() {
+        return CHAIN_MINING_KEY.isDown();
+    }
+
+    public static void resetConnectionState() {
+        wasKeyDown = false;
     }
 
     @Mod.EventBusSubscriber(modid = OneKeyMiner.MOD_ID, value = Dist.CLIENT)
-    public static class Events {
+    public static final class Events {
+
+        private Events() {
+        }
+
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
             if (event.phase != TickEvent.Phase.END) {
                 return;
             }
-
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft.player == null) {
                 return;
             }
 
             if (OPEN_CONFIG.consumeClick()) {
-                openConfigScreen(minecraft);
+                minecraft.setScreen(ForgeConfigScreen.createConfigScreen(minecraft.screen));
             }
 
-            boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-
-            if (isKeyDown != wasKeyDown) {
-                wasKeyDown = isKeyDown;
-                if (minecraft.getConnection() != null) {
-                    try {
-                        ForgeNetworking.sendKeyState(isKeyDown, ConfigManager.getConfig().selectedShape);
-                    } catch (Exception e) {
-                        OneKeyMiner.LOGGER.debug("Failed to send Forge key state: {}", e.getMessage());
-                    }
-                }
+            boolean keyDown = CHAIN_MINING_KEY.isDown();
+            if (keyDown != wasKeyDown) {
+                wasKeyDown = keyDown;
+                ForgeClientSetup.sendCurrentState();
             }
 
             BlockPos lookingAt = null;
-            if (minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
+            if (minecraft.hitResult != null
+                    && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
                 lookingAt = ((BlockHitResult) minecraft.hitResult).getBlockPos();
             }
-
-            Direction playerFacing = minecraft.player.getDirection();
-            float playerPitch = minecraft.player.getXRot();
-            ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
+            Direction facing = minecraft.player.getDirection();
+            ChainPreviewManager.getInstance().tick(
+                    minecraft.level,
+                    lookingAt,
+                    facing,
+                    minecraft.player.getXRot(),
+                    keyDown
+            );
         }
 
         @SubscribeEvent
@@ -112,6 +106,17 @@ public class ForgeKeyBindings {
             if (event.getOverlay().id().equals(VanillaGuiOverlay.HOTBAR.id())) {
                 ChainPreviewHud.render(event.getGuiGraphics());
             }
+        }
+
+        @SubscribeEvent
+        public static void onClientLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+            resetConnectionState();
+            ForgeClientSetup.sendCurrentState();
+        }
+
+        @SubscribeEvent
+        public static void onClientLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+            resetConnectionState();
         }
     }
 }
