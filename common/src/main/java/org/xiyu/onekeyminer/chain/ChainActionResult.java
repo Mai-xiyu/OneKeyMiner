@@ -1,9 +1,7 @@
 package org.xiyu.onekeyminer.chain;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +20,7 @@ import java.util.List;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.1
  */
 public record ChainActionResult(
         /** 操作类型 */
@@ -49,6 +47,17 @@ public record ChainActionResult(
         /** 收集到的经验值 */
         int experienceCollected
 ) {
+    public ChainActionResult {
+        successPositions = successPositions == null ? List.of() : List.copyOf(successPositions);
+        collectedDrops = collectedDrops == null
+                ? List.of()
+                : collectedDrops.stream().map(ItemStack::copy).toList();
+    }
+
+    @Override
+    public List<ItemStack> collectedDrops() {
+        return collectedDrops.stream().map(ItemStack::copy).toList();
+    }
     
     /**
      * 链式操作停止原因枚举
@@ -139,14 +148,15 @@ public record ChainActionResult(
             List<ItemStack> collectedDrops,
             int experienceCollected
     ) {
+        List<BlockPos> safePositions = positions == null ? Collections.emptyList() : positions;
         return new ChainActionResult(
                 actionType,
-                Collections.unmodifiableList(positions),
-                positions.size(),
+                safePositions,
+                safePositions.size(),
                 durabilityUsed,
                 hungerUsed,
                 stopReason,
-                collectedDrops != null ? Collections.unmodifiableList(collectedDrops) : Collections.emptyList(),
+                collectedDrops,
                 experienceCollected
         );
     }

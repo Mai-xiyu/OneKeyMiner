@@ -35,7 +35,10 @@ dependencies {
 }
 
 processResources {
-    def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "").replaceAll("]", ",)")
+    // Forge/NeoForge use Maven version ranges. Keep the branch's declared
+    // Minecraft versions exact instead of advertising compatibility forever.
+    def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "")
+    def mod_authors_text = "${mod_authors}".replace("[", "").replace("]", "").replace("\"", "")
 
     var expandProps = ['version'                      : mod_version,
                        'group'                        : project.group,
@@ -44,9 +47,12 @@ processResources {
                        'compatible_forgemc_versions'  : compatible_forgemc_versions,
                        'mod_name'                     : mod_name,
                        'mod_authors'                  : mod_authors,
+                       'mod_authors_text'             : mod_authors_text,
                        'mod_id'                       : mod_id,
                        'license'                      : license,
                        'description'                  : project.description,
+                       'fabric_loader'                : gradle.ext.fabric_loader,
+                       'fabric_api_version'           : gradle.ext.fabric_api_version,
                        'neoforge_loader'              : gradle.ext.neoforge_loader,
                        'forge_loader'                 : gradle.ext.forge_loader,
                        'credits'                      : credits,

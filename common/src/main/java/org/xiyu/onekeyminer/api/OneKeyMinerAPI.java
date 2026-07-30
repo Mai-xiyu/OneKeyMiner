@@ -21,6 +21,8 @@ import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * OneKeyMiner 公共 API
@@ -51,37 +53,37 @@ import java.util.*;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.1
  * @see org.xiyu.onekeyminer.api.event.ChainEvents
  */
 public final class OneKeyMinerAPI {
     
     /** 运行时方块白名单 */
-    private static final Set<ResourceLocation> BLOCK_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> BLOCK_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时方块黑名单 */
-    private static final Set<ResourceLocation> BLOCK_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> BLOCK_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时方块标签白名单 */
-    private static final Set<TagKey<Block>> BLOCK_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Block>> BLOCK_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时方块标签黑名单 */
-    private static final Set<TagKey<Block>> BLOCK_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Block>> BLOCK_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具白名单 */
-    private static final Set<ResourceLocation> TOOL_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> TOOL_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具黑名单 */
-    private static final Set<ResourceLocation> TOOL_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> TOOL_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具标签白名单 */
-    private static final Set<TagKey<Item>> TOOL_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Item>> TOOL_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 运行时工具标签黑名单 */
-    private static final Set<TagKey<Item>> TOOL_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Item>> TOOL_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 方块分组映射（用于宽松匹配） */
-    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new HashMap<>();;
+    private static final Map<ResourceLocation, String> BLOCK_GROUPS = new ConcurrentHashMap<>();
     
     private OneKeyMinerAPI() {
         // 私有构造函数，防止实例化
@@ -401,16 +403,16 @@ public final class OneKeyMinerAPI {
     // ==================== 交互工具 API ====================
     
     /** 交互工具白名单 */
-    private static final Set<ResourceLocation> INTERACTION_TOOL_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTION_TOOL_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 交互工具黑名单 */
-    private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTION_TOOL_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 交互工具标签白名单 */
-    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 交互工具标签黑名单 */
-    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Item>> INTERACTION_TOOL_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /**
      * 注册交互工具到白名单
@@ -470,7 +472,7 @@ public final class OneKeyMinerAPI {
     // ==================== 自定义工具动作规则 ====================
 
     /** 自定义工具动作规则 */
-    private static final List<ToolActionRule> TOOL_ACTION_RULES = new ArrayList<>();
+    private static final List<ToolActionRule> TOOL_ACTION_RULES = new CopyOnWriteArrayList<>();
 
     /**
      * 目标类型（方块或实体）
@@ -746,16 +748,16 @@ public final class OneKeyMinerAPI {
     // ==================== 种植物品 API ====================
     
     /** 种植物品白名单 */
-    private static final Set<ResourceLocation> PLANTABLE_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> PLANTABLE_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 种植物品黑名单 */
-    private static final Set<ResourceLocation> PLANTABLE_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> PLANTABLE_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 种植物品标签白名单 */
-    private static final Set<TagKey<Item>> PLANTABLE_TAG_WHITELIST = new HashSet<>();
+    private static final Set<TagKey<Item>> PLANTABLE_TAG_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 种植物品标签黑名单 */
-    private static final Set<TagKey<Item>> PLANTABLE_TAG_BLACKLIST = new HashSet<>();
+    private static final Set<TagKey<Item>> PLANTABLE_TAG_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /**
      * 注册可种植物品
@@ -882,13 +884,13 @@ public final class OneKeyMinerAPI {
     // ==================== 交互物品 API ====================
     
     /** 交互物品白名单 */
-    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_WHITELIST = ConcurrentHashMap.newKeySet();
     
     /** 交互物品黑名单 */
-    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = new HashSet<>();
+    private static final Set<ResourceLocation> INTERACTIVE_ITEM_BLACKLIST = ConcurrentHashMap.newKeySet();
     
     /** 交互验证器列表 */
-    private static final List<InteractionValidator> INTERACTION_VALIDATORS = new ArrayList<>();
+    private static final List<InteractionValidator> INTERACTION_VALIDATORS = new CopyOnWriteArrayList<>();
     
     /**
      * 交互验证器接口
@@ -1152,10 +1154,10 @@ public final class OneKeyMinerAPI {
             OneKeyMiner.LOGGER.warn("Invalid chain shape ID: {}", shapeId);
             return false;
         }
-        MinerConfig config = ConfigManager.getConfig();
+        MinerConfig config = ConfigManager.getConfigSnapshot();
         config.selectedShape = shapeId;
         config.shapeMode = null;
-        ConfigManager.save();
+        ConfigManager.updateConfig(config);
         ConfigSyncHelper.triggerSync();
         ConfigSyncHelper.notifyConfigChanged("selectedShape");
         return true;
@@ -1173,9 +1175,9 @@ public final class OneKeyMinerAPI {
      * @param enabled 是否启用
      */
     public static void setTeleportDropsEnabled(boolean enabled) {
-        MinerConfig config = ConfigManager.getConfig();
+        MinerConfig config = ConfigManager.getConfigSnapshot();
         config.teleportDrops = enabled;
-        ConfigManager.save();
+        ConfigManager.updateConfig(config);
         ConfigSyncHelper.triggerSync();
         ConfigSyncHelper.notifyConfigChanged("teleportDrops");
     }
@@ -1197,9 +1199,9 @@ public final class OneKeyMinerAPI {
      * @param enabled 是否启用
      */
     public static void setTeleportExpEnabled(boolean enabled) {
-        MinerConfig config = ConfigManager.getConfig();
+        MinerConfig config = ConfigManager.getConfigSnapshot();
         config.teleportExp = enabled;
-        ConfigManager.save();
+        ConfigManager.updateConfig(config);
         ConfigSyncHelper.triggerSync();
         ConfigSyncHelper.notifyConfigChanged("teleportExp");
     }

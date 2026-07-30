@@ -7,7 +7,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -16,12 +15,11 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Forge 平台服务实现
@@ -30,13 +28,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.1
  */
 public class ForgePlatformServices implements PlatformServices {
     
     /** 玩家链式模式状态存储 */
-    private static final Map<UUID, Boolean> CHAIN_MODE_STATES = new ConcurrentHashMap<>();
-    
     @Override
     public String getPlatformName() {
         return "forge";
@@ -128,11 +124,15 @@ public class ForgePlatformServices implements PlatformServices {
                     false
             );
             
-            // 构建 UseOnContext
-            UseOnContext context = new UseOnContext(player, hand, hitResult);
-            
-            // 执行物品使用
-            InteractionResult result = item.useOn(context);
+            // Use the patched server interaction pipeline so Forge callbacks
+            // and protection integrations observe the action exactly once.
+            InteractionResult result = player.gameMode.useItemOn(
+                    player,
+                    level,
+                    item,
+                    hand,
+                    hitResult
+            );
             
             return result.consumesAction();
         } catch (Exception e) {
@@ -143,20 +143,12 @@ public class ForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean isChainModeActive(ServerPlayer player) {
-        // 始终使用按住按键激活模式，检查状态存储
-        return CHAIN_MODE_STATES.getOrDefault(player.getUUID(), false);
+        return MiningStateManager.isHoldingKey(player);
     }
     
     @Override
     public void setChainModeActive(ServerPlayer player, boolean active) {
-        // 设置链式模式状态
-        if (active) {
-            CHAIN_MODE_STATES.put(player.getUUID(), true);
-        } else {
-            CHAIN_MODE_STATES.remove(player.getUUID());
-        }
-        // 同时更新 MiningStateManager 的按键状态（用于 MiningLogic 检查）
-        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
+        MiningStateManager.setHoldingKey(player, active);
     }
     
     @Override
@@ -189,7 +181,6 @@ public class ForgePlatformServices implements PlatformServices {
      * @param playerId 玩家 UUID
      */
     public static void cleanupPlayer(UUID playerId) {
-        CHAIN_MODE_STATES.remove(playerId);
-        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(playerId, false);
+        MiningStateManager.clearState(playerId);
     }
 }

@@ -15,7 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.1
  */
 public final class ChainActionContext {
     

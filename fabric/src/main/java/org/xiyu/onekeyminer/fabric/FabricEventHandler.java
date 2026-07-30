@@ -27,6 +27,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -41,7 +42,7 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.1
  */
 public class FabricEventHandler {
     
@@ -69,10 +70,7 @@ public class FabricEventHandler {
         
         // 注册服务器停止事件（清理所有状态）
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            // 清理所有玩家状态
-            server.getPlayerList().getPlayers().forEach(player -> 
-                FabricPlatformServices.cleanupPlayer(player.getUUID())
-            );
+            MiningStateManager.clearAll();
         });
         
         OneKeyMiner.LOGGER.info("Fabric 事件处理器已注册");
@@ -95,7 +93,7 @@ public class FabricEventHandler {
             BlockEntity blockEntity
     ) {
         // 防止重入（链式挖掘时不触发新的链式操作）
-        if (IS_CHAIN_BREAKING.get()) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
         
@@ -224,6 +222,11 @@ public class FabricEventHandler {
         if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
             return InteractionResult.PASS;
         }
+
+        BlockPos actionOrigin = actionType == ChainActionType.PLANTING
+                ? pos.relative(hitResult.getDirection())
+                : pos;
+        BlockState actionOriginState = level.getBlockState(actionOrigin);
         
         try {
             IS_CHAIN_INTERACTING.set(true);
@@ -232,8 +235,8 @@ public class FabricEventHandler {
                 ChainActionContext context = ChainActionContext.builder()
                     .player(serverPlayer)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(actionOrigin)
+                    .originState(actionOriginState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
@@ -262,8 +265,8 @@ public class FabricEventHandler {
                         actionType.getDisplayName(), 
                         result.getSummary());
                 
-                // 返回 SUCCESS 以消费事件
-                return InteractionResult.SUCCESS;
+                // Let vanilla execute the clicked origin once; chain targets exclude it.
+                return InteractionResult.PASS;
             }
             
         } finally {

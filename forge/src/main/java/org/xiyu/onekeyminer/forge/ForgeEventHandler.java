@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
@@ -23,6 +24,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -37,7 +39,7 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.1
  */
 public class ForgeEventHandler {
     
@@ -53,7 +55,7 @@ public class ForgeEventHandler {
     @SubscribeEvent(priority = EventPriority.LOW)
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         // 防止重入（链式挖掘时不触发新的链式操作）
-        if (IS_CHAIN_BREAKING.get()) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
         
@@ -180,6 +182,11 @@ public class ForgeEventHandler {
         if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
             return;
         }
+
+        BlockPos actionOrigin = actionType == ChainActionType.PLANTING
+                ? pos.relative(event.getFace())
+                : pos;
+        BlockState actionOriginState = level.getBlockState(actionOrigin);
         
         try {
             IS_CHAIN_INTERACTING.set(true);
@@ -188,8 +195,8 @@ public class ForgeEventHandler {
                 ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(actionOrigin)
+                    .originState(actionOriginState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
@@ -327,6 +334,11 @@ public class ForgeEventHandler {
         if (event.getEntity() instanceof ServerPlayer player) {
             ForgePlatformServices.cleanupPlayer(player.getUUID());
         }
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        MiningStateManager.clearAll();
     }
     
     /**
