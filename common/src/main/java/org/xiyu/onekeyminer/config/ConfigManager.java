@@ -7,10 +7,14 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -25,9 +29,9 @@ public class ConfigManager {
             .create();
 
     private static final AtomicReference<MinerConfig> CONFIG = new AtomicReference<>(new MinerConfig());
-    private static final List<ConfigChangeListener> LISTENERS = new ArrayList<>();
+    private static final List<ConfigChangeListener> LISTENERS = new CopyOnWriteArrayList<>();
 
-    public static void load() {
+    public static synchronized void load() {
         Path configPath = getConfigPath();
 
         try {
@@ -35,6 +39,7 @@ public class ConfigManager {
                 String json = Files.readString(configPath);
                 MinerConfig loaded = GSON.fromJson(json, MinerConfig.class);
                 if (loaded != null) {
+                    normalizeCollections(loaded);
                     CONFIG.set(loaded);
                     OneKeyMiner.LOGGER.info("Config loaded: {}", configPath);
                 }
@@ -42,8 +47,8 @@ public class ConfigManager {
                 save();
                 OneKeyMiner.LOGGER.info("Created default config: {}", configPath);
             }
-        } catch (IOException e) {
-            OneKeyMiner.LOGGER.error("Failed to load config: {}", e.getMessage());
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.error("Failed to load config; keeping safe defaults: {}", e.getMessage());
         }
 
         if (validateConfig()) {
@@ -51,12 +56,28 @@ public class ConfigManager {
         }
     }
 
-    public static void save() {
+    public static synchronized void save() {
         Path configPath = getConfigPath();
 
         try {
-            Files.createDirectories(configPath.getParent());
-            Files.writeString(configPath, GSON.toJson(CONFIG.get()));
+            Path configDirectory = configPath.getParent();
+            Files.createDirectories(configDirectory);
+            Path temporaryFile = Files.createTempFile(configDirectory, "onekeyminer-", ".tmp");
+            try {
+                Files.writeString(temporaryFile, GSON.toJson(CONFIG.get()));
+                try {
+                    Files.move(
+                            temporaryFile,
+                            configPath,
+                            StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING
+                    );
+                } catch (AtomicMoveNotSupportedException ignored) {
+                    Files.move(temporaryFile, configPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporaryFile);
+            }
             OneKeyMiner.LOGGER.debug("Config saved: {}", configPath);
         } catch (IOException e) {
             OneKeyMiner.LOGGER.error("Failed to save config: {}", e.getMessage());
@@ -66,8 +87,8 @@ public class ConfigManager {
     /**
      * Reloads the config with per-field validation. Invalid fields keep their old value.
      */
-    public static void reload() {
-        MinerConfig oldConfig = CONFIG.get();
+    public static synchronized void reload() {
+        MinerConfig oldConfig = CONFIG.get().copy();
         Path configPath = getConfigPath();
         MinerConfig diskConfig;
 
@@ -86,6 +107,7 @@ public class ConfigManager {
             OneKeyMiner.LOGGER.warn("Reloaded config was null; keeping current config");
             return;
         }
+        normalizeCollections(diskConfig);
 
         MinerConfig merged = oldConfig.copy();
         List<String> rejected = new ArrayList<>();
@@ -150,7 +172,7 @@ public class ConfigManager {
         } else {
             rejected.add("hungerPerBlock=" + diskConfig.hungerPerBlock);
         }
-        if (diskConfig.maxBlocksCreative >= 1) {
+        if (diskConfig.maxBlocksCreative >= 1 && diskConfig.maxBlocksCreative <= 10240) {
             merged.maxBlocksCreative = diskConfig.maxBlocksCreative;
         } else {
             rejected.add("maxBlocksCreative=" + diskConfig.maxBlocksCreative);
@@ -166,24 +188,39 @@ public class ConfigManager {
         if (!rejected.isEmpty()) {
             OneKeyMiner.LOGGER.warn("Rejected invalid config fields on reload: {}", String.join(", ", rejected));
         }
-        MinerConfig newConfig = CONFIG.get();
-        LISTENERS.forEach(listener -> listener.onConfigChanged(oldConfig, newConfig));
+        MinerConfig newConfig = CONFIG.get().copy();
+        notifyListeners(oldConfig, newConfig);
     }
 
+    /**
+     * Returns a detached snapshot. Mutating it has no effect until it is
+     * explicitly published with {@link #updateConfig(MinerConfig)}.
+     */
     public static MinerConfig getConfig() {
-        return CONFIG.get();
+        return CONFIG.get().copy();
     }
 
     public static void updateConfig(MinerConfig newConfig) {
-        MinerConfig oldConfig = CONFIG.get();
-        CONFIG.set(newConfig);
+        updateConfig(newConfig, "*");
+    }
+
+    public static synchronized void updateConfig(MinerConfig newConfig, String changedKey) {
+        Objects.requireNonNull(newConfig, "newConfig");
+        Objects.requireNonNull(changedKey, "changedKey");
+        MinerConfig oldConfig = CONFIG.get().copy();
+        MinerConfig normalized = newConfig.copy();
+        normalizeCollections(normalized);
+        CONFIG.set(normalized);
         validateConfig();
         save();
-        LISTENERS.forEach(listener -> listener.onConfigChanged(oldConfig, CONFIG.get()));
+        MinerConfig current = CONFIG.get().copy();
+        notifyListeners(oldConfig, current);
+        ConfigSyncHelper.triggerSync();
+        ConfigSyncHelper.notifyConfigChanged(changedKey);
     }
 
     public static void addListener(ConfigChangeListener listener) {
-        LISTENERS.add(listener);
+        LISTENERS.add(Objects.requireNonNull(listener, "listener"));
     }
 
     public static void removeListener(ConfigChangeListener listener) {
@@ -195,7 +232,8 @@ public class ConfigManager {
     }
 
     private static boolean validateConfig() {
-        MinerConfig config = CONFIG.get();
+        MinerConfig config = CONFIG.get().copy();
+        normalizeCollections(config);
         boolean changed = false;
 
         String migrated = migrateLegacyShape(config);
@@ -223,12 +261,43 @@ public class ConfigManager {
             config.maxDistance = 128;
             changed = true;
         }
-        if (config.hungerMultiplier < 0) {
+        if (config.maxBlocksCreative < 1) {
+            config.maxBlocksCreative = 1;
+            changed = true;
+        } else if (config.maxBlocksCreative > 10240) {
+            config.maxBlocksCreative = 10240;
+            changed = true;
+        }
+        if (!Float.isFinite(config.hungerMultiplier) || config.hungerMultiplier < 0) {
             config.hungerMultiplier = 0;
             changed = true;
         } else if (config.hungerMultiplier > 10) {
             config.hungerMultiplier = 10;
             changed = true;
+        }
+        if (config.preserveDurability < 0) {
+            config.preserveDurability = 0;
+            changed = true;
+        } else if (config.preserveDurability > 100_000) {
+            config.preserveDurability = 100_000;
+            changed = true;
+        }
+        if (config.minHungerLevel < 0) {
+            config.minHungerLevel = 0;
+            changed = true;
+        } else if (config.minHungerLevel > 20) {
+            config.minHungerLevel = 20;
+            changed = true;
+        }
+        if (!Float.isFinite(config.hungerPerBlock) || config.hungerPerBlock < 0) {
+            config.hungerPerBlock = 0;
+            changed = true;
+        } else if (config.hungerPerBlock > 10) {
+            config.hungerPerBlock = 10;
+            changed = true;
+        }
+        if (changed) {
+            CONFIG.set(config);
         }
         return changed;
     }
@@ -256,6 +325,42 @@ public class ConfigManager {
         if (diskConfig.seedWhitelist != null) merged.seedWhitelist = new ArrayList<>(diskConfig.seedWhitelist);
         if (diskConfig.seedBlacklist != null) merged.seedBlacklist = new ArrayList<>(diskConfig.seedBlacklist);
         if (diskConfig.farmlandWhitelist != null) merged.farmlandWhitelist = new ArrayList<>(diskConfig.farmlandWhitelist);
+    }
+
+    private static void normalizeCollections(MinerConfig config) {
+        config.customWhitelist = sanitizeStrings(config.customWhitelist);
+        config.blacklist = sanitizeStrings(config.blacklist);
+        config.toolWhitelist = sanitizeStrings(config.toolWhitelist);
+        config.toolBlacklist = sanitizeStrings(config.toolBlacklist);
+        config.interactionToolWhitelist = sanitizeStrings(config.interactionToolWhitelist);
+        config.interactionToolBlacklist = sanitizeStrings(config.interactionToolBlacklist);
+        config.interactiveItemWhitelist = sanitizeStrings(config.interactiveItemWhitelist);
+        config.interactiveItemBlacklist = sanitizeStrings(config.interactiveItemBlacklist);
+        config.seedWhitelist = sanitizeStrings(config.seedWhitelist);
+        config.seedBlacklist = sanitizeStrings(config.seedBlacklist);
+        config.farmlandWhitelist = sanitizeStrings(config.farmlandWhitelist);
+    }
+
+    private static List<String> sanitizeStrings(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    private static void notifyListeners(MinerConfig oldConfig, MinerConfig newConfig) {
+        for (ConfigChangeListener listener : LISTENERS) {
+            try {
+                listener.onConfigChanged(oldConfig.copy(), newConfig.copy());
+            } catch (RuntimeException e) {
+                OneKeyMiner.LOGGER.error("Config change listener failed", e);
+            }
+        }
     }
 
     @FunctionalInterface

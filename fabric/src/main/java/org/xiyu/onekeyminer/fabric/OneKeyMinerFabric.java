@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 /**
  * Fabric common entry point.
@@ -24,21 +25,21 @@ public class OneKeyMinerFabric implements ModInitializer {
     private void registerNetworking() {
         // 注册按键状态包（客户端到服务端）
         PayloadTypeRegistry.serverboundPlay().register(
-                KeyBindings.ChainKeyStatePayload.TYPE,
-                KeyBindings.ChainKeyStatePayload.STREAM_CODEC
+                FabricPayloads.ChainKeyState.TYPE,
+                FabricPayloads.ChainKeyState.STREAM_CODEC
         );
         PayloadTypeRegistry.serverboundPlay().register(
-                KeyBindings.TeleportSettingsPayload.TYPE,
-                KeyBindings.TeleportSettingsPayload.STREAM_CODEC
+                FabricPayloads.TeleportSettings.TYPE,
+                FabricPayloads.TeleportSettings.STREAM_CODEC
         );
 
         ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.ChainKeyStatePayload.TYPE,
+                FabricPayloads.ChainKeyState.TYPE,
                 (payload, context) -> context.server().execute(() -> {
                     if (context.player() != null) {
                         PlatformServices.getInstance().setChainModeActive(context.player(), payload.holding());
                         Identifier id = Identifier.tryParse(payload.shapeId());
-                        if (id != null) {
+                        if (id != null && ShapeRegistry.getShape(id) != null) {
                             MiningStateManager.setPlayerShape(context.player(), id);
                         }
                     }
@@ -46,7 +47,7 @@ public class OneKeyMinerFabric implements ModInitializer {
         );
 
         ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.TeleportSettingsPayload.TYPE,
+                FabricPayloads.TeleportSettings.TYPE,
                 (payload, context) -> context.server().execute(() -> {
                     if (context.player() != null) {
                         MiningStateManager.setTeleportDrops(context.player(), payload.teleportDrops());

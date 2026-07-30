@@ -65,14 +65,14 @@ public final class ChainActionContext {
     private ChainActionContext(Builder builder) {
         this.player = builder.player;
         this.level = builder.level;
-        this.originPos = builder.originPos;
+        this.originPos = builder.originPos.immutable();
         this.originState = builder.originState;
         this.actionType = builder.actionType;
         this.heldItem = builder.heldItem;
         this.hand = builder.hand;
         this.interactionOverride = builder.interactionOverride;
-        this.maxCount = builder.maxCount;
-        this.maxDistance = builder.maxDistance;
+        this.maxCount = builder.maxCount > 0 ? Math.min(builder.maxCount, 10_240) : -1;
+        this.maxDistance = builder.maxDistance > 0 ? Math.min(builder.maxDistance, 128) : -1;
         this.allowDiagonal = builder.allowDiagonal;
         this.skipPermissionCheck = builder.skipPermissionCheck;
     }
@@ -337,6 +337,21 @@ public final class ChainActionContext {
             }
             if (originPos == null) {
                 throw new IllegalStateException("OriginPos 不能为空");
+            }
+            if (originState == null) {
+                throw new IllegalStateException("OriginState 不能为空");
+            }
+            if (actionType == null) {
+                throw new IllegalStateException("ActionType 不能为空");
+            }
+            if (heldItem == null) {
+                throw new IllegalStateException("HeldItem 不能为空");
+            }
+            if (hand == null) {
+                throw new IllegalStateException("Hand 不能为空");
+            }
+            if (player.level() != level) {
+                throw new IllegalStateException("Player 与 Level 必须属于同一维度");
             }
             return new ChainActionContext(this);
         }

@@ -23,12 +23,12 @@ public class ShapeContext {
 
     private ShapeContext(Builder builder) {
         this.level = builder.level;
-        this.originPos = builder.originPos;
+        this.originPos = builder.originPos.immutable();
         this.originState = builder.originState;
         this.playerFacing = builder.playerFacing;
         this.playerLookingVertical = builder.playerLookingVertical;
-        this.maxBlocks = builder.maxBlocks;
-        this.maxDistance = builder.maxDistance;
+        this.maxBlocks = Math.max(0, Math.min(builder.maxBlocks, 10_240));
+        this.maxDistance = Math.max(0, Math.min(builder.maxDistance, 128));
         this.allowDiagonal = builder.allowDiagonal;
         this.blockMatcher = builder.blockMatcher;
     }

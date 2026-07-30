@@ -35,6 +35,9 @@ public class ColumnShape implements ChainShape {
 
         for (int y = 1; y <= context.getMaxDistance() && result.size() < context.getMaxBlocks(); y++) {
             BlockPos pos = origin.above(y);
+            if (!level.hasChunkAt(pos)) {
+                break;
+            }
             BlockState state = level.getBlockState(pos);
             if (context.isMatchingBlock(state)) {
                 result.add(pos);
@@ -45,6 +48,9 @@ public class ColumnShape implements ChainShape {
 
         for (int y = 1; y <= context.getMaxDistance() && result.size() < context.getMaxBlocks(); y++) {
             BlockPos pos = origin.below(y);
+            if (!level.hasChunkAt(pos)) {
+                break;
+            }
             BlockState state = level.getBlockState(pos);
             if (context.isMatchingBlock(state)) {
                 result.add(pos);

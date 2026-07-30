@@ -14,8 +14,10 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 import org.xiyu.onekeyminer.chain.ChainActionContext;
@@ -24,6 +26,7 @@ import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -51,10 +54,10 @@ public class NeoForgeEventHandler {
      * 
      * @param event 方块破坏事件
      */
-    @SubscribeEvent(priority = EventPriority.LOW)
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onBlockBreak(BreakBlockEvent event) {
         // 防止重入（链式挖掘时不触发新的链式操作）
-        if (IS_CHAIN_BREAKING.get()) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
         
@@ -184,13 +187,20 @@ public class NeoForgeEventHandler {
         
         try {
             IS_CHAIN_INTERACTING.set(true);
+
+            BlockPos originPos = actionType == ChainActionType.PLANTING
+                    ? pos.relative(event.getFace())
+                    : pos;
+            BlockState originState = actionType == ChainActionType.PLANTING
+                    ? level.getBlockState(originPos)
+                    : state;
             
             // 构建上下文
-                ChainActionContext context = ChainActionContext.builder()
+            ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
-                    .originPos(pos)
-                    .originState(state)
+                    .originPos(originPos)
+                    .originState(originState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
@@ -218,6 +228,8 @@ public class NeoForgeEventHandler {
                 OneKeyMiner.LOGGER.debug("{} 完成: {}", 
                         actionType.getDisplayName(), 
                         result.getSummary());
+                event.setCancellationResult(InteractionResult.SUCCESS);
+                event.setCanceled(true);
             }
             
         } finally {
@@ -317,6 +329,18 @@ public class NeoForgeEventHandler {
         } finally {
             IS_CHAIN_INTERACTING.set(false);
         }
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            NeoForgePlatformServices.cleanupPlayer(player.getUUID());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        MiningStateManager.clearAll();
     }
     
     /**
