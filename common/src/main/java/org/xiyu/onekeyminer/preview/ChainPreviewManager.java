@@ -13,13 +13,14 @@ import org.xiyu.onekeyminer.shape.ShapeRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Client-side preview state and throttled shape calculation.
  */
 public class ChainPreviewManager {
-    private static ChainPreviewManager instance;
+    private static final ChainPreviewManager INSTANCE = new ChainPreviewManager();
     private static final long CALCULATE_INTERVAL_MS = 200;
 
     private volatile List<BlockPos> previewBlocks = Collections.emptyList();
@@ -32,10 +33,7 @@ public class ChainPreviewManager {
     }
 
     public static ChainPreviewManager getInstance() {
-        if (instance == null) {
-            instance = new ChainPreviewManager();
-        }
-        return instance;
+        return INSTANCE;
     }
 
     public void tick(Level level, BlockPos lookingAt, Direction playerFacing, float playerPitch, boolean isChainKeyDown) {
@@ -119,11 +117,11 @@ public class ChainPreviewManager {
     }
 
     public void addListener(PreviewListener listener) {
-        listeners.add(listener);
+        listeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
     public boolean removeListener(PreviewListener listener) {
-        return listeners.remove(listener);
+        return listener != null && listeners.remove(listener);
     }
 
     private void clearPreview() {

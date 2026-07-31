@@ -6,8 +6,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -16,15 +16,12 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.level.BlockEvent;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.chain.ServerUseBridge;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * NeoForge 平台服务实现
@@ -33,12 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 public class NeoForgePlatformServices implements PlatformServices {
-    
-    /** 存储玩家链式模式状态（使用 UUID 作为 key） */
-    private static final Map<UUID, Boolean> CHAIN_MODE_STATES = new ConcurrentHashMap<>();
     
     @Override
     public String getPlatformName() {
@@ -62,39 +56,24 @@ public class NeoForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean canPlayerBreakBlock(ServerPlayer player, Level level, BlockPos pos, BlockState state) {
-        
-        // 基础检查
-        if (player.isSpectator()) {
+        if (player.isSpectator() || !level.hasChunkAt(pos)) {
             return false;
         }
-        
-        // 检查方块是否可被破坏（基岩等不可破坏方块）
         if (state.getDestroySpeed(level, pos) < 0 && !player.isCreative()) {
             return false;
         }
-        
-        // 使用 NeoForge 的 BlockEvent.BreakEvent 进行权限检查
-        // 创建并触发事件来检查权限
-        try {
-            BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(level, pos, state, player);
-            NeoForge.EVENT_BUS.post(event);
-            return !event.isCanceled();
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("权限检查事件触发失败: {}", e.getMessage());
-            return true; // 默认允许
-        }
+        // The authoritative destroy call posts BlockEvent.BreakEvent exactly once.
+        return level.mayInteract(player, pos)
+                && player.mayUseItemAt(pos, Direction.UP, player.getMainHandItem());
     }
     
     @Override
     public boolean canPlayerInteract(ServerPlayer player, Level level, BlockPos pos, BlockState state) {
-        // 基础检查
-        if (player.isSpectator()) {
+        if (player.isSpectator() || !level.hasChunkAt(pos)) {
             return false;
         }
-        
-        // 使用破坏权限作为基础检查
-        // 实际上交互权限可能与破坏权限不同，但这是安全的默认行为
-        return canPlayerBreakBlock(player, level, pos, state);
+        return level.mayInteract(player, pos)
+                && player.mayUseItemAt(pos, Direction.UP, player.getMainHandItem());
     }
     
     @Override
@@ -119,7 +98,7 @@ public class NeoForgePlatformServices implements PlatformServices {
     public boolean simulateItemUseOnBlock(
             ServerPlayer player,
             Level level,
-            BlockPos pos,
+            BlockHitResult hitResult,
             InteractionHand hand,
             ItemStack item
     ) {
@@ -127,25 +106,51 @@ public class NeoForgePlatformServices implements PlatformServices {
         // 用于耕地、剥皮原木、制作土径等交互操作
         
         try {
-            // 创建点击结果
-            BlockHitResult hitResult = new BlockHitResult(
-                    Vec3.atCenterOf(pos),
-                    Direction.UP,
-                    pos,
-                    false
-            );
-            
-            // 创建使用上下文
-            UseOnContext context = new UseOnContext(player, hand, hitResult);
-            
-            // 调用物品的 useOn 方法 - 这是原版的通用交互入口
-            // 会触发 PlayerInteractEvent.RightClickBlock 等相关事件
-            InteractionResult result = item.useOn(context);
-            
-            return result.consumesAction();
+            ServerUseBridge.ObservedUse<InteractionResult> observed =
+                    ServerUseBridge.observeBlockUse(
+                            () -> player.gameMode.useItemOn(
+                                    player,
+                                    level,
+                                    item,
+                                    hand,
+                                    hitResult
+                            )
+                    );
+            return observed.actionDispatched()
+                    && observed.result() != null
+                    && observed.result().consumesAction();
         } catch (Exception e) {
             OneKeyMiner.LOGGER.error("NeoForge 模拟物品使用失败: {}", e.getMessage());
             return false;
+        }
+    }
+
+    @Override
+    public InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+        InteractionHand hand
+    ) {
+        try {
+            Vec3 relativeHitLocation = target.getBoundingBox().getCenter()
+                    .subtract(target.position());
+            // NeoForge patches Player#interactOn to dispatch its cancellable
+            // entity-interaction events.
+            ServerUseBridge.ObservedUse<InteractionResult> observed =
+                    ServerUseBridge.observeEntityUse(
+                            () -> player.interactOn(target, hand, relativeHitLocation)
+                    );
+            return observed.actionDispatched() && observed.result() != null
+                    ? observed.result()
+                    : InteractionResult.FAIL;
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.error(
+                    "NeoForge 模拟实体交互失败，目标 {}",
+                    target.getUUID(),
+                    e
+            );
+            return InteractionResult.FAIL;
         }
     }
     
@@ -162,16 +167,11 @@ public class NeoForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean isChainModeActive(ServerPlayer player) {
-        // 始终使用按住按键激活模式，检查状态存储
-        return CHAIN_MODE_STATES.getOrDefault(player.getUUID(), false);
+        return org.xiyu.onekeyminer.mining.MiningStateManager.isHoldingKey(player);
     }
     
     @Override
     public void setChainModeActive(ServerPlayer player, boolean active) {
-        // 设置玩家的链式模式状态
-        CHAIN_MODE_STATES.put(player.getUUID(), active);
-        
-        // 同时更新 MiningStateManager 的按键状态（用于 MiningLogic 检查）
         org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
         
     }
@@ -192,6 +192,6 @@ public class NeoForgePlatformServices implements PlatformServices {
      * @param playerUuid 玩家 UUID
      */
     public static void cleanupPlayer(UUID playerUuid) {
-        CHAIN_MODE_STATES.remove(playerUuid);
+        org.xiyu.onekeyminer.mining.MiningStateManager.clearState(playerUuid);
     }
 }

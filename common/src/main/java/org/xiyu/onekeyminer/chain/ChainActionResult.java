@@ -1,12 +1,11 @@
 package org.xiyu.onekeyminer.chain;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 链式操作结果记录
@@ -22,7 +21,7 @@ import java.util.List;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 public record ChainActionResult(
         /** 操作类型 */
@@ -46,9 +45,33 @@ public record ChainActionResult(
         /** 收集到的掉落物列表 */
         List<ItemStack> collectedDrops,
         
-        /** 收集到的经验值 */
+        /** 本次立即通过原版拾取路径处理的经验球面值 */
         int experienceCollected
 ) {
+    public ChainActionResult {
+        actionType = Objects.requireNonNull(actionType, "actionType");
+        successPositions = successPositions == null
+                ? List.of()
+                : successPositions.stream()
+                        .filter(Objects::nonNull)
+                        .map(BlockPos::immutable)
+                        .toList();
+        totalCount = successPositions.size();
+        durabilityUsed = Math.max(0, durabilityUsed);
+        hungerUsed = Float.isFinite(hungerUsed) ? Math.max(0f, hungerUsed) : 0f;
+        stopReason = Objects.requireNonNull(stopReason, "stopReason");
+        collectedDrops = collectedDrops == null
+                ? List.of()
+                : collectedDrops.stream()
+                        .filter(Objects::nonNull)
+                        .map(ItemStack::copy)
+                        .toList();
+        experienceCollected = Math.max(0, experienceCollected);
+    }
+
+    public List<ItemStack> collectedDrops() {
+        return collectedDrops.stream().map(ItemStack::copy).toList();
+    }
     
     /**
      * 链式操作停止原因枚举
@@ -127,7 +150,7 @@ public record ChainActionResult(
      * @param hungerUsed 消耗的饥饿
      * @param stopReason 停止原因
      * @param collectedDrops 收集到的掉落物列表
-     * @param experienceCollected 收集到的经验值
+     * @param experienceCollected 本次立即通过原版拾取路径处理的经验球面值
      * @return 结果实例
      */
     public static ChainActionResult success(
@@ -141,12 +164,12 @@ public record ChainActionResult(
     ) {
         return new ChainActionResult(
                 actionType,
-                Collections.unmodifiableList(positions),
-                positions.size(),
+                positions,
+                positions == null ? 0 : positions.size(),
                 durabilityUsed,
                 hungerUsed,
                 stopReason,
-                collectedDrops != null ? Collections.unmodifiableList(collectedDrops) : Collections.emptyList(),
+                collectedDrops,
                 experienceCollected
         );
     }
