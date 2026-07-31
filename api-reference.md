@@ -486,6 +486,15 @@ event.
 `ConfigManager#getConfig()` and `getConfigSnapshot()` return defensive copies.
 Changing fields on those objects does not change active configuration.
 
+Networking code that only needs the selected shape and teleport preferences
+should use `ConfigManager#getClientPreferencesSnapshot()`. It returns an
+immutable, constant-size snapshot without copying the complete configuration.
+
+Remote-client config screens must persist only those preferences through
+`ConfigManager#updateClientPreferences(MinerConfig)`. The method copies the
+selected shape and two teleport requests while preserving every
+server-authoritative gameplay and policy field.
+
 For an atomic update, use:
 
 ```java
@@ -505,17 +514,29 @@ ConfigManager.updateConfig(copy, "maxBlocks");
 ```
 
 Prefer `editConfig` for one or a few fields. `OneKeyMinerAPI` also provides
-validated convenience methods:
+explicitly scoped convenience methods:
 
 ```java
 OneKeyMinerAPI.setSelectedShape("examplemod:upward_column");
-OneKeyMinerAPI.setTeleportDropsEnabled(true);
-OneKeyMinerAPI.setTeleportExpEnabled(true);
+OneKeyMinerAPI.setLocalDropTeleportRequested(true);
+OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
+
+// Authoritative server policy:
+OneKeyMinerAPI.setClientDropTeleportAllowed(false);
+OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
+
+// Effective value for one connected player:
+boolean drops = OneKeyMinerAPI.isDropTeleportEffective(serverPlayer);
+boolean experience = OneKeyMinerAPI.isExperienceTeleportEffective(serverPlayer);
 ```
 
-On a dedicated server, these calls must run in the correct server-side policy
-context. Do not present a client-only setting mutation as a way to change server
-limits.
+The legacy `is/setTeleportDropsEnabled` and `is/setTeleportExpEnabled` methods
+remain binary/source compatible but are deprecated because they expose only a
+local request, not the effective dedicated-server behavior. Server integrations
+should use the explicit policy and per-player effective-value methods above.
+`MinerConfig#allowClientTeleportDrops` and `MinerConfig#allowClientTeleportExp`
+are authoritative gates; a client request is effective only when its gate is
+enabled.
 
 ## Compatibility notes
 

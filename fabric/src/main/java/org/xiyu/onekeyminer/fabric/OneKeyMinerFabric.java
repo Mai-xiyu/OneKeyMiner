@@ -30,7 +30,7 @@ public class OneKeyMinerFabric implements ModInitializer {
 
         ServerPlayNetworking.registerGlobalReceiver(
                 FabricPayloads.ClientPreferencesPayload.TYPE,
-                (payload, context) -> context.server().execute(() -> {
+                (payload, context) -> {
                     if (payload.wireVersion() != FabricPayloads.WIRE_VERSION) {
                         OneKeyMiner.LOGGER.warn(
                                 "Ignoring client preferences from {} with unsupported wire version {}",
@@ -58,7 +58,7 @@ public class OneKeyMinerFabric implements ModInitializer {
                             payload.teleportDrops(),
                             payload.teleportExp()
                     );
-                })
+                }
         );
     }
 }

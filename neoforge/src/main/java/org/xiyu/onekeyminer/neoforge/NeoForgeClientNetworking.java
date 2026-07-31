@@ -25,14 +25,14 @@ public final class NeoForgeClientNetworking {
             return false;
         }
 
-        var config = ConfigManager.getConfigSnapshot();
+        var config = ConfigManager.getClientPreferencesSnapshot();
         try {
             ClientPacketDistributor.sendToServer(new NeoForgeNetworking.ClientPreferencesPayload(
                     NeoForgeNetworking.WIRE_VERSION,
                     holding,
-                    config.selectedShape,
-                    config.teleportDrops,
-                    config.teleportExp
+                    config.selectedShape(),
+                    config.teleportDrops(),
+                    config.teleportExp()
             ));
             return true;
         } catch (RuntimeException ignored) {

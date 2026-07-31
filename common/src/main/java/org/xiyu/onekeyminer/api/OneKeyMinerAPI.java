@@ -21,6 +21,7 @@ import org.xiyu.onekeyminer.chain.ServerUseBridge;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.registry.TagResolver;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -42,7 +43,7 @@ import java.util.function.Supplier;
  * </ul>
  * 
  * <h2>使用示例</h2>
- * <pre>{@code
+ * <pre>
  * // 注册自定义矿石到白名单
  * OneKeyMinerAPI.registerBlock("mymod:custom_ore");
  * 
@@ -55,7 +56,7 @@ import java.util.function.Supplier;
  *         int count = event.getTotalCount();
  *         // 处理挖矿统计...
  * });
- * }</pre>
+ * </pre>
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
@@ -1440,13 +1441,6 @@ public final class OneKeyMinerAPI {
         OneKeyMiner.LOGGER.info("OneKeyMiner API 已重载");
     }
     
-    // ==================== 配置访问 API ====================
-    
-    /**
-     * 检查是否启用掉落物传送
-     * 
-     * @return 如果启用返回 true
-     */
     // ==================== Shape API ====================
 
     public static void registerShape(ChainShape shape) {
@@ -1504,39 +1498,154 @@ public final class OneKeyMinerAPI {
         return true;
     }
 
-    public static boolean isTeleportDropsEnabled() {
-        return ConfigManager.getConfig().teleportDrops;
-    }
-    
     /**
-     * 设置掉落物传送开关
-     * 
-     * <p>修改后会自动保存配置并同步到服务器。</p>
-     * 
-     * @param enabled 是否启用
+     * Returns the local client's drop-teleport request.
+     *
+     * @return local preference, not the effective dedicated-server policy
+     * @deprecated use {@link #isLocalDropTeleportRequested()}
      */
+    @Deprecated
+    public static boolean isTeleportDropsEnabled() {
+        return isLocalDropTeleportRequested();
+    }
+
+    /**
+     * Updates the local client's drop-teleport request. A remote server may
+     * still reject it through its policy gate.
+     *
+     * @param enabled requested value
+     * @deprecated use {@link #setLocalDropTeleportRequested(boolean)}
+     */
+    @Deprecated
     public static void setTeleportDropsEnabled(boolean enabled) {
+        setLocalDropTeleportRequested(enabled);
+    }
+
+    /**
+     * Returns the local drop-teleport preference sent by a physical client.
+     *
+     * @return the local request
+     */
+    public static boolean isLocalDropTeleportRequested() {
+        return ConfigManager.getClientPreferencesSnapshot().teleportDrops();
+    }
+
+    /**
+     * Sets and synchronizes the local drop-teleport preference.
+     *
+     * @param enabled requested value
+     */
+    public static void setLocalDropTeleportRequested(boolean enabled) {
         ConfigManager.editConfig("teleportDrops", config -> config.teleportDrops = enabled);
     }
-    
+
     /**
-     * 检查是否启用经验传送
-     * 
-     * @return 如果启用返回 true
+     * Returns the local client's experience-teleport request.
+     *
+     * @return local preference, not the effective dedicated-server policy
+     * @deprecated use {@link #isLocalExperienceTeleportRequested()}
      */
+    @Deprecated
     public static boolean isTeleportExpEnabled() {
-        return ConfigManager.getConfig().teleportExp;
+        return isLocalExperienceTeleportRequested();
     }
-    
+
     /**
-     * 设置经验传送开关
-     * 
-     * <p>修改后会自动保存配置并同步到服务器。</p>
-     * 
-     * @param enabled 是否启用
+     * Updates the local client's experience-teleport request. A remote server
+     * may still reject it through its policy gate.
+     *
+     * @param enabled requested value
+     * @deprecated use {@link #setLocalExperienceTeleportRequested(boolean)}
      */
+    @Deprecated
     public static void setTeleportExpEnabled(boolean enabled) {
+        setLocalExperienceTeleportRequested(enabled);
+    }
+
+    /**
+     * Returns the local experience-teleport preference sent by a client.
+     *
+     * @return the local request
+     */
+    public static boolean isLocalExperienceTeleportRequested() {
+        return ConfigManager.getClientPreferencesSnapshot().teleportExp();
+    }
+
+    /**
+     * Sets and synchronizes the local experience-teleport preference.
+     *
+     * @param enabled requested value
+     */
+    public static void setLocalExperienceTeleportRequested(boolean enabled) {
         ConfigManager.editConfig("teleportExp", config -> config.teleportExp = enabled);
+    }
+
+    /**
+     * Returns the authoritative server policy for client drop requests.
+     *
+     * @return whether the server honors a client's drop-teleport request
+     */
+    public static boolean isClientDropTeleportAllowed() {
+        return ConfigManager.getConfig().allowClientTeleportDrops;
+    }
+
+    /**
+     * Updates the authoritative server policy for client drop requests.
+     *
+     * @param allowed whether the server should honor client requests
+     */
+    public static void setClientDropTeleportAllowed(boolean allowed) {
+        ConfigManager.editConfig(
+                "allowClientTeleportDrops",
+                config -> config.allowClientTeleportDrops = allowed
+        );
+    }
+
+    /**
+     * Returns the authoritative server policy for client XP requests.
+     *
+     * @return whether the server honors a client's experience-teleport request
+     */
+    public static boolean isClientExperienceTeleportAllowed() {
+        return ConfigManager.getConfig().allowClientTeleportExp;
+    }
+
+    /**
+     * Updates the authoritative server policy for client XP requests.
+     *
+     * @param allowed whether the server should honor client requests
+     */
+    public static void setClientExperienceTeleportAllowed(boolean allowed) {
+        ConfigManager.editConfig(
+                "allowClientTeleportExp",
+                config -> config.allowClientTeleportExp = allowed
+        );
+    }
+
+    /**
+     * Resolves a player's effective drop behavior from request and policy.
+     *
+     * @param player server player whose request should be resolved
+     * @return the effective server-authoritative value
+     */
+    public static boolean isDropTeleportEffective(ServerPlayer player) {
+        Objects.requireNonNull(player, "player");
+        return ConfigManager.getConfig().isDropTeleportEnabled(
+                MiningStateManager.isTeleportDrops(player)
+        );
+    }
+
+    /**
+     * Resolves a player's effective XP behavior from request and policy.
+     *
+     * @param player server player whose request should be resolved
+     * @return the effective server-authoritative value
+     */
+    public static boolean isExperienceTeleportEffective(ServerPlayer player) {
+        Objects.requireNonNull(player, "player");
+        return ConfigManager.getConfig().isExperienceTeleportEnabled(
+                MiningStateManager.isTeleportExp(player)
+        );
     }
     
     /**

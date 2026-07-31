@@ -15,3 +15,39 @@ processResources {
         rename { "onekeyminer.png" }
     }
 }
+
+tasks.register("validateMixinRegistration") {
+    dependsOn(tasks.named("processResources"))
+
+    doLast {
+        def metadata = layout.buildDirectory
+                .file("resources/main/META-INF/neoforge.mods.toml")
+                .get()
+                .asFile
+                .getText("UTF-8")
+        if (metadata.count('[[mixins]]') != 2
+                || !metadata.contains('config = "onekeyminer.mixins.json"')
+                || !metadata.contains('config = "onekeyminer.neoforge.mixins.json"')) {
+            throw new GradleException(
+                    "Both common and NeoForge mixins must be registered through neoforge.mods.toml"
+            )
+        }
+
+        def platformConfig = layout.buildDirectory
+                .file("resources/main/onekeyminer.neoforge.mixins.json")
+                .get()
+                .asFile
+                .getText("UTF-8")
+        if (!platformConfig.contains(
+                '"package": "org.xiyu.onekeyminer.neoforge.mixin"'
+        )) {
+            throw new GradleException(
+                    "NeoForge mixins must use a package isolated from mod entrypoints"
+            )
+        }
+    }
+}
+
+tasks.named("check").configure {
+    dependsOn(tasks.named("validateMixinRegistration"))
+}
