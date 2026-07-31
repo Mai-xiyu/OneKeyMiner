@@ -52,6 +52,9 @@ public class MinerConfig {
     public boolean allowBareHand = true;
     public boolean teleportDrops = false;
     public boolean teleportExp = false;
+    /** Dedicated-server policy gates for client-requested teleport features. */
+    public boolean allowClientTeleportDrops = true;
+    public boolean allowClientTeleportExp = true;
     public boolean requireExactMatch = false;
     public boolean playSound = true;
     public boolean showStats = true;
@@ -94,14 +97,14 @@ public class MinerConfig {
         copy.minHungerLevel = this.minHungerLevel;
         copy.hungerPerBlock = this.hungerPerBlock;
         copy.enableInteraction = this.enableInteraction;
-        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
-        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
-        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
-        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.interactionToolWhitelist = copyList(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = copyList(this.interactionToolBlacklist);
+        copy.interactiveItemWhitelist = copyList(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = copyList(this.interactiveItemBlacklist);
         copy.enablePlanting = this.enablePlanting;
-        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
-        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
-        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
+        copy.seedWhitelist = copyList(this.seedWhitelist);
+        copy.seedBlacklist = copyList(this.seedBlacklist);
+        copy.farmlandWhitelist = copyList(this.farmlandWhitelist);
         copy.enableHarvesting = this.enableHarvesting;
         copy.harvestReplant = this.harvestReplant;
         copy.maxBlocksCreative = this.maxBlocksCreative;
@@ -110,13 +113,27 @@ public class MinerConfig {
         copy.allowBareHand = this.allowBareHand;
         copy.teleportDrops = this.teleportDrops;
         copy.teleportExp = this.teleportExp;
+        copy.allowClientTeleportDrops = this.allowClientTeleportDrops;
+        copy.allowClientTeleportExp = this.allowClientTeleportExp;
         copy.requireExactMatch = this.requireExactMatch;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
-        copy.customWhitelist = new ArrayList<>(this.customWhitelist);
-        copy.blacklist = new ArrayList<>(this.blacklist);
-        copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);
-        copy.toolBlacklist = new ArrayList<>(this.toolBlacklist);
+        copy.customWhitelist = copyList(this.customWhitelist);
+        copy.blacklist = copyList(this.blacklist);
+        copy.toolWhitelist = copyList(this.toolWhitelist);
+        copy.toolBlacklist = copyList(this.toolBlacklist);
         return copy;
+    }
+
+    public boolean isDropTeleportEnabled(boolean clientRequested) {
+        return allowClientTeleportDrops && clientRequested;
+    }
+
+    public boolean isExperienceTeleportEnabled(boolean clientRequested) {
+        return allowClientTeleportExp && clientRequested;
+    }
+
+    private static List<String> copyList(List<String> source) {
+        return source == null ? new ArrayList<>() : new ArrayList<>(source);
     }
 }
