@@ -3,8 +3,9 @@ package org.xiyu.onekeyminer.api.event;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -47,10 +48,12 @@ import java.util.function.Predicate;
 public final class ChainEvents {
     
     /** 操作前事件监听器列表 */
-    private static final List<ListenerEntry<PreActionEvent>> PRE_ACTION_LISTENERS = new ArrayList<>();
+    private static final List<ListenerEntry<PreActionEvent>> PRE_ACTION_LISTENERS =
+            new CopyOnWriteArrayList<>();
     
     /** 操作后事件监听器列表 */
-    private static final List<ListenerEntry<PostActionEvent>> POST_ACTION_LISTENERS = new ArrayList<>();
+    private static final List<ListenerEntry<PostActionEvent>> POST_ACTION_LISTENERS =
+            new CopyOnWriteArrayList<>();
     
     private ChainEvents() {
         // 工具类，禁止实例化
@@ -64,7 +67,7 @@ public final class ChainEvents {
      * @param listener 事件监听器
      */
     public static void registerPreActionListener(Consumer<PreActionEvent> listener) {
-        PRE_ACTION_LISTENERS.add(new ListenerEntry<>(null, null, listener));
+        PRE_ACTION_LISTENERS.add(new ListenerEntry<>(null, null, Objects.requireNonNull(listener, "listener")));
         OneKeyMiner.LOGGER.debug("已注册 PreActionEvent 通用监听器");
     }
     
@@ -75,7 +78,11 @@ public final class ChainEvents {
      * @param listener 事件监听器
      */
     public static void registerPreActionListener(ChainActionType actionType, Consumer<PreActionEvent> listener) {
-        PRE_ACTION_LISTENERS.add(new ListenerEntry<>(actionType, null, listener));
+        PRE_ACTION_LISTENERS.add(new ListenerEntry<>(
+                Objects.requireNonNull(actionType, "actionType"),
+                null,
+                Objects.requireNonNull(listener, "listener")
+        ));
         OneKeyMiner.LOGGER.debug("已注册 PreActionEvent 监听器，类型: {}", actionType);
     }
     
@@ -89,7 +96,11 @@ public final class ChainEvents {
             Predicate<PreActionEvent> filter, 
             Consumer<PreActionEvent> listener
     ) {
-        PRE_ACTION_LISTENERS.add(new ListenerEntry<>(null, filter, listener));
+        PRE_ACTION_LISTENERS.add(new ListenerEntry<>(
+                null,
+                Objects.requireNonNull(filter, "filter"),
+                Objects.requireNonNull(listener, "listener")
+        ));
         OneKeyMiner.LOGGER.debug("已注册 PreActionEvent 条件监听器");
     }
     
@@ -111,7 +122,7 @@ public final class ChainEvents {
      * @param listener 事件监听器
      */
     public static void registerPostActionListener(Consumer<PostActionEvent> listener) {
-        POST_ACTION_LISTENERS.add(new ListenerEntry<>(null, null, listener));
+        POST_ACTION_LISTENERS.add(new ListenerEntry<>(null, null, Objects.requireNonNull(listener, "listener")));
         OneKeyMiner.LOGGER.debug("已注册 PostActionEvent 通用监听器");
     }
     
@@ -122,7 +133,11 @@ public final class ChainEvents {
      * @param listener 事件监听器
      */
     public static void registerPostActionListener(ChainActionType actionType, Consumer<PostActionEvent> listener) {
-        POST_ACTION_LISTENERS.add(new ListenerEntry<>(actionType, null, listener));
+        POST_ACTION_LISTENERS.add(new ListenerEntry<>(
+                Objects.requireNonNull(actionType, "actionType"),
+                null,
+                Objects.requireNonNull(listener, "listener")
+        ));
         OneKeyMiner.LOGGER.debug("已注册 PostActionEvent 监听器，类型: {}", actionType);
     }
     
@@ -136,7 +151,11 @@ public final class ChainEvents {
             Predicate<PostActionEvent> filter,
             Consumer<PostActionEvent> listener
     ) {
-        POST_ACTION_LISTENERS.add(new ListenerEntry<>(null, filter, listener));
+        POST_ACTION_LISTENERS.add(new ListenerEntry<>(
+                null,
+                Objects.requireNonNull(filter, "filter"),
+                Objects.requireNonNull(listener, "listener")
+        ));
         OneKeyMiner.LOGGER.debug("已注册 PostActionEvent 条件监听器");
     }
     
@@ -177,6 +196,8 @@ public final class ChainEvents {
                 
             } catch (Exception e) {
                 OneKeyMiner.LOGGER.error("PreActionEvent 监听器发生异常: {}", e.getMessage(), e);
+                event.cancel("PreActionEvent listener failed");
+                break;
             }
         }
     }
