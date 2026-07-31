@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.xiyu.onekeyminer.forge.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "ForgeServerPlayerGameModeMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

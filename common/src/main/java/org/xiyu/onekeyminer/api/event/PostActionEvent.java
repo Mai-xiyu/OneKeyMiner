@@ -7,7 +7,6 @@ import net.minecraft.world.level.Level;
 import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -18,7 +17,7 @@ import java.util.Objects;
  * 此事件仅用于收集信息，不能取消或修改操作结果。</p>
  * 
  * <p>可通过 {@link #getCollectedDrops()} 获取收集到的掉落物，
- * 通过 {@link #getExperienceCollected()} 获取收集到的经验值。</p>
+ * 通过 {@link #getExperienceCollected()} 获取本次立即处理的经验球面值。</p>
  * 
  * <h2>使用示例</h2>
  * <pre>{@code
@@ -37,7 +36,7 @@ import java.util.Objects;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  * @see ChainEvents
  * @see PreActionEvent
  */
@@ -180,11 +179,13 @@ public final class PostActionEvent {
     }
     
     /**
-     * 获取收集到的经验值
+     * 获取本次立即拾取的经验球面值
      * 
-     * <p>仅在启用了经验传送时才会有数据，否则返回 0。</p>
+     * <p>仅在启用了经验传送时才会有数据，否则返回 0。
+     * 受原版拾取冷却影响而留在玩家身边的经验球，以及被经验修补消耗的
+     * 部分，不会伪报为已加入经验条。</p>
      * 
-     * @return 收集到的经验值
+     * @return 本次立即通过原版拾取路径处理的经验球面值
      */
     public int getExperienceCollected() {
         return result.experienceCollected();

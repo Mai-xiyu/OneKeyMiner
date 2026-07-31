@@ -2,6 +2,7 @@ package org.xiyu.onekeyminer.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Loads, validates, saves and hot-reloads the JSON config.
@@ -115,9 +117,9 @@ public class ConfigManager {
         merged.enabled = diskConfig.enabled;
 
         String migratedShape = migrateLegacyShape(diskConfig);
-        if (migratedShape != null && ShapeRegistry.isValidShapeId(migratedShape)) {
+        if (isValidShapeSyntax(migratedShape)) {
             merged.selectedShape = migratedShape;
-        } else if (diskConfig.selectedShape != null && ShapeRegistry.isValidShapeId(diskConfig.selectedShape)) {
+        } else if (isValidShapeSyntax(diskConfig.selectedShape)) {
             merged.selectedShape = diskConfig.selectedShape;
         } else if (diskConfig.selectedShape != null) {
             rejected.add("selectedShape=" + diskConfig.selectedShape);
@@ -148,6 +150,8 @@ public class ConfigManager {
         merged.allowBareHand = diskConfig.allowBareHand;
         merged.teleportDrops = diskConfig.teleportDrops;
         merged.teleportExp = diskConfig.teleportExp;
+        merged.allowClientTeleportDrops = diskConfig.allowClientTeleportDrops;
+        merged.allowClientTeleportExp = diskConfig.allowClientTeleportExp;
         merged.requireExactMatch = diskConfig.requireExactMatch;
         merged.playSound = diskConfig.playSound;
         merged.showStats = diskConfig.showStats;
@@ -157,7 +161,9 @@ public class ConfigManager {
         } else {
             rejected.add("preserveDurability=" + diskConfig.preserveDurability);
         }
-        if (diskConfig.hungerMultiplier >= 0 && diskConfig.hungerMultiplier <= 10) {
+        if (Float.isFinite(diskConfig.hungerMultiplier)
+                && diskConfig.hungerMultiplier >= 0
+                && diskConfig.hungerMultiplier <= 10) {
             merged.hungerMultiplier = diskConfig.hungerMultiplier;
         } else {
             rejected.add("hungerMultiplier=" + diskConfig.hungerMultiplier);
@@ -167,7 +173,7 @@ public class ConfigManager {
         } else {
             rejected.add("minHungerLevel=" + diskConfig.minHungerLevel);
         }
-        if (diskConfig.hungerPerBlock >= 0) {
+        if (Float.isFinite(diskConfig.hungerPerBlock) && diskConfig.hungerPerBlock >= 0) {
             merged.hungerPerBlock = diskConfig.hungerPerBlock;
         } else {
             rejected.add("hungerPerBlock=" + diskConfig.hungerPerBlock);
@@ -192,12 +198,32 @@ public class ConfigManager {
         notifyListeners(oldConfig, newConfig);
     }
 
-    /**
-     * Returns a detached snapshot. Mutating it has no effect until it is
-     * explicitly published with {@link #updateConfig(MinerConfig)}.
-     */
     public static MinerConfig getConfig() {
         return CONFIG.get().copy();
+    }
+
+    public static MinerConfig getConfigSnapshot() {
+        return getConfig();
+    }
+
+    /**
+     * O(1) client networking view. This avoids copying every configured list
+     * for each key-state edge while keeping the published config private.
+     */
+    public record ClientPreferencesSnapshot(
+            String selectedShape,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+    }
+
+    public static ClientPreferencesSnapshot getClientPreferencesSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ClientPreferencesSnapshot(
+                config.selectedShape,
+                config.teleportDrops,
+                config.teleportExp
+        );
     }
 
     public static void updateConfig(MinerConfig newConfig) {
@@ -213,8 +239,33 @@ public class ConfigManager {
         CONFIG.set(normalized);
         validateConfig();
         save();
-        MinerConfig current = CONFIG.get().copy();
-        notifyListeners(oldConfig, current);
+        notifyListeners(oldConfig, CONFIG.get().copy());
+        ConfigSyncHelper.triggerSync();
+        ConfigSyncHelper.notifyConfigChanged(changedKey);
+    }
+
+    /**
+     * Atomically edits the latest configuration snapshot. Prefer this method
+     * for single-setting API changes so concurrent callers cannot overwrite
+     * unrelated fields using stale copies returned by {@link #getConfig()}.
+     */
+    public static synchronized void editConfig(
+            String changedKey,
+            Consumer<MinerConfig> editor
+    ) {
+        Objects.requireNonNull(changedKey, "changedKey");
+        Objects.requireNonNull(editor, "editor");
+
+        MinerConfig oldConfig = CONFIG.get().copy();
+        MinerConfig edited = oldConfig.copy();
+        editor.accept(edited);
+        normalizeCollections(edited);
+        CONFIG.set(edited);
+        validateConfig();
+        save();
+
+        MinerConfig committed = CONFIG.get().copy();
+        notifyListeners(oldConfig, committed);
         ConfigSyncHelper.triggerSync();
         ConfigSyncHelper.notifyConfigChanged(changedKey);
     }
@@ -243,7 +294,7 @@ public class ConfigManager {
             changed = true;
         }
 
-        if (config.selectedShape == null || !ShapeRegistry.isValidShapeId(config.selectedShape)) {
+        if (!isValidShapeSyntax(config.selectedShape)) {
             config.selectedShape = ShapeRegistry.DEFAULT_SHAPE_ID.toString();
             changed = true;
         }
@@ -325,6 +376,13 @@ public class ConfigManager {
         if (diskConfig.seedWhitelist != null) merged.seedWhitelist = new ArrayList<>(diskConfig.seedWhitelist);
         if (diskConfig.seedBlacklist != null) merged.seedBlacklist = new ArrayList<>(diskConfig.seedBlacklist);
         if (diskConfig.farmlandWhitelist != null) merged.farmlandWhitelist = new ArrayList<>(diskConfig.farmlandWhitelist);
+    }
+
+    private static boolean isValidShapeSyntax(String shapeId) {
+        return shapeId != null
+                && !shapeId.isBlank()
+                && shapeId.length() <= ShapeRegistry.MAX_SHAPE_ID_LENGTH
+                && Identifier.tryParse(shapeId) != null;
     }
 
     private static void normalizeCollections(MinerConfig config) {

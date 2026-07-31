@@ -24,8 +24,9 @@ public class NeoForgeKeyBindings {
     public static KeyMapping OPEN_CONFIG;
 
     private static boolean wasKeyDown = false;
+    private static boolean wasConnected = false;
     private static boolean syncPending = true;
-    private static int syncRetryDelay = 0;
+    private static int syncRetryDelay;
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
@@ -66,9 +67,33 @@ public class NeoForgeKeyBindings {
         );
     }
 
+    public static void sendCurrentPreferences() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!minecraft.isSameThread()) {
+            minecraft.execute(NeoForgeKeyBindings::sendCurrentPreferences);
+            return;
+        }
+        if (CHAIN_MINING_KEY == null) {
+            syncPending = true;
+            syncRetryDelay = 20;
+            return;
+        }
+        boolean sent = NeoForgeClientNetworking.trySyncPreferences(CHAIN_MINING_KEY.isDown());
+        syncPending = !sent;
+        syncRetryDelay = sent ? 0 : 20;
+        if (sent) {
+            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        }
+    }
+
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
+        boolean connected = minecraft.player != null && minecraft.getConnection() != null;
+        if (!connected) {
+            wasConnected = false;
+            wasKeyDown = false;
+            syncPending = true;
+            syncRetryDelay = 0;
             return;
         }
 
@@ -81,19 +106,20 @@ public class NeoForgeKeyBindings {
         }
 
         boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-        if (syncPending && minecraft.getConnection() != null) {
+        if (!wasConnected) {
+            wasConnected = true;
+            syncPending = true;
+            syncRetryDelay = 0;
+        }
+
+        if (syncPending) {
             if (syncRetryDelay > 0) {
                 syncRetryDelay--;
             } else {
-                syncCurrentState();
+                sendCurrentPreferences();
             }
-        }
-
-        if (!syncPending && isKeyDown != wasKeyDown && minecraft.getConnection() != null) {
-            if (NeoForgeClientNetworking.trySendKeyState(
-                    isKeyDown,
-                    ConfigManager.getConfig().selectedShape
-            )) {
+        } else if (isKeyDown != wasKeyDown) {
+            if (NeoForgeClientNetworking.trySyncPreferences(isKeyDown)) {
                 wasKeyDown = isKeyDown;
             } else {
                 syncPending = true;
@@ -109,30 +135,6 @@ public class NeoForgeKeyBindings {
         Direction playerFacing = minecraft.player.getDirection();
         float playerPitch = minecraft.player.getXRot();
         ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
-    }
-
-    public static void syncCurrentState() {
-        if (CHAIN_MINING_KEY == null || Minecraft.getInstance().getConnection() == null) {
-            return;
-        }
-        var config = ConfigManager.getConfig();
-        boolean holding = CHAIN_MINING_KEY.isDown();
-        boolean keySent = NeoForgeClientNetworking.trySendKeyState(holding, config.selectedShape);
-        boolean settingsSent = NeoForgeClientNetworking.trySendTeleportSettings(
-                config.teleportDrops,
-                config.teleportExp
-        );
-        syncPending = !(keySent && settingsSent);
-        syncRetryDelay = syncPending ? 20 : 0;
-        if (!syncPending) {
-            wasKeyDown = holding;
-        }
-    }
-
-    public static void resetConnectionState() {
-        wasKeyDown = false;
-        syncPending = true;
-        syncRetryDelay = 0;
     }
 
 }

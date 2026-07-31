@@ -5,7 +5,6 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
@@ -24,15 +23,9 @@ import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 public class OneKeyMinerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        ConfigSyncHelper.registerSyncCallback(KeyBindings::syncCurrentState);
+        ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentPreferences);
 
         KeyBindings.register();
-        ClientPlayConnectionEvents.JOIN.register(
-                (handler, sender, client) -> KeyBindings.syncCurrentState()
-        );
-        ClientPlayConnectionEvents.DISCONNECT.register(
-                (handler, client) -> KeyBindings.resetConnectionState()
-        );
         registerPreviewSystem();
 
         OneKeyMiner.LOGGER.info("OneKeyMiner Fabric client initialized");

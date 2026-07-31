@@ -121,11 +121,10 @@ public final class MiningStateManager {
         if (shapeId == null) {
             return;
         }
-        Identifier immutableId = Identifier.parse(shapeId.toString());
         update(uuid, old -> new PlayerState(
                 old.holding(),
                 old.activated(),
-                immutableId,
+                shapeId,
                 old.teleportDrops(),
                 old.teleportExp()
         ));
@@ -180,7 +179,7 @@ public final class MiningStateManager {
         update(uuid, old -> new PlayerState(
                 holding,
                 old.activated(),
-                shapeId != null ? Identifier.parse(shapeId.toString()) : old.shape(),
+                shapeId != null ? shapeId : old.shape(),
                 teleportDrops,
                 teleportExp
         ));
