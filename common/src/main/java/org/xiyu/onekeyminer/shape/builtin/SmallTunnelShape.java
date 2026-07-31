@@ -37,6 +37,9 @@ public class SmallTunnelShape implements ChainShape {
 
         for (int i = 1; i <= context.getMaxDistance() && result.size() < context.getMaxBlocks(); i++) {
             current = current.relative(direction);
+            if (!level.hasChunkAt(current)) {
+                break;
+            }
             BlockState state = level.getBlockState(current);
             if (context.isMatchingBlock(state)) {
                 result.add(current);

@@ -1,11 +1,16 @@
 package org.xiyu.onekeyminer.platform;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Path;
 
@@ -17,7 +22,7 @@ import java.nio.file.Path;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 public interface PlatformServices {
     
@@ -165,9 +170,47 @@ public interface PlatformServices {
             InteractionHand hand, 
             ItemStack item
     ) {
-        // 默认实现：由 ChainActionLogic 处理
+        return simulateItemUseOnBlock(
+                player,
+                level,
+                new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false),
+                hand,
+                item
+        );
+    }
+
+    /**
+     * Simulates an authoritative block interaction while preserving click
+     * direction and local hit coordinates.
+     */
+    default boolean simulateItemUseOnBlock(
+            ServerPlayer player,
+            Level level,
+            BlockHitResult hitResult,
+            InteractionHand hand,
+            ItemStack item
+    ) {
         return false;
     }
+
+    /**
+     * Performs an authoritative server-side entity interaction.
+     *
+     * <p>Platform implementations must route the interaction through their
+     * cancellable player-interaction hooks before invoking vanilla behavior.</p>
+     *
+     * @param player interacting server player
+     * @param level server level containing the target
+     * @param target target entity
+     * @param hand interaction hand
+     * @return the platform hook or vanilla interaction result
+     */
+    InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+            InteractionHand hand
+    );
     
     /**
      * 检查指定模组是否已加载

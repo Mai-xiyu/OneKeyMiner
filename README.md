@@ -10,15 +10,14 @@
 
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
-  <a href="https://github.com/Mai-xiyu/OneKeyMiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Mai-xiyu/OneKeyMiner?style=flat-square" alt="License"></a>
+  <a href="LICENSE_EN.md"><img src="https://img.shields.io/badge/license-Custom%20v1.2-red?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.6-blue?style=flat-square" alt="OneKeyMiner Version">
   <img src="https://img.shields.io/badge/Minecraft-1.21.11-green?style=flat-square" alt="Minecraft Version">
-  <img src="https://img.shields.io/badge/Java-21+-orange?style=flat-square" alt="Java Version">
+  <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square" alt="Java Version">
 </p>
 
 <p align="center">
-  <a href="README_CN.md">🇨🇳 中文文档</a> | 
-  <a href="USER_GUIDE.md">📖 User Guide</a> | 
-  <a href="API_DOCS_EN.md">🔧 API Documentation</a>
+  <a href="api-reference.md">🔧 API Documentation</a>
 </p>
 
 ---
@@ -43,20 +42,32 @@
 | Component | Version |
 |-----------|---------|
 | Minecraft | 1.21.11 |
-| Java | 21+ |
-| Fabric Loader | 0.15.0+ |
-| NeoForge | 21.0+ |
-| Forge | 59.0+ |
+| OneKeyMiner | 1.6.6 |
+| Java | 21 |
+| Fabric Loader | 0.18.4 |
+| Fabric API | 0.141.2+1.21.11 |
+| NeoForge | 21.11.37-beta |
+| Forge | 61.0.8 |
 
 ### Download
 
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-x.x.x-1.21.11.jar` for Fabric
-- `onekeyminer-neoforge-x.x.x-1.21.11.jar` for NeoForge  
-- `onekeyminer-forge-x.x.x-1.21.11.jar` for Forge
-- `onekeyminer-x.x.x-1.21.11.jar` for universal (auto-detect)
+- `onekeyminer-fabric-1.6.6-1.21.11.jar` for Fabric
+- `onekeyminer-neoforge-1.6.6-1.21.11.jar` for NeoForge
+- `onekeyminer-forge-1.6.6-1.21.11.jar` for Forge
+
+Use the matching platform JAR on both the client and server. A universal JAR
+is not published because loader-specific Minecraft mappings cannot provide a
+single binary-compatible public API to add-on mods.
+
+### Multiplayer configuration
+
+On dedicated servers, global limits and feature switches are server-authoritative. Client
+screens may display local values, but cannot override server policy. Per-player preferences
+(selected shape and drop/experience teleport settings) are synchronized when joining, when
+the activation key changes, and after saving the configuration screen.
 
 ---
 
@@ -101,6 +112,8 @@ Configuration file location: `config/onekeyminer.json`
 | `allowBareHand` | `true` | Allow chain mining without tools |
 | `teleportDrops` | `false` | Teleport drops to player inventory |
 | `teleportExp` | `false` | Teleport experience to player |
+| `allowClientTeleportDrops` | `true` | Server policy gate for client-requested drop teleport |
+| `allowClientTeleportExp` | `true` | Server policy gate for client-requested experience teleport |
 
 ### Block/Tool Lists
 
@@ -117,29 +130,39 @@ Configuration file location: `config/onekeyminer.json`
 
 ## 🔧 For Developers
 
-OneKeyMiner provides a comprehensive API for mod developers.
+OneKeyMiner provides an API for mod developers. It does not currently publish a
+documented Maven repository or stable Maven coordinate. Copy the production JAR
+for the target platform into your add-on project's `libs/` directory and use a
+compile-only dependency.
 
 ### Adding Dependency
 
 ```groovy
-// Fabric
-modImplementation "org.xiyu:onekeyminer-fabric:2.0.0"
+// Fabric Loom
+modCompileOnly files("libs/onekeyminer-fabric-1.6.6-1.21.11.jar")
 
-// NeoForge/Forge
-implementation "org.xiyu:onekeyminer-neoforge:2.0.0"
+// ForgeGradle
+compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-1.21.11.jar"))
+
+// NeoGradle or ModDevGradle
+compileOnly files("libs/onekeyminer-neoforge-1.6.6-1.21.11.jar")
 ```
+
+Install OneKeyMiner separately at runtime and declare it in the add-on's loader
+metadata as an optional or required dependency.
 
 ### Basic API Usage
 
 ```java
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
+import org.xiyu.onekeyminer.api.event.ChainEvents;
 
 // Register custom blocks
 OneKeyMinerAPI.registerBlock("mymod:custom_ore");
 OneKeyMinerAPI.registerBlockTag("#mymod:ores");
 
 // Register custom tools
-OneKeyMinerAPI.registerTool("mymod:super_pickaxe");
+OneKeyMinerAPI.whitelistTool("mymod:super_pickaxe");
 
 // Listen to events
 ChainEvents.registerPreActionListener(event -> {
@@ -147,7 +170,23 @@ ChainEvents.registerPreActionListener(event -> {
 });
 ```
 
-See [API Documentation](API_DOCS_EN.md) for complete API reference.
+The server remains authoritative: API listeners and client preferences cannot
+bypass target, protection, distance, durability, hunger, or server-policy
+checks. Original right-click interactions complete through the loader/vanilla
+path once; only then are validated derived targets dispatched. A throwing
+`PreActionEvent` listener fail-closes all chain work that has not already
+completed; it cannot roll back an original interaction that already succeeded.
+Native actions must also produce their expected block/entity transition, so a
+button, container, composter, or protection-mod cancellation result cannot
+authorize unrelated neighboring work.
+
+`ConfigManager.getConfig()` returns a defensive copy. Use
+`ConfigManager.editConfig(key, editor)` for atomic changes. The deprecated
+`skipPermissionCheck` context option is ignored.
+
+See [API Documentation](api-reference.md) for the complete 1.21.11 reference,
+including the current event, shape, context, and tool-rule signatures. Shape IDs
+are limited to 128 characters.
 
 ---
 
@@ -180,7 +219,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.11`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.11-1.6.0`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.21.11-1.6.6`).
 
 
 ## 🐛 Issues & Contributions
@@ -194,7 +233,11 @@ Found a bug or have a suggestion?
 
 ## 📜 License
 
-This project is licensed under **All Rights Reserved (ARR)**. You may not copy, modify, or distribute the code without permission from the author.
+This project uses the **Code Repository General License Agreement v1.2**,
+a custom non-commercial license. It is not MIT-licensed. See
+[LICENSE_EN.md](LICENSE_EN.md) or [LICENSE_CN.md](LICENSE_CN.md) for the
+complete terms, including the separate requirements for derivative and
+dependent works.
 
 ---
 

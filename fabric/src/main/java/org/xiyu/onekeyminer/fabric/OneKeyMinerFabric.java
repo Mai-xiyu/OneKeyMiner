@@ -6,6 +6,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -23,35 +24,41 @@ public class OneKeyMinerFabric implements ModInitializer {
 
     private void registerNetworking() {
         PayloadTypeRegistry.playC2S().register(
-                KeyBindings.ChainKeyStatePayload.TYPE,
-                KeyBindings.ChainKeyStatePayload.STREAM_CODEC
-        );
-        PayloadTypeRegistry.playC2S().register(
-                KeyBindings.TeleportSettingsPayload.TYPE,
-                KeyBindings.TeleportSettingsPayload.STREAM_CODEC
+                FabricPayloads.ClientPreferencesPayload.TYPE,
+                FabricPayloads.ClientPreferencesPayload.STREAM_CODEC
         );
 
         ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.ChainKeyStatePayload.TYPE,
-                (payload, context) -> context.server().execute(() -> {
-                    if (context.player() != null) {
-                        PlatformServices.getInstance().setChainModeActive(context.player(), payload.holding());
-                        Identifier id = Identifier.tryParse(payload.shapeId());
-                        if (id != null) {
-                            MiningStateManager.setPlayerShape(context.player(), id);
+                FabricPayloads.ClientPreferencesPayload.TYPE,
+                (payload, context) -> {
+                    if (payload.wireVersion() != FabricPayloads.WIRE_VERSION) {
+                        OneKeyMiner.LOGGER.warn(
+                                "Ignoring client preferences from {} with unsupported wire version {}",
+                                context.player().getGameProfile().name(),
+                                payload.wireVersion()
+                        );
+                        return;
+                    }
+                    Identifier id = Identifier.tryParse(payload.shapeId());
+                    if (id == null || !ShapeRegistry.isRegistered(id)) {
+                        OneKeyMiner.LOGGER.warn(
+                                "Replacing invalid shape preference '{}' from {} with the server default",
+                                payload.shapeId(),
+                                context.player().getGameProfile().name()
+                        );
+                        id = ShapeRegistry.DEFAULT_SHAPE_ID;
+                        if (!ShapeRegistry.isRegistered(id)) {
+                            return;
                         }
                     }
-                })
-        );
-
-        ServerPlayNetworking.registerGlobalReceiver(
-                KeyBindings.TeleportSettingsPayload.TYPE,
-                (payload, context) -> context.server().execute(() -> {
-                    if (context.player() != null) {
-                        MiningStateManager.setTeleportDrops(context.player(), payload.teleportDrops());
-                        MiningStateManager.setTeleportExp(context.player(), payload.teleportExp());
-                    }
-                })
+                    MiningStateManager.updatePreferences(
+                            context.player().getUUID(),
+                            payload.holding(),
+                            id,
+                            payload.teleportDrops(),
+                            payload.teleportExp()
+                    );
+                }
         );
     }
 }

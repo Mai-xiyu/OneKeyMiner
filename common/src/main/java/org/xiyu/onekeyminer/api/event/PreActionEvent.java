@@ -7,8 +7,9 @@ import net.minecraft.world.level.Level;
 import org.xiyu.onekeyminer.chain.ChainActionType;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 链式操作前事件（可取消）
@@ -42,11 +43,13 @@ import java.util.List;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  * @see ChainEvents
  * @see PostActionEvent
  */
 public final class PreActionEvent {
+
+    private static final int MAX_TARGET_POSITIONS = 40_960;
     
     /** 执行操作的玩家 */
     private final ServerPlayer player;
@@ -90,12 +93,14 @@ public final class PreActionEvent {
             ItemStack tool,
             ChainActionType actionType
     ) {
-        this.player = player;
-        this.level = level;
-        this.originPos = originPos;
-        this.targetPositions = new ArrayList<>(targetPositions);
-        this.tool = tool;
-        this.actionType = actionType;
+        this.player = Objects.requireNonNull(player, "player");
+        this.level = Objects.requireNonNull(level, "level");
+        this.originPos = Objects.requireNonNull(originPos, "originPos").immutable();
+        this.targetPositions = new BoundedTargetList(
+                Objects.requireNonNull(targetPositions, "targetPositions")
+        );
+        this.tool = Objects.requireNonNull(tool, "tool").copy();
+        this.actionType = Objects.requireNonNull(actionType, "actionType");
     }
     
     // ==================== Getters ====================
@@ -130,7 +135,9 @@ public final class PreActionEvent {
     /**
      * 获取将要操作的目标位置列表
      * 
-     * <p>此列表可以被修改，修改后的列表将用于实际操作。</p>
+     * <p>此列表可以被修改，修改后的列表将用于实际操作。为避免有缺陷的
+     * 监听器造成无界内存增长，列表最多保存 40,960 个位置；超过上限的
+     * 直接添加会抛出 {@link IllegalStateException}。</p>
      * 
      * @return 目标位置列表（可修改）
      */
@@ -153,7 +160,7 @@ public final class PreActionEvent {
      * @return 物品堆
      */
     public ItemStack getTool() {
-        return tool;
+        return tool.copy();
     }
     
     /**
@@ -212,7 +219,9 @@ public final class PreActionEvent {
      * @param positions 新的目标位置列表
      */
     public void setTargetPositions(List<BlockPos> positions) {
-        this.targetPositions = new ArrayList<>(positions);
+        this.targetPositions = new BoundedTargetList(
+                Objects.requireNonNull(positions, "positions")
+        );
     }
     
     /**
@@ -232,10 +241,102 @@ public final class PreActionEvent {
      * @return 如果成功添加返回 true
      */
     public boolean addTarget(BlockPos pos) {
+        if (pos == null) {
+            return false;
+        }
+        pos = pos.immutable();
         if (!targetPositions.contains(pos)) {
             return targetPositions.add(pos);
         }
         return false;
+    }
+
+    private static final class BoundedTargetList extends ArrayList<BlockPos> {
+        private BoundedTargetList(Collection<? extends BlockPos> positions) {
+            super(Math.min(MAX_TARGET_POSITIONS, positions.size()));
+            int copied = 0;
+            for (BlockPos pos : positions) {
+                if (copied++ >= MAX_TARGET_POSITIONS) {
+                    break;
+                }
+                super.add(immutable(pos));
+            }
+        }
+
+        @Override
+        public boolean add(BlockPos pos) {
+            requireCapacityFor(1);
+            return super.add(immutable(pos));
+        }
+
+        @Override
+        public void add(int index, BlockPos element) {
+            requireCapacityFor(1);
+            super.add(index, immutable(element));
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends BlockPos> positions) {
+            Objects.requireNonNull(positions, "positions");
+            return super.addAll(copyForInsertion(positions));
+        }
+
+        @Override
+        public boolean addAll(
+                int index,
+                Collection<? extends BlockPos> positions
+        ) {
+            Objects.requireNonNull(positions, "positions");
+            if (index < 0 || index > size()) {
+                throw new IndexOutOfBoundsException(
+                        "Index: " + index + ", Size: " + size()
+                );
+            }
+            return super.addAll(index, copyForInsertion(positions));
+        }
+
+        @Override
+        public BlockPos set(int index, BlockPos element) {
+            return super.set(index, immutable(element));
+        }
+
+        @Override
+        public void ensureCapacity(int minCapacity) {
+            super.ensureCapacity(Math.min(MAX_TARGET_POSITIONS, minCapacity));
+        }
+
+        private void requireCapacityFor(int additional) {
+            if (additional < 0
+                    || additional > MAX_TARGET_POSITIONS - size()) {
+                throw new IllegalStateException(
+                        "PreActionEvent target limit exceeded: "
+                                + MAX_TARGET_POSITIONS
+                );
+            }
+        }
+
+        private List<BlockPos> copyForInsertion(
+                Collection<? extends BlockPos> positions
+        ) {
+            int remaining = MAX_TARGET_POSITIONS - size();
+            List<BlockPos> copy = new ArrayList<>(
+                    Math.min(remaining, positions.size())
+            );
+            for (BlockPos pos : positions) {
+                if (copy.size() >= remaining) {
+                    throw new IllegalStateException(
+                            "PreActionEvent target limit exceeded: "
+                                    + MAX_TARGET_POSITIONS
+                    );
+                }
+                copy.add(immutable(pos));
+            }
+            return copy;
+        }
+
+        private static BlockPos immutable(BlockPos pos) {
+            return Objects.requireNonNull(pos, "pos").immutable();
+        }
     }
     
     /**
