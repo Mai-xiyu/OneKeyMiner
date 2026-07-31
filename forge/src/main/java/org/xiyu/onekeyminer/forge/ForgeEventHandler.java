@@ -1,13 +1,17 @@
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.Shearable;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -27,29 +31,38 @@ import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+
 /**
  * Forge 事件处理器
- * 
+ *
  * <p>监听并处理与链式操作相关的游戏事件：</p>
  * <ul>
  *   <li>{@link BlockEvent.BreakEvent} - 方块破坏事件（连锁挖掘）</li>
  *   <li>{@link PlayerInteractEvent.RightClickBlock} - 右键方块事件（连锁交互/种植）</li>
  *   <li>{@link PlayerEvent.PlayerLoggedOutEvent} - 玩家退出事件（清理状态）</li>
  * </ul>
- * 
+ *
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 public class ForgeEventHandler {
-    
+
     /** 防止重入的标记 */
     private static final ThreadLocal<Boolean> IS_CHAIN_BREAKING = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Boolean> IS_CHAIN_INTERACTING = ThreadLocal.withInitial(() -> false);
-    
+    private static final Set<ChainActionType> RIGHT_CLICK_ACTION_TYPES = Set.of(
+            ChainActionType.INTERACTION,
+            ChainActionType.PLANTING,
+            ChainActionType.HARVESTING
+    );
+
     /**
      * 处理方块破坏事件 - 触发连锁挖掘
-     * 
+     *
      * @param event 方块破坏事件
      */
     @SubscribeEvent(priority = Priority.LOWEST)
@@ -58,101 +71,196 @@ public class ForgeEventHandler {
         if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
             return;
         }
-        
+
         // 只处理服务端事件
         if (event.getLevel().isClientSide()) {
             return;
         }
-        
+
         // 检查玩家
         if (!(event.getPlayer() instanceof ServerPlayer player)) {
             return;
         }
-        
+
         // 检查配置
         MinerConfig config = ConfigManager.getConfig();
         if (!config.enabled) {
             return;
         }
-        
+
         // 检查链式模式是否激活
         if (!PlatformServices.getInstance().isChainModeActive(player)) {
             return;
         }
-        
-        BlockPos pos = event.getPos();
+
+        if (!(event.getLevel() instanceof ServerLevel level)) {
+            return;
+        }
+
+        BlockPos pos = event.getPos().immutable();
         BlockState state = event.getState();
-        Level level = (Level) event.getLevel();
-        
+        MinecraftServer server = level.getServer();
+        if (server == null) {
+            return;
+        }
+
+        // BreakEvent fires before the original break is final. Run one tick
+        // later and only continue if the original block actually disappeared.
+        UUID playerId = player.getUUID();
+        int selectedSlot = player.getInventory().getSelectedSlot();
+        ItemStack originalTool = player.getMainHandItem().copy();
+        server.schedule(new TickTask(
+                server.getTickCount() + 1,
+                () -> processSuccessfulBlockBreak(
+                        server,
+                        playerId,
+                        level,
+                        pos,
+                        state,
+                        selectedSlot,
+                        originalTool
+                )
+        ));
+    }
+
+    private void processSuccessfulBlockBreak(
+            MinecraftServer server,
+            UUID playerId,
+            ServerLevel level,
+            BlockPos pos,
+            BlockState originalState,
+            int selectedSlot,
+            ItemStack originalTool
+    ) {
+        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+        if (player == null || player.level() != level || !level.hasChunkAt(pos)) {
+            return;
+        }
+        if (player.getInventory().getSelectedSlot() != selectedSlot
+                || !matchesOriginalTool(originalTool, player.getMainHandItem())) {
+            return;
+        }
+        if (level.getBlockState(pos).getBlock() == originalState.getBlock()) {
+            return;
+        }
+
+        MinerConfig config = ConfigManager.getConfig();
+        if (!config.enabled) {
+            return;
+        }
+
         try {
             IS_CHAIN_BREAKING.set(true);
-            
-            // 执行连锁挖掘
-            ChainActionResult result = ChainActionLogic.onBlockBreak(player, level, pos, state);
-            
-            if (result.isSuccess()) {
-                // 发送操作完成消息
-                if (config.showStats) {
-                    PlatformServices.getInstance().sendChainActionMessage(
-                            player,
-                            "mining",
-                            result.totalCount()
-                    );
-                }
-
-                if (config.playSound) {
-                    level.playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
-                            SoundSource.PLAYERS, 0.6f, 1.0f);
-                }
-                
-                OneKeyMiner.LOGGER.debug("连锁挖掘完成: {}", result.getSummary());
+            ChainActionResult result = ChainActionLogic.onVerifiedBlockBreak(
+                    player,
+                    level,
+                    pos,
+                    originalState,
+                    originalTool
+            );
+            if (!result.isSuccess()) {
+                return;
             }
-            
+            if (config.showStats) {
+                PlatformServices.getInstance().sendChainActionMessage(
+                        player,
+                        "mining",
+                        result.totalCount()
+                );
+            }
+            if (config.playSound) {
+                level.playSound(
+                        null,
+                        player.blockPosition(),
+                        SoundEvents.EXPERIENCE_ORB_PICKUP,
+                        SoundSource.PLAYERS,
+                        0.6f,
+                        1.0f
+                );
+            }
+            OneKeyMiner.LOGGER.debug("连锁挖掘完成: {}", result.getSummary());
         } finally {
-            IS_CHAIN_BREAKING.set(false);
+            IS_CHAIN_BREAKING.remove();
         }
     }
-    
+
+    private static boolean matchesOriginalTool(ItemStack before, ItemStack current) {
+        if (before.isEmpty() || current.isEmpty()) {
+            return before.isEmpty() && current.isEmpty();
+        }
+        if (before.getCount() != current.getCount()
+                || !ItemStack.isSameItem(before, current)) {
+            return false;
+        }
+
+        return Objects.equals(
+                before.get(DataComponents.ENCHANTMENTS),
+                current.get(DataComponents.ENCHANTMENTS)
+        ) && Objects.equals(
+                before.get(DataComponents.STORED_ENCHANTMENTS),
+                current.get(DataComponents.STORED_ENCHANTMENTS)
+        ) && Objects.equals(
+                before.get(DataComponents.TOOL),
+                current.get(DataComponents.TOOL)
+        ) && Objects.equals(
+                before.get(DataComponents.UNBREAKABLE),
+                current.get(DataComponents.UNBREAKABLE)
+        ) && Objects.equals(
+                before.get(DataComponents.CAN_BREAK),
+                current.get(DataComponents.CAN_BREAK)
+        ) && Objects.equals(
+                before.get(DataComponents.ATTRIBUTE_MODIFIERS),
+                current.get(DataComponents.ATTRIBUTE_MODIFIERS)
+        ) && Objects.equals(
+                before.get(DataComponents.MAX_DAMAGE),
+                current.get(DataComponents.MAX_DAMAGE)
+        );
+    }
+
     /**
      * 处理右键方块事件 - 触发连锁交互或种植
-     * 
+     *
      * @param event 右键方块事件
      */
-    @SubscribeEvent(priority = Priority.LOW)
+    @SubscribeEvent(priority = Priority.LOWEST)
     public boolean onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         // 防止重入
         if (IS_CHAIN_INTERACTING.get()) {
             return false;
         }
-        
+
         // 只处理服务端事件
         if (event.getLevel().isClientSide()) {
             return false;
         }
-        
+
         // 检查玩家
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return false;
         }
-        
+
         // 检查配置
         MinerConfig config = ConfigManager.getConfig();
         if (!config.enabled) {
             return false;
         }
-        
+
         // 检查链式模式是否激活
         if (!PlatformServices.getInstance().isChainModeActive(player)) {
             return false;
         }
-        
+
         BlockPos pos = event.getPos();
         Level level = event.getLevel();
         InteractionHand hand = event.getHand();
         BlockState state = level.getBlockState(pos);
-        
+
         var heldItem = player.getItemInHand(hand);
-        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForBlock(heldItem, state).orElse(null);
+        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForBlock(
+                heldItem,
+                state,
+                RIGHT_CLICK_ACTION_TYPES
+        ).orElse(null);
         ChainActionContext.InteractionOverride interactionOverride = null;
 
         // 确定操作类型（交互、种植或自定义）
@@ -171,7 +279,11 @@ public class ForgeEventHandler {
         if (actionType == null) {
             return false;
         }
-        
+        if (actionType == ChainActionType.HARVESTING
+                && hand != InteractionHand.MAIN_HAND) {
+            return false;
+        }
+
         // 检查对应功能是否启用
         if (actionType == ChainActionType.INTERACTION && !config.enableInteraction) {
             return false;
@@ -182,32 +294,41 @@ public class ForgeEventHandler {
         if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
             return false;
         }
-        
+        if (actionType != ChainActionType.HARVESTING) {
+            // Interaction and planting run after the original server use
+            // succeeds; the mixin bridge dispatches only derived targets.
+            return false;
+        }
+
+        BlockPos actionOrigin = pos;
+        BlockState actionState = state;
+        if (actionType == ChainActionType.PLANTING) {
+            if (event.getFace() != Direction.UP) {
+                return false;
+            }
+            actionOrigin = pos.above();
+            actionState = level.getBlockState(actionOrigin);
+        }
+
         try {
             IS_CHAIN_INTERACTING.set(true);
 
-            BlockPos originPos = actionType == ChainActionType.PLANTING
-                    ? pos.relative(event.getFace())
-                    : pos;
-            BlockState originState = actionType == ChainActionType.PLANTING
-                    ? level.getBlockState(originPos)
-                    : state;
-            
             // 构建上下文
-            ChainActionContext context = ChainActionContext.builder()
+                ChainActionContext context = ChainActionContext.builder()
                     .player(player)
                     .level(level)
-                    .originPos(originPos)
-                    .originState(originState)
+                    .originPos(actionOrigin)
+                    .originState(actionState)
                     .actionType(actionType)
                     .heldItem(heldItem)
                     .hand(hand)
                     .interactionOverride(interactionOverride)
+                    .blockHitResult(event.getHitVec())
                     .build();
-            
+
             // 执行链式操作
             ChainActionResult result = ChainActionLogic.execute(context);
-            
+
             if (result.isSuccess()) {
                 // 发送操作完成消息
                 if (config.showStats) {
@@ -222,117 +343,23 @@ public class ForgeEventHandler {
                     level.playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
                         SoundSource.PLAYERS, 0.6f, 1.0f);
                 }
-                
-                OneKeyMiner.LOGGER.debug("{} 完成: {}", 
-                        actionType.getDisplayName(), 
+
+                OneKeyMiner.LOGGER.debug("{} 完成: {}",
+                        actionType.getDisplayName(),
                         result.getSummary());
                 event.setCancellationResult(InteractionResult.SUCCESS);
                 return true;
             }
-            return false;
+
         } finally {
-            IS_CHAIN_INTERACTING.set(false);
+            IS_CHAIN_INTERACTING.remove();
         }
+        return false;
     }
 
-    /**
-     * 处理右键实体事件 - 触发剪羊毛连锁
-     *
-     * @param event 右键实体事件
-     */
-    @SubscribeEvent(priority = Priority.LOW)
-    public boolean onRightClickEntity(PlayerInteractEvent.EntityInteractSpecific event) {
-        if (IS_CHAIN_INTERACTING.get()) {
-            return false;
-        }
-
-        if (event.getLevel().isClientSide()) {
-            return false;
-        }
-
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return false;
-        }
-
-        MinerConfig config = ConfigManager.getConfig();
-        if (!config.enabled || !config.enableInteraction) {
-            return false;
-        }
-
-        if (!PlatformServices.getInstance().isChainModeActive(player)) {
-            return false;
-        }
-
-        Entity target = event.getTarget();
-        InteractionHand hand = event.getHand();
-        var heldItem = player.getItemInHand(hand);
-        if (heldItem.isEmpty()) {
-            return false;
-        }
-
-        OneKeyMinerAPI.ToolActionRule customRule = OneKeyMinerAPI.findToolActionForEntity(heldItem, target).orElse(null);
-        ChainActionContext.InteractionOverride interactionOverride = null;
-
-        if (customRule != null) {
-            if (customRule.actionType() != ChainActionType.INTERACTION) {
-                return false;
-            }
-            interactionOverride = ChainActionLogic.mapInteractionOverride(customRule.interactionRule());
-            if (interactionOverride == null) {
-                return false;
-            }
-            if (interactionOverride != ChainActionContext.InteractionOverride.SHEARING) {
-                return false;
-            }
-        } else {
-            if (!(target instanceof Shearable shearable) || !shearable.readyForShearing()) {
-                return false;
-            }
-            interactionOverride = ChainActionContext.InteractionOverride.SHEARING;
-        }
-
-        try {
-            IS_CHAIN_INTERACTING.set(true);
-
-            ChainActionContext context = ChainActionContext.builder()
-                    .player(player)
-                    .level(event.getLevel())
-                    .originPos(target.blockPosition())
-                    .originState(event.getLevel().getBlockState(target.blockPosition()))
-                    .actionType(ChainActionType.INTERACTION)
-                    .heldItem(heldItem)
-                    .hand(hand)
-                    .interactionOverride(interactionOverride)
-                    .build();
-
-            ChainActionResult result = ChainActionLogic.execute(context);
-
-            if (result.isSuccess()) {
-                if (config.showStats) {
-                    PlatformServices.getInstance().sendChainActionMessage(
-                            player,
-                            ChainActionType.INTERACTION.getId(),
-                            result.totalCount()
-                    );
-                }
-
-                if (config.playSound) {
-                    event.getLevel().playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP,
-                            SoundSource.PLAYERS, 0.6f, 1.0f);
-                }
-
-                event.setCancellationResult(InteractionResult.SUCCESS);
-                return true;
-            }
-            return false;
-        } finally {
-            IS_CHAIN_INTERACTING.set(false);
-        }
-    }
-    
     /**
      * 处理玩家退出事件 - 清理状态
-     * 
+     *
      * @param event 玩家退出事件
      */
     @SubscribeEvent
@@ -346,10 +373,10 @@ public class ForgeEventHandler {
     public void onServerStopped(ServerStoppedEvent event) {
         MiningStateManager.clearAll();
     }
-    
+
     /**
      * 根据手持物品和目标方块确定操作类型
-     * 
+     *
      * @param player 玩家
      * @param hand 交互手
      * @param targetState 目标方块状态
@@ -361,26 +388,25 @@ public class ForgeEventHandler {
             BlockState targetState
     ) {
         var heldItem = player.getItemInHand(hand);
-        
+
         if (heldItem.isEmpty()) {
             if (ChainActionLogic.isMatureCrop(targetState)) {
                 return ChainActionType.HARVESTING;
             }
             return null;
         }
-        
+
         // 检查是否是种植操作 - 使用统一的可种植物品检查
         // 只有符合条件的物品才会触发连锁种植，否则正常放行放置事件
         if (ChainActionLogic.isPlantableItem(heldItem)) {
             return ChainActionType.PLANTING;
         }
-        
+
         // 检查是否是交互操作
-        if (ChainActionLogic.isValidInteractionTarget(heldItem, targetState) ||
-                ChainActionLogic.canAttemptBlockInteraction(heldItem)) {
+        if (ChainActionLogic.isValidInteractionTarget(heldItem, targetState)) {
             return ChainActionType.INTERACTION;
         }
-        
+
         return null;
     }
 }

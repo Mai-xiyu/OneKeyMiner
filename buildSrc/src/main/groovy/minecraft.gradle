@@ -30,10 +30,20 @@ unimined.minecraft(sourceSets.main, true) {
     }
 }
 
+dependencies {
+    compileOnly "org.spongepowered:mixin:0.8.7"
+
+    // Common sources are compiled directly into each loader source set below.
+    // Keep the project dependency off the runtime module path; otherwise Forge
+    // sees both the loader module and onekeyminer.common exporting identical
+    // packages and refuses to create the module layer.
+    compileOnly(project(":common"))
+}
+
 processResources {
     from project(":common").sourceSets.main.resources
 }
 
-tasks.withType(JavaCompile).configureEach {
+tasks.named("compileJava", JavaCompile).configure {
     source(project(":common").sourceSets.main.allSource)
 }

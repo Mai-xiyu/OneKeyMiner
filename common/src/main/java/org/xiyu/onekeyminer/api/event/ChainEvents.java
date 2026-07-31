@@ -43,15 +43,17 @@ import java.util.function.Predicate;
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.21.7
  */
 public final class ChainEvents {
     
     /** 操作前事件监听器列表 */
-    private static final List<ListenerEntry<PreActionEvent>> PRE_ACTION_LISTENERS = new CopyOnWriteArrayList<>();
+    private static final List<ListenerEntry<PreActionEvent>> PRE_ACTION_LISTENERS =
+            new CopyOnWriteArrayList<>();
     
     /** 操作后事件监听器列表 */
-    private static final List<ListenerEntry<PostActionEvent>> POST_ACTION_LISTENERS = new CopyOnWriteArrayList<>();
+    private static final List<ListenerEntry<PostActionEvent>> POST_ACTION_LISTENERS =
+            new CopyOnWriteArrayList<>();
     
     private ChainEvents() {
         // 工具类，禁止实例化
@@ -194,6 +196,8 @@ public final class ChainEvents {
                 
             } catch (Exception e) {
                 OneKeyMiner.LOGGER.error("PreActionEvent 监听器发生异常: {}", e.getMessage(), e);
+                event.cancel("PreActionEvent listener failed");
+                break;
             }
         }
     }

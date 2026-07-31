@@ -3,12 +3,11 @@
   "id": "${mod_id}",
   "version": "${version}",
   "name": "${mod_name}",
-  "description": "一键连锁挖矿模组 - 支持矿石、原木等方块的连锁挖掘",
+  "description": "${description}",
   "authors": $mod_authors,
   "contact": {
     "homepage": "https://github.com/Mai-xiyu/OneKeyMiner",
-    "sources": "https://github.com/Mai-xiyu/OneKeyMiner",
-    "issues": "https://github.com/Mai-xiyu/OneKeyMiner/issues"
+    "sources": "https://github.com/Mai-xiyu/OneKeyMiner"
   },
   "license": "${license}",
   "icon": "assets/${mod_id}/icon.png",
@@ -20,6 +19,16 @@
     "client": [
       "org.xiyu.onekeyminer.fabric.OneKeyMinerFabricClient"
     ]
+  },
+  "mixins": [
+    "onekeyminer.mixins.json"
+  ],
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "https://discord.gg/onekeyminer"
+      }
+    }
   },
   "depends": {
     "fabricloader": ">=${fabric_loader}",

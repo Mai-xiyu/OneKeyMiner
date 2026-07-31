@@ -13,9 +13,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Fabric 鍘熺敓閰嶇疆鐣岄潰
- * <p>鎻愪緵鍒嗛〉鐨勫浘褰㈠寲閰嶇疆鐣岄潰锛屼娇鐢ㄧ炕璇戦敭鏀寔澶氳瑷€銆?/p>
- * <p>涓嶄緷璧?ClothConfig锛屼娇鐢ㄥ師鐗?Screen API 瀹炵幇銆?/p>
+ * Fabric 原生配置界面。
+ *
+ * <p>提供分页图形界面并使用翻译键支持多语言。
+ * 不依赖 Cloth Config，直接使用原版 Screen API。</p>
  *
  * @author OneKeyMiner Team
  * @version 1.0.0
@@ -50,10 +51,10 @@ public class FabricConfigScreen extends Screen {
             case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
         }
 
-        // === 搴曢儴瀵艰埅鏍?===
+        // === 底部导航栏 ===
         int bottomY = this.height - 30;
 
-        // 涓婁竴椤?
+        // 上一页
         Button prevBtn = Button.builder(Component.literal("<"), b -> {
             if (currentPage > 0) {
                 currentPage--;
@@ -63,7 +64,7 @@ public class FabricConfigScreen extends Screen {
         prevBtn.active = currentPage > 0;
         this.addRenderableWidget(prevBtn);
 
-        // 涓嬩竴椤?
+        // 下一页
         Button nextBtn = Button.builder(Component.literal(">"), b -> {
             if (currentPage < totalPages - 1) {
                 currentPage++;
@@ -73,7 +74,7 @@ public class FabricConfigScreen extends Screen {
         nextBtn.active = currentPage < totalPages - 1;
         this.addRenderableWidget(nextBtn);
 
-        // 淇濆瓨
+        // 保存
         this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                 button -> {
@@ -82,14 +83,14 @@ public class FabricConfigScreen extends Screen {
                 }
         ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
 
-        // 鍙栨秷
+        // 取消
         this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.cancel"),
                 button -> this.onClose()
         ).bounds(centerX + 5, bottomY, 120, buttonHeight).build());
     }
 
-    // === 绗竴椤碉細鍩虹璁剧疆 ===
+    // === 第一页：基础设置 ===
     private void initPageGeneral(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -127,7 +128,7 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v);
     }
 
-    // === 绗簩椤碉細娑堣€楄缃?===
+    // === 第二页：消耗设置 ===
     private void initPageConsumption(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -165,7 +166,7 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
     }
 
-    // === 绗笁椤碉細楂樼骇璁剧疆 ===
+    // === 第三页：高级设置 ===
     private void initPageAdvanced(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -194,7 +195,7 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.requireExactMatch, v -> configCopy.requireExactMatch = v);
     }
 
-    // === 杈呭姪鏂规硶 ===
+    // === 辅助方法 ===
 
     private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
         this.addRenderableWidget(Button.builder(

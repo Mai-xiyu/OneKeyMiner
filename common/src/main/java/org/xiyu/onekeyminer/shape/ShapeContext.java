@@ -27,8 +27,8 @@ public class ShapeContext {
         this.originState = builder.originState;
         this.playerFacing = builder.playerFacing;
         this.playerLookingVertical = builder.playerLookingVertical;
-        this.maxBlocks = Math.max(0, Math.min(builder.maxBlocks, 10_240));
-        this.maxDistance = Math.max(0, Math.min(builder.maxDistance, 128));
+        this.maxBlocks = Math.max(1, Math.min(builder.maxBlocks, 10_240));
+        this.maxDistance = Math.max(1, Math.min(builder.maxDistance, 128));
         this.allowDiagonal = builder.allowDiagonal;
         this.blockMatcher = builder.blockMatcher;
     }
@@ -66,6 +66,9 @@ public class ShapeContext {
     }
 
     public boolean isMatchingBlock(BlockState target) {
+        if (target == null) {
+            return false;
+        }
         if (blockMatcher != null) {
             return blockMatcher.test(originState, target);
         }

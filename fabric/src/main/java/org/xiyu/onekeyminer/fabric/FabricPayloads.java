@@ -5,66 +5,60 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 /**
- * Server-safe Fabric payload definitions shared by both physical sides.
+ * Server-safe Fabric payload declarations.
  */
 public final class FabricPayloads {
-    private static final int NETWORK_PROTOCOL_VERSION = 2;
+    public static final int WIRE_VERSION = 2;
+    public static final int MAX_SHAPE_ID_LENGTH = ShapeRegistry.MAX_SHAPE_ID_LENGTH;
 
     private FabricPayloads() {
     }
 
-    public record ChainKeyState(boolean holding, String shapeId) implements CustomPacketPayload {
+    /**
+     * One coherent client preference snapshot. The versioned payload identifier
+     * makes incompatible Fabric peers report the channel as unavailable instead
+     * of decoding a different wire layout.
+     */
+    public record ClientPreferencesPayload(
+            int wireVersion,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) implements CustomPacketPayload {
         public static final Identifier ID =
-                Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
-        public static final Type<ChainKeyState> TYPE = new Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, ChainKeyState> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> {
-                    buf.writeVarInt(NETWORK_PROTOCOL_VERSION);
-                    buf.writeBoolean(payload.holding);
-                    buf.writeUtf(payload.shapeId == null ? "" : payload.shapeId, 256);
-                },
-                buf -> {
-                    verifyProtocolVersion(buf.readVarInt());
-                    return new ChainKeyState(buf.readBoolean(), buf.readUtf(256));
-                }
-        );
+                Identifier.fromNamespaceAndPath(
+                        OneKeyMiner.MOD_ID,
+                        "client_preferences_v" + WIRE_VERSION
+                );
+        public static final Type<ClientPreferencesPayload> TYPE = new Type<>(ID);
+        public static final StreamCodec<FriendlyByteBuf, ClientPreferencesPayload> STREAM_CODEC =
+                StreamCodec.of(
+                        (buf, payload) -> {
+                            buf.writeVarInt(payload.wireVersion);
+                            buf.writeBoolean(payload.holding);
+                            buf.writeUtf(
+                                    payload.shapeId == null ? "" : payload.shapeId,
+                                    MAX_SHAPE_ID_LENGTH
+                            );
+                            buf.writeBoolean(payload.teleportDrops);
+                            buf.writeBoolean(payload.teleportExp);
+                        },
+                        buf -> new ClientPreferencesPayload(
+                                buf.readVarInt(),
+                                buf.readBoolean(),
+                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
+                                buf.readBoolean(),
+                                buf.readBoolean()
+                        )
+                );
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
             return TYPE;
-        }
-    }
-
-    public record TeleportSettings(boolean teleportDrops, boolean teleportExp)
-            implements CustomPacketPayload {
-        public static final Identifier ID =
-                Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "teleport_settings");
-        public static final Type<TeleportSettings> TYPE = new Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, TeleportSettings> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> {
-                    buf.writeVarInt(NETWORK_PROTOCOL_VERSION);
-                    buf.writeBoolean(payload.teleportDrops);
-                    buf.writeBoolean(payload.teleportExp);
-                },
-                buf -> {
-                    verifyProtocolVersion(buf.readVarInt());
-                    return new TeleportSettings(buf.readBoolean(), buf.readBoolean());
-                }
-        );
-
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-    }
-
-    private static void verifyProtocolVersion(int version) {
-        if (version != NETWORK_PROTOCOL_VERSION) {
-            throw new IllegalArgumentException(
-                    "Unsupported OneKeyMiner network protocol: " + version
-            );
         }
     }
 }

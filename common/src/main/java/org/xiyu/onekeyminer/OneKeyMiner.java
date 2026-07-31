@@ -28,6 +28,7 @@ public class OneKeyMiner {
         registerBuiltinShapes();
         ConfigManager.load();
         OneKeyMinerAPI.init();
+        ConfigManager.addListener((oldConfig, newConfig) -> OneKeyMinerAPI.loadFromConfig());
         registerDefaultBlocks();
 
         initialized = true;

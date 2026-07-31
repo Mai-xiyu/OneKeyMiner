@@ -1,18 +1,29 @@
 package org.xiyu.onekeyminer.forge;
 
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
+import net.minecraft.resources.Identifier;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.gui.overlay.ForgeLayeredDraw;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 
 /**
- * Keeps every physical-client class reference out of the common mod entrypoint.
+ * Registers Forge client-only hooks without exposing client event types to the common entrypoint.
  */
+@OnlyIn(Dist.CLIENT)
 public final class ForgeClientBootstrap {
+    private static final Identifier PREVIEW_HUD =
+            Identifier.fromNamespaceAndPath(
+                    OneKeyMiner.MOD_ID,
+                    "chain_preview"
+            );
+
     private ForgeClientBootstrap() {
     }
 
@@ -25,18 +36,23 @@ public final class ForgeClientBootstrap {
         TickEvent.ClientTickEvent.Post.BUS.addListener(
                 ForgeKeyBindings.Events::onClientTick
         );
-        CustomizeGuiOverlayEvent.Chat.BUS.addListener(ForgeKeyBindings::renderPreviewHud);
-        ClientPlayerNetworkEvent.LoggingIn.BUS.addListener(
-                event -> ForgeKeyBindings.syncCurrentState()
-        );
-        ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(
-                event -> ForgeKeyBindings.resetConnectionState()
+        AddGuiOverlayLayersEvent.BUS.addListener(
+                ForgeClientBootstrap::registerPreviewHud
         );
         ForgeConfigScreen.register(context);
     }
 
+    private static void registerPreviewHud(AddGuiOverlayLayersEvent event) {
+        event.getLayeredDraw().addAbove(
+                ForgeLayeredDraw.POST_SLEEP_STACK,
+                ForgeLayeredDraw.CHAT_OVERLAY,
+                PREVIEW_HUD,
+                (guiGraphics, deltaTracker) -> ChainPreviewHud.render(guiGraphics)
+        );
+    }
+
     private static void onClientSetup(FMLClientSetupEvent event) {
-        ConfigSyncHelper.registerSyncCallback(ForgeKeyBindings::syncCurrentState);
+        ConfigSyncHelper.registerSyncCallback(ForgeKeyBindings::sendCurrentPreferences);
         ForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("Forge client setup complete");
     }
