@@ -44,12 +44,13 @@ jobs:
       - name: Build with Gradle
         run: |
           if [ "${{ steps.props.outputs.BUILDS_FOR }}" = "fabric" ]; then
-            ./gradlew :fabric:build --no-daemon --max-workers=1 -x test -x compileTestJava
+            ./gradlew :common:test :common:javadoc :fabric:build --no-daemon --max-workers=1
           else
-            ./gradlew build --no-daemon --max-workers=1 -x test -x compileTestJava
+            ./gradlew :common:test :common:javadoc build --no-daemon --max-workers=1
           fi
 
       - name: Upload Fabric artifact
+        if: contains(steps.props.outputs.BUILDS_FOR, 'fabric')
         uses: actions/upload-artifact@v6
         with:
           name: onekeyminer-fabric
@@ -57,9 +58,10 @@ jobs:
             fabric/build/libs/*.jar
             !fabric/build/libs/*-sources.jar
             !fabric/build/libs/*-dev.jar
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload Forge artifact
+        if: contains(steps.props.outputs.BUILDS_FOR, 'forge')
         uses: actions/upload-artifact@v6
         with:
           name: onekeyminer-forge
@@ -67,9 +69,10 @@ jobs:
             forge/build/libs/*.jar
             !forge/build/libs/*-sources.jar
             !forge/build/libs/*-dev.jar
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload NeoForge artifact
+        if: contains(steps.props.outputs.BUILDS_FOR, 'neoforge')
         uses: actions/upload-artifact@v6
         with:
           name: onekeyminer-neoforge
@@ -77,4 +80,4 @@ jobs:
             neoforge/build/libs/*.jar
             !neoforge/build/libs/*-sources.jar
             !neoforge/build/libs/*-dev.jar
-          if-no-files-found: warn
+          if-no-files-found: error

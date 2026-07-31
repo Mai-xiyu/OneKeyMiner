@@ -52,6 +52,9 @@ public class MinerConfig {
     public boolean allowBareHand = true;
     public boolean teleportDrops = false;
     public boolean teleportExp = false;
+    /** Dedicated-server policy gates for client-requested teleport features. */
+    public boolean allowClientTeleportDrops = true;
+    public boolean allowClientTeleportExp = true;
     public boolean requireExactMatch = false;
     public boolean playSound = true;
     public boolean showStats = true;
@@ -110,6 +113,8 @@ public class MinerConfig {
         copy.allowBareHand = this.allowBareHand;
         copy.teleportDrops = this.teleportDrops;
         copy.teleportExp = this.teleportExp;
+        copy.allowClientTeleportDrops = this.allowClientTeleportDrops;
+        copy.allowClientTeleportExp = this.allowClientTeleportExp;
         copy.requireExactMatch = this.requireExactMatch;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
@@ -118,6 +123,31 @@ public class MinerConfig {
         copy.toolWhitelist = copyList(this.toolWhitelist);
         copy.toolBlacklist = copyList(this.toolBlacklist);
         return copy;
+    }
+
+    /**
+     * Copies only settings that a remote client is allowed to own locally.
+     * Server gameplay limits and policy gates are deliberately left unchanged.
+     *
+     * @param preferences client-side preference source
+     */
+    public void applyClientPreferences(MinerConfig preferences) {
+        MinerConfig source = java.util.Objects.requireNonNull(
+                preferences,
+                "preferences"
+        );
+        this.selectedShape = source.selectedShape;
+        this.shapeMode = null;
+        this.teleportDrops = source.teleportDrops;
+        this.teleportExp = source.teleportExp;
+    }
+
+    public boolean isDropTeleportEnabled(boolean clientRequested) {
+        return allowClientTeleportDrops && clientRequested;
+    }
+
+    public boolean isExperienceTeleportEnabled(boolean clientRequested) {
+        return allowClientTeleportExp && clientRequested;
     }
 
     private static List<String> copyList(List<String> source) {

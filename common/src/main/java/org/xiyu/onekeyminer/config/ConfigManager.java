@@ -150,6 +150,8 @@ public class ConfigManager {
         merged.allowBareHand = diskConfig.allowBareHand;
         merged.teleportDrops = diskConfig.teleportDrops;
         merged.teleportExp = diskConfig.teleportExp;
+        merged.allowClientTeleportDrops = diskConfig.allowClientTeleportDrops;
+        merged.allowClientTeleportExp = diskConfig.allowClientTeleportExp;
         merged.requireExactMatch = diskConfig.requireExactMatch;
         merged.playSound = diskConfig.playSound;
         merged.showStats = diskConfig.showStats;
@@ -204,8 +206,52 @@ public class ConfigManager {
         return getConfig();
     }
 
+    /**
+     * O(1) client networking view. This avoids copying every configured list
+     * for each key-state edge while keeping the published config private.
+     *
+     * @param selectedShape selected chain-shape identifier
+     * @param teleportDrops whether the client requests drop teleportation
+     * @param teleportExp whether the client requests experience teleportation
+     */
+    public record ClientPreferencesSnapshot(
+            String selectedShape,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+    }
+
+    /**
+     * Returns the constant-size subset required by client preference packets.
+     *
+     * @return an immutable client preference snapshot
+     */
+    public static ClientPreferencesSnapshot getClientPreferencesSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ClientPreferencesSnapshot(
+                config.selectedShape,
+                config.teleportDrops,
+                config.teleportExp
+        );
+    }
+
     public static void updateConfig(MinerConfig newConfig) {
         updateConfig(newConfig, "*");
+    }
+
+    /**
+     * Persists only the preferences controlled by a client connected to a
+     * remote server. This prevents the client GUI from presenting local edits
+     * to server-authoritative gameplay settings as if they could take effect.
+     *
+     * @param preferences client preference source
+     */
+    public static void updateClientPreferences(MinerConfig preferences) {
+        Objects.requireNonNull(preferences, "preferences");
+        editConfig(
+                "clientPreferences",
+                config -> config.applyClientPreferences(preferences)
+        );
     }
 
     public static synchronized void updateConfig(MinerConfig newConfig, String changedKey) {

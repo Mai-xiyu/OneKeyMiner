@@ -34,24 +34,47 @@ tasks.withType(JavaCompile).configureEach {
     options.release = gradle.ext.java_version as int
 }
 
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
 processResources {
     def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "")
+    def forgeMajor = (gradle.ext.forge_loader as String).tokenize('.')[0] as int
+    def forgeLoaderRange = "[${forgeMajor},${forgeMajor + 1})"
+    def forgeVersionRange = "[${gradle.ext.forge_loader},${forgeMajor + 1})"
+    def minecraftVersion = gradle.ext.minecraft_version as String
+    def neoPrefix = minecraftVersion.startsWith("1.")
+            ? minecraftVersion.substring(2)
+            : minecraftVersion
+    def neoParts = neoPrefix.tokenize('.')
+    def neoUpperParts = new ArrayList<>(neoParts)
+    neoUpperParts[neoUpperParts.size() - 1] =
+            ((neoUpperParts.last() as int) + 1).toString()
+    def neoFullVersion = "${neoPrefix}.${gradle.ext.neoforge_loader}"
+    def neoVersionRange = "[${neoFullVersion},${neoUpperParts.join('.')})"
 
-    var expandProps = ['version'                      : mod_version,
-                       'group'                        : project.group,
-                       'minecraft_version'            : gradle.ext.minecraft_version,
-                       'compatible_mc_versions'       : gradle.ext.compatible_mc_versions,
-                       'compatible_forgemc_versions'  : compatible_forgemc_versions,
-                       'mod_name'                     : mod_name,
-                       'mod_authors'                  : mod_authors,
-                       'mod_authors_display'          : mod_authors_display,
-                       'mod_id'                       : mod_id,
-                       'license'                      : license,
-                       'description'                  : project.description,
-                       'neoforge_loader'              : gradle.ext.neoforge_loader,
-                       'forge_loader'                 : gradle.ext.forge_loader,
-                       'credits'                      : credits,
-                       'java_version'                 : gradle.ext.java_version]
+    var expandProps = ['version'                     : mod_version,
+                       'group'                       : project.group,
+                       'minecraft_version'           : gradle.ext.minecraft_version,
+                       'compatible_mc_versions'      : gradle.ext.compatible_mc_versions,
+                       'compatible_forgemc_versions' : compatible_forgemc_versions,
+                       'mod_name'                    : mod_name,
+                       'mod_authors'                 : mod_authors,
+                       'mod_authors_display'         : mod_authors_display,
+                       'mod_id'                      : mod_id,
+                       'license'                     : license,
+                       'description'                 : project.description,
+                       'fabric_loader'               : gradle.ext.fabric_loader,
+                       'fabric_api_version'          : gradle.ext.fabric_api_version,
+                       'neoforge_loader'             : gradle.ext.neoforge_loader,
+                       'neoforge_version_range'      : neoVersionRange,
+                       'forge_loader'                : gradle.ext.forge_loader,
+                       'forge_loader_range'          : forgeLoaderRange,
+                       'forge_version_range'         : forgeVersionRange,
+                       'credits'                     : credits,
+                       'java_version'                : gradle.ext.java_version]
 
     filesMatching(['pack.mcmeta', 'fabric.mod.json', 'META-INF/mods.toml', 'META-INF/neoforge.mods.toml', '*.mixins.json']) {
         expand expandProps
@@ -69,13 +92,5 @@ tasks.withType(GenerateModuleMetadata).configureEach {
     enabled = false
 }
 tasks.withType(Sign).configureEach {
-    enabled = false
-}
-
-tasks.withType(Test).configureEach {
-    enabled = false
-}
-
-tasks.matching { it.name.toLowerCase().startsWith("compiletest") }.configureEach {
     enabled = false
 }

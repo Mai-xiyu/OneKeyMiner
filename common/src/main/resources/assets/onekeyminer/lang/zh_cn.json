@@ -1,5 +1,6 @@
 {
   "config.onekeyminer.title": "OneKeyMiner 配置",
+  "config.onekeyminer.remote_server_notice": "远程服务器：玩法限制由服务端配置控制",
   "config.onekeyminer.info": "编辑配置文件以修改设置",
   "config.onekeyminer.openFolder": "打开配置文件夹",
   "config.onekeyminer.reload": "重新加载配置",

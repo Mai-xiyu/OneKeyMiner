@@ -18,13 +18,13 @@ public final class ForgeClientNetworking {
         if (listener == null) {
             return false;
         }
-        var config = ConfigManager.getConfigSnapshot();
+        var config = ConfigManager.getClientPreferencesSnapshot();
         return ForgeNetworking.trySendPreferences(
                 listener.getConnection(),
                 holding,
-                config.selectedShape,
-                config.teleportDrops,
-                config.teleportExp
+                config.selectedShape(),
+                config.teleportDrops(),
+                config.teleportExp()
         );
     }
 }

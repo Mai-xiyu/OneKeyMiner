@@ -1,5 +1,6 @@
 {
   "config.onekeyminer.title": "OneKeyMiner Config",
+  "config.onekeyminer.remote_server_notice": "Remote server: gameplay limits are controlled by the server",
   "config.onekeyminer.info": "Edit the config file to modify settings",
   "config.onekeyminer.openFolder": "Open Config Folder",
   "config.onekeyminer.reload": "Reload Config",

@@ -61,14 +61,14 @@ public final class KeyBindings {
                 return false;
             }
 
-            var config = ConfigManager.getConfigSnapshot();
+            var config = ConfigManager.getClientPreferencesSnapshot();
             boolean holding = CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
             ClientPlayNetworking.send(new FabricPayloads.ClientPreferencesPayload(
                     FabricPayloads.WIRE_VERSION,
                     holding,
-                    config.selectedShape,
-                    config.teleportDrops,
-                    config.teleportExp
+                    config.selectedShape(),
+                    config.teleportDrops(),
+                    config.teleportExp()
             ));
             return true;
         } catch (RuntimeException e) {

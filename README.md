@@ -112,6 +112,14 @@ Configuration file location: `config/onekeyminer.json`
 | `allowBareHand` | `true` | Allow chain mining without tools |
 | `teleportDrops` | `false` | Teleport drops to player inventory |
 | `teleportExp` | `false` | Teleport experience to player |
+| `allowClientTeleportDrops` | `true` | Server policy: honor client drop-teleport requests |
+| `allowClientTeleportExp` | `true` | Server policy: honor client experience-teleport requests |
+
+`teleportDrops` and `teleportExp` are per-client requests. The two
+`allowClient*` values are authoritative server policies: if a server policy is
+`false`, the corresponding client request cannot enable that behavior. On a
+remote server, the config screen therefore edits only the selected shape and
+the two client preferences; gameplay limits remain controlled by the server.
 
 ### Block/Tool Lists
 

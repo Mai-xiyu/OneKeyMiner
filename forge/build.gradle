@@ -15,3 +15,52 @@ processResources {
         rename { "onekeyminer.png" }
     }
 }
+
+tasks.register("validateMixinRegistration") {
+    dependsOn(tasks.named("jar"))
+
+    doLast {
+        def platformConfig = layout.buildDirectory
+                .file("resources/main/onekeyminer.forge.mixins.json")
+                .get()
+                .asFile
+                .getText("UTF-8")
+        if (!platformConfig.contains(
+                '"package": "org.xiyu.onekeyminer.forge.mixin"'
+        )) {
+            throw new GradleException(
+                    "Forge mixins must use a package isolated from mod entrypoints"
+            )
+        }
+
+        def archive = tasks.named("jar", Jar)
+                .get()
+                .archiveFile
+                .get()
+                .asFile
+        def jarFile = new java.util.jar.JarFile(archive)
+        try {
+            def registered = jarFile.manifest.mainAttributes
+                    .getValue("MixinConfigs")
+                    ?.split(",")
+                    ?.collect { it.trim() }
+                    ?.findAll { !it.isEmpty() }
+                    ?.toSet()
+            def expected = [
+                    "onekeyminer.mixins.json",
+                    "onekeyminer.forge.mixins.json"
+            ] as Set
+            if (registered != expected) {
+                throw new GradleException(
+                        "Forge JAR must register both mixin configs; found ${registered}"
+                )
+            }
+        } finally {
+            jarFile.close()
+        }
+    }
+}
+
+tasks.named("check").configure {
+    dependsOn(tasks.named("validateMixinRegistration"))
+}

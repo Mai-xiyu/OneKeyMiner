@@ -1,13 +1,11 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "org.xiyu.onekeyminer",
+  "package": "org.xiyu.onekeyminer.neoforge.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "mixin.PlayerMixin",
-    "mixin.ServerPlayerGameModeMixin",
-    "neoforge.mixin.NeoForgeExactEntityMixin",
-    "neoforge.mixin.NeoForgeServerPlayerGameModeMixin"
+    "NeoForgeExactEntityMixin",
+    "NeoForgeServerPlayerGameModeMixin"
   ],
   "injectors": {
     "defaultRequire": 1

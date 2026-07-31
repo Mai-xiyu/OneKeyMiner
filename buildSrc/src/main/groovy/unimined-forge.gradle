@@ -6,7 +6,10 @@ unimined.minecraft {
     forge {
         loader gradle.ext.forge_loader
         useToolchains = false // Disable toolchains so modern java can be used
-        mixinConfig "onekeyminer.forge.mixins.json"
+        mixinConfig(
+                "onekeyminer.mixins.json",
+                "onekeyminer.forge.mixins.json"
+        )
     }
 }
 runClient.javaLauncher = null

@@ -597,8 +597,12 @@ public final class ChainActionLogic {
         boolean chargesHunger = config.consumeHunger
                 && !context.isCreativeMode()
                 && hungerPerBlock > 0f;
-        boolean teleportDrops = MiningStateManager.isTeleportDrops(player);
-        boolean teleportExp = MiningStateManager.isTeleportExp(player);
+        boolean teleportDrops = config.isDropTeleportEnabled(
+                MiningStateManager.isTeleportDrops(player)
+        );
+        boolean teleportExp = config.isExperienceTeleportEnabled(
+                MiningStateManager.isTeleportExp(player)
+        );
 
         ServerLevel serverLevel = level instanceof ServerLevel sl ? sl : null;
         Set<Integer> existingEntityIds = new HashSet<>();
@@ -2523,8 +2527,12 @@ public final class ChainActionLogic {
         boolean chargesHunger = config.consumeHunger
                 && !context.isCreativeMode()
                 && hungerPerBlock > 0f;
-        boolean teleportDrops = MiningStateManager.isTeleportDrops(player);
-        boolean teleportExp = MiningStateManager.isTeleportExp(player);
+        boolean teleportDrops = config.isDropTeleportEnabled(
+                MiningStateManager.isTeleportDrops(player)
+        );
+        boolean teleportExp = config.isExperienceTeleportEnabled(
+                MiningStateManager.isTeleportExp(player)
+        );
         
         List<BlockPos> harvestedPositions = new ArrayList<>();
         int durabilityUsed = 0;
