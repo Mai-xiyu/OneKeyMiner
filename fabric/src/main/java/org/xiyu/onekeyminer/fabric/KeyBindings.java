@@ -6,23 +6,25 @@ import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 
 /**
- * Fabric client key bindings and C2S sync.
+ * Fabric client key bindings and negotiated C2S preference sync.
  */
 @Environment(EnvType.CLIENT)
-public class KeyBindings {
+public final class KeyBindings {
     public static KeyMapping CHAIN_MINING_KEY;
     public static KeyMapping OPEN_CONFIG;
 
-    private static boolean wasKeyDown = false;
+    private static boolean wasKeyDown;
+    private static boolean wasConnected;
+    private static boolean syncPending = true;
+    private static int syncRetryDelay;
+
+    private KeyBindings() {
+    }
 
     public static void register() {
         CHAIN_MINING_KEY = KeyBindingHelper.registerKeyBinding(new KeyMapping(
@@ -42,31 +44,69 @@ public class KeyBindings {
         registerKeyHandler();
     }
 
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
+    public static void sendCurrentPreferences() {
+        boolean sent = trySendCurrentPreferences();
+        syncPending = !sent;
+        syncRetryDelay = sent ? 0 : 20;
+        if (sent && CHAIN_MINING_KEY != null) {
+            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        }
+    }
+
+    private static boolean trySendCurrentPreferences() {
         try {
-            var mc = net.minecraft.client.Minecraft.getInstance();
-            if (mc.getConnection() != null) {
-                ClientPlayNetworking.send(new TeleportSettingsPayload(teleportDrops, teleportExp));
+            var minecraft = net.minecraft.client.Minecraft.getInstance();
+            if (minecraft.getConnection() == null
+                    || !ClientPlayNetworking.canSend(FabricPayloads.ClientPreferencesPayload.TYPE)) {
+                return false;
             }
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("Failed to send teleport settings: {}", e.getMessage());
+
+            var config = ConfigManager.getClientPreferencesSnapshot();
+            boolean holding = CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
+            ClientPlayNetworking.send(new FabricPayloads.ClientPreferencesPayload(
+                    FabricPayloads.WIRE_VERSION,
+                    holding,
+                    config.selectedShape(),
+                    config.teleportDrops(),
+                    config.teleportExp()
+            ));
+            return true;
+        } catch (RuntimeException e) {
+            OneKeyMiner.LOGGER.debug("Failed to send Fabric client preferences: {}", e.getMessage());
+            return false;
         }
     }
 
     private static void registerKeyHandler() {
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            boolean connected = client.getConnection() != null && client.player != null;
+            if (!connected) {
+                wasConnected = false;
+                wasKeyDown = false;
+                syncPending = true;
+                syncRetryDelay = 0;
+                return;
+            }
+
             boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-            if (isKeyDown != wasKeyDown) {
-                wasKeyDown = isKeyDown;
-                if (client.getConnection() != null) {
-                    try {
-                        ClientPlayNetworking.send(new ChainKeyStatePayload(
-                                isKeyDown,
-                                ConfigManager.getConfig().selectedShape
-                        ));
-                    } catch (Exception e) {
-                        OneKeyMiner.LOGGER.error("Failed to send chain key state: {}", e.getMessage());
-                    }
+            if (!wasConnected) {
+                wasConnected = true;
+                syncPending = true;
+                syncRetryDelay = 0;
+            }
+
+            if (syncPending) {
+                if (syncRetryDelay > 0) {
+                    syncRetryDelay--;
+                } else {
+                    sendCurrentPreferences();
+                }
+            } else if (isKeyDown != wasKeyDown) {
+                if (trySendCurrentPreferences()) {
+                    wasKeyDown = isKeyDown;
+                } else {
+                    syncPending = true;
+                    syncRetryDelay = 20;
                 }
             }
 
@@ -74,39 +114,5 @@ public class KeyBindings {
                 client.setScreen(new FabricConfigScreen(client.screen));
             }
         });
-    }
-
-    public record ChainKeyStatePayload(boolean holding, String shapeId) implements CustomPacketPayload {
-        public static final Identifier ID = Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
-        public static final CustomPacketPayload.Type<ChainKeyStatePayload> TYPE = new CustomPacketPayload.Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, ChainKeyStatePayload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> {
-                    buf.writeBoolean(payload.holding);
-                    buf.writeUtf(payload.shapeId == null ? "" : payload.shapeId);
-                },
-                buf -> new ChainKeyStatePayload(buf.readBoolean(), buf.readUtf(256))
-        );
-
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-    }
-
-    public record TeleportSettingsPayload(boolean teleportDrops, boolean teleportExp) implements CustomPacketPayload {
-        public static final Identifier ID = Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "teleport_settings");
-        public static final CustomPacketPayload.Type<TeleportSettingsPayload> TYPE = new CustomPacketPayload.Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, TeleportSettingsPayload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> {
-                    buf.writeBoolean(payload.teleportDrops);
-                    buf.writeBoolean(payload.teleportExp);
-                },
-                buf -> new TeleportSettingsPayload(buf.readBoolean(), buf.readBoolean())
-        );
-
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
     }
 }

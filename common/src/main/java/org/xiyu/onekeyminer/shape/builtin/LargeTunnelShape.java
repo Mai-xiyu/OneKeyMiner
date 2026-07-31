@@ -45,6 +45,9 @@ public class LargeTunnelShape implements ChainShape {
                     if (pos.equals(originPos)) {
                         continue;
                     }
+                    if (!level.hasChunkAt(pos)) {
+                        continue;
+                    }
                     BlockState state = level.getBlockState(pos);
                     if (context.isMatchingBlock(state)) {
                         result.add(pos);
