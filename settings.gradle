@@ -60,8 +60,12 @@ def loadVersionProperties() {
 loadVersionProperties()
 
 include('common')
-((String) gradle.builds_for).split(",").each { loader ->
-    include(loader.trim())
-}
+((String) gradle.builds_for)
+        .split(",")
+        .collect { it.trim() }
+        .findAll { !it.isEmpty() }
+        .each { loader ->
+            include(loader)
+        }
 
 rootProject.name = 'onekeyminer'

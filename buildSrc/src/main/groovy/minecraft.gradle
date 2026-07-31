@@ -8,10 +8,18 @@ unimined.minecraft(sourceSets.main, true) {
 
     mappings {
         mojmap()
+        devNamespace "mojmap"
+        devFallbackNamespace "mojmap"
     }
 }
 
 if (project.name == "common") return // Don't apply the code below to the common project
+
+def minecraftConfig = configurations.findByName("minecraft")
+if (minecraftConfig != null) {
+    configurations.compileClasspath.extendsFrom(minecraftConfig)
+    configurations.runtimeClasspath.extendsFrom(minecraftConfig)
+}
 
 unimined.minecraft(sourceSets.main, true) {
     mods.modImplementation {
@@ -24,13 +32,19 @@ unimined.minecraft(sourceSets.main, true) {
 }
 
 dependencies {
-    implementation(project(":common"))
+    compileOnly "org.spongepowered:mixin:0.8.7"
+
+    // Common sources are compiled directly into each loader source set below.
+    // Keep the project dependency off the runtime module path; otherwise Forge
+    // sees both the loader module and onekeyminer.common exporting identical
+    // packages and refuses to create the module layer.
+    compileOnly(project(":common"))
 }
 
 processResources {
     from project(":common").sourceSets.main.resources
 }
 
-tasks.withType(JavaCompile).configureEach {
+tasks.named("compileJava", JavaCompile).configure {
     source(project(":common").sourceSets.main.allSource)
 }

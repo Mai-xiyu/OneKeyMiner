@@ -1,84 +1,111 @@
 package org.xiyu.onekeyminer.neoforge;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.platform.PlatformServices;
+import org.xiyu.onekeyminer.mining.MiningStateManager;
+import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 /**
- * NeoForge 网络包注册
- * 
- * <p>注册客户端到服务端的按键状态同步包。</p>
- * 
- * @author OneKeyMiner Team
- * @version 1.0.0
- * @since Minecraft 1.21.9
+ * Server-safe NeoForge payload declaration and handler.
  */
-public class NeoForgeNetworking {
-    
-    /**
-     * 按键状态网络包
-     */
-    public record ChainKeyStatePayload(boolean holding) implements CustomPacketPayload {
-        public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "chain_key_state");
-        public static final CustomPacketPayload.Type<ChainKeyStatePayload> TYPE = new CustomPacketPayload.Type<>(ID);
-        
-        public static final StreamCodec<FriendlyByteBuf, ChainKeyStatePayload> STREAM_CODEC = StreamCodec.composite(
-                ByteBufCodecs.BOOL, ChainKeyStatePayload::holding,
-                ChainKeyStatePayload::new
-        );
-        
+public final class NeoForgeNetworking {
+    public static final String PROTOCOL_VERSION = "2";
+    public static final int WIRE_VERSION = 2;
+    public static final int MAX_SHAPE_ID_LENGTH = ShapeRegistry.MAX_SHAPE_ID_LENGTH;
+
+    private NeoForgeNetworking() {
+    }
+
+    public record ClientPreferencesPayload(
+            int wireVersion,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) implements CustomPacketPayload {
+        public static final ResourceLocation ID =
+                ResourceLocation.fromNamespaceAndPath(
+                        OneKeyMiner.MOD_ID,
+                        "client_preferences_v" + WIRE_VERSION
+                );
+        public static final Type<ClientPreferencesPayload> TYPE = new Type<>(ID);
+        public static final StreamCodec<FriendlyByteBuf, ClientPreferencesPayload> STREAM_CODEC =
+                StreamCodec.of(
+                        (buf, payload) -> {
+                            buf.writeVarInt(payload.wireVersion);
+                            buf.writeBoolean(payload.holding);
+                            buf.writeUtf(
+                                    payload.shapeId == null ? "" : payload.shapeId,
+                                    MAX_SHAPE_ID_LENGTH
+                            );
+                            buf.writeBoolean(payload.teleportDrops);
+                            buf.writeBoolean(payload.teleportExp);
+                        },
+                        buf -> new ClientPreferencesPayload(
+                                buf.readVarInt(),
+                                buf.readBoolean(),
+                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
+                                buf.readBoolean(),
+                                buf.readBoolean()
+                        )
+                );
+
         @Override
         public Type<? extends CustomPacketPayload> type() {
             return TYPE;
         }
     }
-    
-    /**
-     * 注册网络包处理器（在 MOD 事件总线上调用）
-     */
+
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar(OneKeyMiner.MOD_ID);
-        
-        // 注册按键状态包（客户端到服务端）
-        registrar.playToServer(
-                ChainKeyStatePayload.TYPE,
-                ChainKeyStatePayload.STREAM_CODEC,
-                NeoForgeNetworking::handleChainKeyState
+        event.registrar(PROTOCOL_VERSION).playToServer(
+                ClientPreferencesPayload.TYPE,
+                ClientPreferencesPayload.STREAM_CODEC,
+                NeoForgeNetworking::handleClientPreferences
         );
-        
-        OneKeyMiner.LOGGER.debug("已注册 NeoForge 网络包处理器");
+        OneKeyMiner.LOGGER.debug("Registered NeoForge networking payloads");
     }
-    
-    /**
-     * 发送按键状态到服务端
-     */
-    public static void sendKeyState(boolean pressed) {
-        try {
-            net.minecraft.client.Minecraft.getInstance().getConnection().send(new ChainKeyStatePayload(pressed));
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.debug("发送按键状态失败: {}", e.getMessage());
+
+    private static void handleClientPreferences(
+            ClientPreferencesPayload payload,
+            IPayloadContext context
+    ) {
+        if (!(context.player() instanceof ServerPlayer serverPlayer)) {
+            return;
         }
-    }
-    
-    /**
-     * 处理按键状态包
-     */
-    private static void handleChainKeyState(ChainKeyStatePayload payload, IPayloadContext context) {
-        context.enqueueWork(() -> {
-            if (context.player() instanceof ServerPlayer serverPlayer) {
-                PlatformServices.getInstance().setChainModeActive(serverPlayer, payload.holding());
-                OneKeyMiner.LOGGER.info("服务端收到按键状态包 - 玩家 {} 连锁模式: {}", 
-                        serverPlayer.getName().getString(), 
-                        payload.holding() ? "激活" : "关闭");
+        if (payload.wireVersion() != WIRE_VERSION) {
+            OneKeyMiner.LOGGER.warn(
+                    "Ignoring client preferences from {} with unsupported wire version {}",
+                    serverPlayer.getGameProfile().name(),
+                    payload.wireVersion()
+            );
+            return;
+        }
+
+        ResourceLocation shapeId = ResourceLocation.tryParse(payload.shapeId());
+        if (shapeId == null || !ShapeRegistry.isRegistered(shapeId)) {
+            OneKeyMiner.LOGGER.warn(
+                    "Replacing invalid shape preference '{}' from {} with the server default",
+                    payload.shapeId(),
+                    serverPlayer.getGameProfile().name()
+            );
+            shapeId = ShapeRegistry.DEFAULT_SHAPE_ID;
+            if (!ShapeRegistry.isRegistered(shapeId)) {
+                return;
             }
-        });
+        }
+
+        MiningStateManager.updatePreferences(
+                serverPlayer.getUUID(),
+                payload.holding(),
+                shapeId,
+                payload.teleportDrops(),
+                payload.teleportExp()
+        );
     }
 }

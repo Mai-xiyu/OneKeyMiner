@@ -37,7 +37,7 @@ public enum ChainActionType {
      *   <li>锄头耕地（批量耕地）</li>
      *   <li>斧头剥皮（批量剥皮原木）</li>
      *   <li>铲子铲土（制作土径）</li>
-     *   <li>刷子刷除（批量刷除可疑方块）</li>
+     *   <li>API 注册的原子刷除动作（原版刷子属于持续使用，不自动重放）</li>
      * </ul>
      */
     INTERACTION("interaction", "连锁交互"),
