@@ -7,8 +7,7 @@
   "authors": $mod_authors,
   "contact": {
     "homepage": "https://github.com/Mai-xiyu/OneKeyMiner",
-    "sources": "https://github.com/Mai-xiyu/OneKeyMiner",
-    "issues": "https://github.com/Mai-xiyu/OneKeyMiner/issues"
+    "sources": "https://github.com/Mai-xiyu/OneKeyMiner"
   },
   "license": "${license}",
   "icon": "assets/${mod_id}/icon.png",
@@ -21,8 +20,18 @@
       "org.xiyu.onekeyminer.fabric.OneKeyMinerFabricClient"
     ]
   },
+  "mixins": [
+    "onekeyminer.mixins.json",
+    "onekeyminer.fabric.mixins.json"
+  ],
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "https://discord.gg/onekeyminer"
+      }
+    }
+  },
   "depends": {
-    "fabric": "*",
     "fabricloader": ">=${fabric_loader}",
     "fabric-api": ">=${fabric_api_version}",
     "minecraft": $compatible_mc_versions,

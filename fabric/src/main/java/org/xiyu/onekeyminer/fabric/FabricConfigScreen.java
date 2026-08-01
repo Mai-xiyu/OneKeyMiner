@@ -6,8 +6,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.xiyu.onekeyminer.config.ConfigManager;
-import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -15,9 +15,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Fabric 鍘熺敓閰嶇疆鐣岄潰
- * <p>鎻愪緵鍒嗛〉鐨勫浘褰㈠寲閰嶇疆鐣岄潰锛屼娇鐢ㄧ炕璇戦敭鏀寔澶氳瑷€銆?/p>
- * <p>涓嶄緷璧?ClothConfig锛屼娇鐢ㄥ師鐗?Screen API 瀹炵幇銆?/p>
+ * Fabric 原生配置界面。
+ *
+ * <p>提供分页图形界面并使用翻译键支持多语言。
+ * 不依赖 Cloth Config，直接使用原版 Screen API。</p>
  *
  * @author OneKeyMiner Team
  * @version 1.0.0
@@ -32,7 +33,7 @@ public class FabricConfigScreen extends Screen {
     public FabricConfigScreen(Screen parent) {
         super(Component.translatable("config.onekeyminer.title"));
         this.parent = parent;
-        this.configCopy = ConfigManager.getConfig().copy();
+        this.configCopy = ConfigManager.getConfig();
     }
 
     @Override
@@ -41,58 +42,92 @@ public class FabricConfigScreen extends Screen {
         this.clearWidgets();
 
         int centerX = this.width / 2;
-        int startY = 40;
+        boolean remoteServer = isRemoteServer();
+        int startY = remoteServer ? 52 : 40;
         int buttonWidth = 200;
         int buttonHeight = 20;
         int spacing = 24;
 
-        switch (currentPage) {
-            case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-            case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-            case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+        if (remoteServer) {
+            initRemotePreferences(centerX, startY, buttonWidth, buttonHeight, spacing);
+        } else {
+            switch (currentPage) {
+                case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+            }
         }
 
-        // === 搴曢儴瀵艰埅鏍?===
+        // === 底部导航栏 ===
         int bottomY = this.height - 30;
 
-        // 涓婁竴椤?
+        // 上一页
         Button prevBtn = Button.builder(Component.literal("<"), b -> {
             if (currentPage > 0) {
                 currentPage--;
                 this.init();
             }
         }).bounds(centerX - 155, bottomY, 20, buttonHeight).build();
-        prevBtn.active = currentPage > 0;
+        prevBtn.active = !remoteServer && currentPage > 0;
         this.addRenderableWidget(prevBtn);
 
-        // 涓嬩竴椤?
+        // 下一页
         Button nextBtn = Button.builder(Component.literal(">"), b -> {
             if (currentPage < totalPages - 1) {
                 currentPage++;
                 this.init();
             }
         }).bounds(centerX + 135, bottomY, 20, buttonHeight).build();
-        nextBtn.active = currentPage < totalPages - 1;
+        nextBtn.active = !remoteServer && currentPage < totalPages - 1;
         this.addRenderableWidget(nextBtn);
 
-        // 淇濆瓨
+        // 保存
         this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                 button -> {
-                    ConfigManager.updateConfig(configCopy);
-                    ConfigSyncHelper.triggerSync();
+                    if (remoteServer) {
+                        ConfigManager.updateClientPreferences(configCopy);
+                    } else {
+                        ConfigManager.updateConfig(configCopy);
+                    }
                     this.onClose();
                 }
         ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
 
-        // 鍙栨秷
+        // 取消
         this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.cancel"),
                 button -> this.onClose()
         ).bounds(centerX + 5, bottomY, 120, buttonHeight).build());
     }
 
-    // === 绗竴椤碉細鍩虹璁剧疆 ===
+    private void initRemotePreferences(int x, int y, int w, int h, int s) {
+        int i = 0;
+        this.addRenderableWidget(Button.builder(
+                getShapeMessage(configCopy.selectedShape),
+                button -> {
+                    configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
+                    configCopy.shapeMode = null;
+                    button.setMessage(getShapeMessage(configCopy.selectedShape));
+                }
+        ).bounds(x - w / 2, y + s * i++, w, h).build());
+        addBoolButton(x, y + s * i++, w, h,
+                "config.onekeyminer.option.teleport_drops",
+                () -> configCopy.teleportDrops,
+                value -> configCopy.teleportDrops = value);
+        addBoolButton(x, y + s * i, w, h,
+                "config.onekeyminer.option.teleport_exp",
+                () -> configCopy.teleportExp,
+                value -> configCopy.teleportExp = value);
+    }
+
+    private boolean isRemoteServer() {
+        return this.minecraft != null
+                && this.minecraft.getConnection() != null
+                && !this.minecraft.hasSingleplayerServer();
+    }
+
+    // === 第一页：基础设置 ===
     private void initPageGeneral(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -130,7 +165,7 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v);
     }
 
-    // === 绗簩椤碉細娑堣€楄缃?===
+    // === 第二页：消耗设置 ===
     private void initPageConsumption(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -168,7 +203,7 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
     }
 
-    // === 绗笁椤碉細楂樼骇璁剧疆 ===
+    // === 第三页：高级设置 ===
     private void initPageAdvanced(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -197,7 +232,7 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.requireExactMatch, v -> configCopy.requireExactMatch = v);
     }
 
-    // === 杈呭姪鏂规硶 ===
+    // === 辅助方法 ===
 
     private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
         this.addRenderableWidget(Button.builder(
@@ -250,6 +285,26 @@ public class FabricConfigScreen extends Screen {
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
-        guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
+        if (isRemoteServer()) {
+            guiGraphics.drawCenteredString(
+                    this.font,
+                    Component.translatable("config.onekeyminer.remote_server_notice"),
+                    this.width / 2,
+                    26,
+                    0xFFAA00
+            );
+            Component applied = ClientPreferenceSession.lastAck().<Component>map(ack ->
+                    Component.translatable(
+                            "config.onekeyminer.remote_server_applied",
+                            ack.appliedShapeId(),
+                            Component.translatable(ack.teleportDropsApplied() ? "options.on" : "options.off"),
+                            Component.translatable(ack.teleportExpApplied() ? "options.on" : "options.off")
+                    )
+            ).orElseGet(() -> Component.translatable("config.onekeyminer.remote_server_pending"));
+            guiGraphics.drawCenteredString(this.font, applied, this.width / 2, 36, 0xAAAAAA);
+        }
+        int page = isRemoteServer() ? 1 : currentPage + 1;
+        int pages = isRemoteServer() ? 1 : totalPages;
+        guiGraphics.drawCenteredString(this.font, Component.literal(page + " / " + pages), this.width / 2, this.height - 45, 0xAAAAAA);
     }
 }

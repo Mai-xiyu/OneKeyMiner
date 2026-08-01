@@ -1,3 +1,4 @@
+
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraftforge.api.distmarker.Dist;
@@ -10,6 +11,7 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 @Mod(OneKeyMiner.MOD_ID)
@@ -38,9 +40,8 @@ public class OneKeyMinerForge {
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {
-        ConfigSyncHelper.registerSyncCallback(() -> {
-            ForgeKeyBindings.sendCurrentPreferences();
-        });
+        ConfigSyncHelper.registerSyncCallback(ForgeKeyBindings::sendCurrentPreferences);
+        ClientPreferenceAckDispatcher.register(ForgeClientNetworking::handlePreferencesAck);
         ForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("Forge client setup complete");
     }

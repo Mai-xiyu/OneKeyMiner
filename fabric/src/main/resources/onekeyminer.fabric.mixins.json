@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.xiyu.onekeyminer.fabric.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "FabricExactEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
