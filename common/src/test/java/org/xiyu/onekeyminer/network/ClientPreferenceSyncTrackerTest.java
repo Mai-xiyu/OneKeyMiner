@@ -84,6 +84,39 @@ final class ClientPreferenceSyncTrackerTest {
         assertEquals(0, tracker.pendingSequence());
     }
 
+    @Test
+    void invalidatingDirtySnapshotRejectsItsLateAcknowledgement() {
+        ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
+        int staleSequence = tracker.beginAttempt();
+
+        tracker.invalidatePendingAttempt();
+
+        assertFalse(tracker.hasPendingAttempt());
+        assertEquals(0, tracker.pendingSequence());
+        assertTrue(tracker.isPending());
+        assertFalse(tracker.confirm(ack(staleSequence)));
+        assertNull(tracker.lastAck());
+    }
+
+    @Test
+    void dirtySnapshotCannotReplacePriorAckAndNextAttemptCanConfirm() {
+        ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
+        int confirmedSequence = tracker.beginAttempt();
+        assertTrue(tracker.confirm(ack(confirmedSequence)));
+
+        int staleSequence = tracker.beginAttempt();
+        tracker.invalidatePendingAttempt();
+
+        assertFalse(tracker.confirm(ack(staleSequence)));
+        assertTrue(tracker.isPending());
+        assertEquals(confirmedSequence, tracker.lastAck().sequence());
+
+        int latestSequence = tracker.beginAttempt();
+        assertTrue(tracker.confirm(ack(latestSequence)));
+        assertFalse(tracker.isPending());
+        assertEquals(latestSequence, tracker.lastAck().sequence());
+    }
+
     private static ClientPreferenceAck ack(int sequence) {
         return new ClientPreferenceAck(
                 ClientPreferenceProtocol.WIRE_VERSION,

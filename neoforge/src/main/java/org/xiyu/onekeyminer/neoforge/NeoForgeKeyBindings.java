@@ -81,13 +81,23 @@ public class NeoForgeKeyBindings {
     public static void sendCurrentPreferences() {
         Minecraft minecraft = Minecraft.getInstance();
         if (!minecraft.isSameThread()) {
+            // Reject an already queued stale ACK before main-thread coalescing runs.
+            SYNC_TRACKER.invalidatePendingAttempt();
             minecraft.execute(NeoForgeKeyBindings::sendCurrentPreferences);
             return;
         }
-        ClientPreferenceSession.clear();
+        markPreferencesDirty(true);
+    }
+
+    private static void markPreferencesDirty(boolean clearAcknowledgement) {
+        SYNC_TRACKER.invalidatePendingAttempt();
+        pendingRequest = null;
         preferencesDirty = true;
         syncPending = true;
         syncRetryDelay = 0;
+        if (clearAcknowledgement) {
+            ClientPreferenceSession.clear();
+        }
     }
 
     private static void attemptSynchronization() {
@@ -112,6 +122,9 @@ public class NeoForgeKeyBindings {
     }
 
     static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (preferencesDirty) {
+            return;
+        }
         if (SYNC_TRACKER.confirm(ack)) {
             ClientPreferenceSession.accept(ack);
             pendingRequest = null;
@@ -130,12 +143,8 @@ public class NeoForgeKeyBindings {
             }
             wasConnected = false;
             wasKeyDown = false;
-            syncPending = true;
-            preferencesDirty = true;
-            syncRetryDelay = 0;
+            markPreferencesDirty(true);
             policyRefreshDelay = 0;
-            pendingRequest = null;
-            ClientPreferenceSession.clear();
             return;
         }
 
@@ -150,24 +159,16 @@ public class NeoForgeKeyBindings {
         boolean isKeyDown = CHAIN_MINING_KEY.isDown();
         if (!wasConnected) {
             wasConnected = true;
-            syncPending = true;
-            preferencesDirty = true;
-            syncRetryDelay = 0;
+            markPreferencesDirty(true);
             policyRefreshDelay = 0;
-            pendingRequest = null;
-            ClientPreferenceSession.clear();
         }
 
         if (isKeyDown != wasKeyDown) {
             wasKeyDown = isKeyDown;
-            preferencesDirty = true;
-            syncPending = true;
-            syncRetryDelay = 0;
+            markPreferencesDirty(false);
         }
         if (!syncPending && --policyRefreshDelay <= 0) {
-            preferencesDirty = true;
-            syncPending = true;
-            syncRetryDelay = 0;
+            markPreferencesDirty(false);
         }
         if (syncPending) {
             if (syncRetryDelay > 0) {
