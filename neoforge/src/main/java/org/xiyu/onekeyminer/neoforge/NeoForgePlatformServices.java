@@ -6,6 +6,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -15,7 +16,7 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.fml.loading.FMLPaths;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.mining.MiningStateManager;
+import org.xiyu.onekeyminer.chain.ServerUseBridge;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 import java.nio.file.Path;
@@ -32,7 +33,6 @@ import java.util.UUID;
  */
 public class NeoForgePlatformServices implements PlatformServices {
     
-    /** 存储玩家链式模式状态（使用 UUID 作为 key） */
     @Override
     public String getPlatformName() {
         return "neoforge";
@@ -55,31 +55,24 @@ public class NeoForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean canPlayerBreakBlock(ServerPlayer player, Level level, BlockPos pos, BlockState state) {
-        // NeoForge 使用 BlockEvent.BreakEvent 进行权限检查
-        // 该事件可被取消，所以如果我们到达这里，权限检查已通过
-        
-        // 基础检查
-        if (player.isSpectator()) {
+        if (player.isSpectator() || !level.hasChunkAt(pos)) {
             return false;
         }
-        
-        // 检查方块是否可被破坏（基岩等不可破坏方块）
         if (state.getDestroySpeed(level, pos) < 0 && !player.isCreative()) {
             return false;
         }
-        
-        // destroyBlock fires NeoForge's BreakEvent; do not pre-post it.
-        return true;
+        // The authoritative destroy call posts BlockEvent.BreakEvent exactly once.
+        return level.mayInteract(player, pos)
+                && player.mayUseItemAt(pos, Direction.UP, player.getMainHandItem());
     }
     
     @Override
     public boolean canPlayerInteract(ServerPlayer player, Level level, BlockPos pos, BlockState state) {
-        // 基础检查
-        if (player.isSpectator()) {
+        if (player.isSpectator() || !level.hasChunkAt(pos)) {
             return false;
         }
-        
-        return true;
+        return level.mayInteract(player, pos)
+                && player.mayUseItemAt(pos, Direction.UP, player.getMainHandItem());
     }
     
     @Override
@@ -104,7 +97,7 @@ public class NeoForgePlatformServices implements PlatformServices {
     public boolean simulateItemUseOnBlock(
             ServerPlayer player,
             Level level,
-            BlockPos pos,
+            BlockHitResult hitResult,
             InteractionHand hand,
             ItemStack item
     ) {
@@ -112,28 +105,49 @@ public class NeoForgePlatformServices implements PlatformServices {
         // 用于耕地、剥皮原木、制作土径等交互操作
         
         try {
-            // 创建点击结果
-            BlockHitResult hitResult = new BlockHitResult(
-                    Vec3.atCenterOf(pos),
-                    Direction.UP,
-                    pos,
-                    false
-            );
-            
-            // Use the patched server interaction pipeline so NeoForge callbacks
-            // and protection integrations observe the action exactly once.
-            InteractionResult result = player.gameMode.useItemOn(
-                    player,
-                    level,
-                    item,
-                    hand,
-                    hitResult
-            );
-            
-            return result.consumesAction();
+            ServerUseBridge.ObservedUse<InteractionResult> observed =
+                    ServerUseBridge.observeBlockUse(
+                            () -> player.gameMode.useItemOn(
+                                    player,
+                                    level,
+                                    item,
+                                    hand,
+                                    hitResult
+                            )
+                    );
+            return observed.actionDispatched()
+                    && observed.result() != null
+                    && observed.result().consumesAction();
         } catch (Exception e) {
             OneKeyMiner.LOGGER.error("NeoForge 模拟物品使用失败: {}", e.getMessage());
             return false;
+        }
+    }
+
+    @Override
+    public InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+        InteractionHand hand
+    ) {
+        try {
+            // NeoForge patches Player#interactOn to dispatch its cancellable
+            // entity-interaction events.
+            ServerUseBridge.ObservedUse<InteractionResult> observed =
+                    ServerUseBridge.observeEntityUse(
+                            () -> player.interactOn(target, hand)
+                    );
+            return observed.actionDispatched() && observed.result() != null
+                    ? observed.result()
+                    : InteractionResult.FAIL;
+        } catch (Exception e) {
+            OneKeyMiner.LOGGER.error(
+                    "NeoForge 模拟实体交互失败，目标 {}",
+                    target.getUUID(),
+                    e
+            );
+            return InteractionResult.FAIL;
         }
     }
     
@@ -150,12 +164,12 @@ public class NeoForgePlatformServices implements PlatformServices {
     
     @Override
     public boolean isChainModeActive(ServerPlayer player) {
-        return MiningStateManager.isHoldingKey(player);
+        return org.xiyu.onekeyminer.mining.MiningStateManager.isHoldingKey(player);
     }
     
     @Override
     public void setChainModeActive(ServerPlayer player, boolean active) {
-        MiningStateManager.setHoldingKey(player, active);
+        org.xiyu.onekeyminer.mining.MiningStateManager.setHoldingKey(player, active);
         
         // 可选：发送消息给玩家
         OneKeyMiner.LOGGER.debug("玩家 {} 的链式模式已{}",
@@ -179,6 +193,6 @@ public class NeoForgePlatformServices implements PlatformServices {
      * @param playerUuid 玩家 UUID
      */
     public static void cleanupPlayer(UUID playerUuid) {
-        MiningStateManager.clearState(playerUuid);
+        org.xiyu.onekeyminer.mining.MiningStateManager.clearState(playerUuid);
     }
 }

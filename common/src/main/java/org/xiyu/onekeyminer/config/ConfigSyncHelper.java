@@ -3,6 +3,7 @@ package org.xiyu.onekeyminer.config;
 import org.xiyu.onekeyminer.OneKeyMiner;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -43,7 +44,7 @@ public final class ConfigSyncHelper {
      * @param callback 同步回调，调用时应发送网络包到服务器
      */
     public static void registerSyncCallback(Runnable callback) {
-        syncCallback = callback;
+        syncCallback = Objects.requireNonNull(callback, "callback");
         OneKeyMiner.LOGGER.debug("已注册配置同步回调");
     }
     
@@ -54,9 +55,10 @@ public final class ConfigSyncHelper {
      * 如果未注册回调（如服务端环境），则静默跳过。</p>
      */
     public static void triggerSync() {
-        if (syncCallback != null) {
+        Runnable callback = syncCallback;
+        if (callback != null) {
             try {
-                syncCallback.run();
+                callback.run();
             } catch (Exception e) {
                 OneKeyMiner.LOGGER.debug("配置同步回调执行失败: {}", e.getMessage());
             }
@@ -86,7 +88,7 @@ public final class ConfigSyncHelper {
      * @param listener 监听器，接收变更的配置键名
      */
     public static void addConfigChangeListener(Consumer<String> listener) {
-        CONFIG_CHANGE_LISTENERS.add(listener);
+        CONFIG_CHANGE_LISTENERS.add(Objects.requireNonNull(listener, "listener"));
     }
     
     /**

@@ -1,5 +1,5 @@
 modLoader = "javafml" #mandatory
-loaderVersion = "[55,)" # Forge 55 is the JavaFML generation for Minecraft 1.21.5
+loaderVersion = "${forge_loader_range}"
 license = "${license}" # Review your options at https://choosealicense.com/.
 #issueTrackerURL="https://change.me.to.your.issue.tracker.example.invalid/" #optional
 #clientSideOnly=true #optional
@@ -10,15 +10,15 @@ version = "${version}" #mandatory
 displayName = "${mod_name}" #mandatory
 #updateJSONURL="https://change.me.example.invalid/updates.json" #optional (see https://mcforge.readthedocs.io/en/latest/gettingstarted/autoupdate/)
 #displayURL="https://change.me.to.your.mods.homepage.example.invalid/" #optional (displayed in the mod UI)
-logoFile = "assets/${mod_id}/icon.png" #optional
+logoFile = "onekeyminer.png" #optional
 credits = "${credits}" #optional
-authors = "${mod_authors_text}" #optional
+authors = "${mod_authors_display}" #optional
 description = "${description}" #mandatory
 
 [[dependencies.${mod_id}]] #optional
 modId = "forge" #mandatory
 mandatory = true #mandatory
-versionRange = "[${forge_loader},56)" #mandatory
+versionRange = "${forge_version_range}"
 ordering = "NONE" # The order that this dependency should load in relation to your mod, required to be either 'BEFORE' or 'AFTER' if the dependency is not mandatory
 side = "BOTH" # Side this dependency is applied on - 'BOTH', 'CLIENT' or 'SERVER'
 

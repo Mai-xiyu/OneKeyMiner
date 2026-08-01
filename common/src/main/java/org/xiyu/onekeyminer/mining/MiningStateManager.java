@@ -2,15 +2,22 @@ package org.xiyu.onekeyminer.mining;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import org.xiyu.onekeyminer.network.ClientPreferenceServer;
 
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 
 /**
- * Per-player chain mining state synchronized from clients.
+ * Atomic per-player state synchronized from the physical client.
  */
-public class MiningStateManager {
-    private static final ConcurrentHashMap<UUID, PlayerState> PLAYER_STATES = new ConcurrentHashMap<>();
+public final class MiningStateManager {
+    private static final ConcurrentHashMap<UUID, PlayerState> PLAYER_STATES =
+            new ConcurrentHashMap<>();
+    private MiningStateManager() {
+    }
 
     private record PlayerState(
             boolean holding,
@@ -19,11 +26,35 @@ public class MiningStateManager {
             boolean teleportDrops,
             boolean teleportExp
     ) {
-        private static final PlayerState DEFAULT = new PlayerState(false, false, null, false, false);
+        private static final PlayerState DEFAULT =
+                new PlayerState(false, false, null, false, false);
+
+        private boolean isEmpty() {
+            return !holding
+                    && !activated
+                    && shape == null
+                    && !teleportDrops
+                    && !teleportExp;
+        }
     }
 
     private static PlayerState state(UUID uuid) {
-        return PLAYER_STATES.getOrDefault(uuid, PlayerState.DEFAULT);
+        return PLAYER_STATES.getOrDefault(
+                Objects.requireNonNull(uuid, "uuid"),
+                PlayerState.DEFAULT
+        );
+    }
+
+    private static void update(UUID uuid, UnaryOperator<PlayerState> updater) {
+        Objects.requireNonNull(uuid, "uuid");
+        Objects.requireNonNull(updater, "updater");
+        PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
+            PlayerState updated = Objects.requireNonNull(
+                    updater.apply(oldState != null ? oldState : PlayerState.DEFAULT),
+                    "updated state"
+            );
+            return updated.isEmpty() ? null : updated;
+        });
     }
 
     public static boolean isHoldingKey(ServerPlayer player) {
@@ -35,10 +66,13 @@ public class MiningStateManager {
     }
 
     public static void setHoldingKey(UUID uuid, boolean holding) {
-        PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
-            PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
-            return new PlayerState(holding, old.activated(), old.shape(), old.teleportDrops(), old.teleportExp());
-        });
+        update(uuid, old -> new PlayerState(
+                holding,
+                old.activated(),
+                old.shape(),
+                old.teleportDrops(),
+                old.teleportExp()
+        ));
     }
 
     public static boolean isActivated(ServerPlayer player) {
@@ -46,24 +80,29 @@ public class MiningStateManager {
     }
 
     public static void setActivated(ServerPlayer player, boolean activated) {
-        PLAYER_STATES.compute(player.getUUID(), (ignored, oldState) -> {
-            PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
-            return new PlayerState(old.holding(), activated, old.shape(), old.teleportDrops(), old.teleportExp());
-        });
+        update(player.getUUID(), old -> new PlayerState(
+                old.holding(),
+                activated,
+                old.shape(),
+                old.teleportDrops(),
+                old.teleportExp()
+        ));
     }
 
     public static boolean toggle(ServerPlayer player) {
-        PlayerState updated = PLAYER_STATES.compute(player.getUUID(), (ignored, oldState) -> {
-            PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
+        AtomicBoolean result = new AtomicBoolean();
+        update(player.getUUID(), old -> {
+            boolean activated = !old.activated();
+            result.set(activated);
             return new PlayerState(
                     old.holding(),
-                    !old.activated(),
+                    activated,
                     old.shape(),
                     old.teleportDrops(),
                     old.teleportExp()
             );
         });
-        return updated.activated();
+        return result.get();
     }
 
     public static ResourceLocation getPlayerShape(ServerPlayer player) {
@@ -79,12 +118,16 @@ public class MiningStateManager {
     }
 
     public static void setPlayerShape(UUID uuid, ResourceLocation shapeId) {
-        if (shapeId != null) {
-            PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
-                PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
-                return new PlayerState(old.holding(), old.activated(), shapeId, old.teleportDrops(), old.teleportExp());
-            });
+        if (shapeId == null) {
+            return;
         }
+        update(uuid, old -> new PlayerState(
+                old.holding(),
+                old.activated(),
+                shapeId,
+                old.teleportDrops(),
+                old.teleportExp()
+        ));
     }
 
     public static boolean isTeleportDrops(ServerPlayer player) {
@@ -100,10 +143,13 @@ public class MiningStateManager {
     }
 
     public static void setTeleportDrops(UUID uuid, boolean enabled) {
-        PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
-            PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
-            return new PlayerState(old.holding(), old.activated(), old.shape(), enabled, old.teleportExp());
-        });
+        update(uuid, old -> new PlayerState(
+                old.holding(),
+                old.activated(),
+                old.shape(),
+                enabled,
+                old.teleportExp()
+        ));
     }
 
     public static void setTeleportExp(ServerPlayer player, boolean enabled) {
@@ -111,20 +157,18 @@ public class MiningStateManager {
     }
 
     public static void setTeleportExp(UUID uuid, boolean enabled) {
-        PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
-            PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
-            return new PlayerState(old.holding(), old.activated(), old.shape(), old.teleportDrops(), enabled);
-        });
+        update(uuid, old -> new PlayerState(
+                old.holding(),
+                old.activated(),
+                old.shape(),
+                old.teleportDrops(),
+                enabled
+        ));
     }
 
-    public static void clearState(ServerPlayer player) {
-        clearState(player.getUUID());
-    }
-
-    public static void clearState(UUID uuid) {
-        PLAYER_STATES.remove(uuid);
-    }
-
+    /**
+     * Applies one validated client preference snapshot atomically.
+     */
     public static void updatePreferences(
             UUID uuid,
             boolean holding,
@@ -132,13 +176,27 @@ public class MiningStateManager {
             boolean teleportDrops,
             boolean teleportExp
     ) {
-        PLAYER_STATES.compute(uuid, (ignored, oldState) -> {
-            PlayerState old = oldState != null ? oldState : PlayerState.DEFAULT;
-            return new PlayerState(holding, old.activated(), shapeId, teleportDrops, teleportExp);
-        });
+        update(uuid, old -> new PlayerState(
+                holding,
+                old.activated(),
+                shapeId != null ? shapeId : old.shape(),
+                teleportDrops,
+                teleportExp
+        ));
+    }
+
+    public static void clearState(ServerPlayer player) {
+        clearState(player.getUUID());
+    }
+
+    public static void clearState(UUID uuid) {
+        UUID playerId = Objects.requireNonNull(uuid, "uuid");
+        PLAYER_STATES.remove(playerId);
+        ClientPreferenceServer.clearPlayer(playerId);
     }
 
     public static void clearAll() {
         PLAYER_STATES.clear();
+        ClientPreferenceServer.clearAll();
     }
 }
