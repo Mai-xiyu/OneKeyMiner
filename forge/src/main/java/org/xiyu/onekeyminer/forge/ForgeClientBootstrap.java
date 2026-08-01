@@ -9,6 +9,7 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 
 /**
@@ -44,6 +45,7 @@ public final class ForgeClientBootstrap {
 
     private static void onClientSetup(FMLClientSetupEvent event) {
         ConfigSyncHelper.registerSyncCallback(ForgeKeyBindings::sendCurrentPreferences);
+        ClientPreferenceAckDispatcher.register(ForgeClientNetworking::handlePreferencesAck);
         ForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("Forge client setup complete");
     }

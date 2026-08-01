@@ -1,13 +1,13 @@
 # OneKeyMiner 26.1 API Reference
 
-This document describes the public API shipped by OneKeyMiner `1.6.6` for
+This document describes the public API shipped by OneKeyMiner `1.6.7` for
 Minecraft `26.1`.
 
 ## Supported environment
 
 | Component | Version |
 |---|---|
-| Java | 21 |
+| Java | 25 |
 | Fabric Loader | 0.18.4 |
 | Fabric API | 0.144.0+26.1 |
 | Forge | 62.0.1 |
@@ -21,9 +21,9 @@ against the platform JAR that it will run with.
 
 Copy one production JAR into your add-on project's `libs/` directory:
 
-- `onekeyminer-fabric-1.6.6-26.1.jar`
-- `onekeyminer-forge-1.6.6-26.1.jar`
-- `onekeyminer-neoforge-1.6.6-26.1.jar`
+- `onekeyminer-fabric-1.6.7-26.1.jar`
+- `onekeyminer-forge-1.6.7-26.1.jar`
+- `onekeyminer-neoforge-1.6.7-26.1.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
 contain Minecraft types whose runtime mappings differ by loader, so add-ons
@@ -36,7 +36,7 @@ Fabric Loom:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/onekeyminer-fabric-1.6.6-26.1.jar")
+    modCompileOnly files("libs/onekeyminer-fabric-1.6.7-26.1.jar")
 }
 ```
 
@@ -44,7 +44,7 @@ ForgeGradle:
 
 ```groovy
 dependencies {
-    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-26.1.jar"))
+    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-26.1.jar"))
 }
 ```
 
@@ -52,7 +52,7 @@ NeoGradle or ModDevGradle:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/onekeyminer-neoforge-1.6.6-26.1.jar")
+    compileOnly files("libs/onekeyminer-neoforge-1.6.7-26.1.jar")
 }
 ```
 
@@ -66,6 +66,15 @@ The server is authoritative. It validates the player, world, loaded chunks,
 tool, target, distance, count, protection result, durability, hunger and item
 use before applying a chained operation. A client preference packet is only a
 request; it cannot override server policy.
+
+All loaders use wire protocol v3. Each C2S snapshot carries a positive sequence;
+the server validates and rate-limits it, atomically applies the raw request, and
+returns an S2C acknowledgement containing the applied shape, server enable state,
+preview limits, diagonal policy, effective teleport flags, and capability bits.
+Retries reuse the same sequence and immutable snapshot. A local change invalidates
+the old sequence, so a late ACK cannot confirm stale preferences. Wrong versions
+and non-positive sequences are rejected; invalid-packet warnings are sampled per
+player. The remote config screen displays the latest server-applied result.
 
 Call mutation and execution APIs from the logical server thread. Registration
 methods use concurrent or snapshot-backed collections, but Minecraft world and
@@ -504,23 +513,50 @@ copy.maxBlocks = 96;
 ConfigManager.updateConfig(copy, "maxBlocks");
 ```
 
-Prefer `editConfig` for one or a few fields. `OneKeyMinerAPI` also provides
-validated convenience methods:
+Prefer `editConfig` for one or a few fields. Remote multiplayer config screens
+call `ConfigManager.updateClientPreferences(copy)`, which copies only
+`selectedShape`, `teleportDrops`, and `teleportExp`; it cannot overwrite limits
+or server policy fields.
+
+Teleport convenience methods are explicitly scoped:
 
 ```java
 OneKeyMinerAPI.setSelectedShape("examplemod:upward_column");
-OneKeyMinerAPI.setTeleportDropsEnabled(true);
-OneKeyMinerAPI.setTeleportExpEnabled(true);
+
+// Physical-client requests (persisted and synchronized)
+OneKeyMinerAPI.setLocalDropTeleportRequested(true);
+OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
+
+// Logical-server policy
+OneKeyMinerAPI.setClientDropTeleportAllowed(true);
+OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
+
+// Logical-server effective values for one player
+boolean drops = OneKeyMinerAPI.isDropTeleportEffective(serverPlayer);
+boolean experience = OneKeyMinerAPI.isExperienceTeleportEffective(serverPlayer);
+
+// Physical-client view of the newest server-applied result
+OneKeyMinerAPI.getAcknowledgedServerPreferences().ifPresent(ack -> {
+    String appliedShape = ack.appliedShapeId();
+    int appliedLimit = ack.maxBlocksApplied();
+    boolean dropsApplied = ack.teleportDropsApplied();
+});
 ```
 
-On a dedicated server, these calls must run in the correct server-side policy
-context. Do not present a client-only setting mutation as a way to change server
-limits.
+The legacy `is/setTeleportDropsEnabled` and `is/setTeleportExpEnabled` methods
+remain deprecated compatibility aliases for local request state; they do not
+report or change a dedicated server's effective policy. Server policy mutations
+must run on the logical server thread.
+
+The acknowledgement is scoped to the current connection and does not overwrite
+the client's saved requests. Transport and ACK retries reuse one immutable
+snapshot and sequence; a changed request invalidates that sequence. Clients also
+refresh periodically so a server config hot reload is reflected in preview state.
 
 ## Compatibility notes
 
 - API examples in this document target only Minecraft 26.1 / OneKeyMiner
-  1.6.6. Other branches must be compiled against their own platform JAR.
+  1.6.7. Other branches must be compiled against their own platform JAR.
 - A production add-on must declare its supported OneKeyMiner and Minecraft
   versions in loader metadata.
 - Do not depend on `org.xiyu.onekeyminer.platform.*` implementations. They are

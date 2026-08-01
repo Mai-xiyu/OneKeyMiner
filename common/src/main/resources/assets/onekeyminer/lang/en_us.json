@@ -1,5 +1,8 @@
 {
   "config.onekeyminer.title": "OneKeyMiner Config",
+  "config.onekeyminer.remote_server_notice": "Remote server: only client preferences are editable; server policy remains authoritative",
+  "config.onekeyminer.remote_server_pending": "Waiting for server acknowledgement...",
+  "config.onekeyminer.remote_server_applied": "Server applied: %s; drops %s; XP %s",
   "config.onekeyminer.info": "Edit the config file to modify settings",
   "config.onekeyminer.openFolder": "Open Config Folder",
   "config.onekeyminer.reload": "Reload Config",

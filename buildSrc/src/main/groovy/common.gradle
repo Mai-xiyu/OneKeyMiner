@@ -39,6 +39,33 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.12.2"
+}
+
+tasks.withType(Test).configureEach {
+    enabled = true
+    useJUnitPlatform()
+}
+
+// Unimined wires the transformed game/loader classpath directly to the main
+// compile/runtime tasks. Loader codec tests need that same mapped classpath.
+if (project.name != 'common') {
+    tasks.named('compileTestJava', JavaCompile).configure {
+        classpath += sourceSets.main.compileClasspath
+    }
+    tasks.named('test', Test).configure {
+        classpath += sourceSets.main.runtimeClasspath
+    }
+}
+
+tasks.withType(Jar).configureEach {
+    manifest {
+        attributes('Implementation-Version': mod_version.toString())
+    }
+}
+
 processResources {
     def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "")
     def forgeMajor = (gradle.ext.forge_loader as String).tokenize('.')[0] as int

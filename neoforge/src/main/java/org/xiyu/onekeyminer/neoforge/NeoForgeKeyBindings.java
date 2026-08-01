@@ -5,6 +5,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -12,27 +13,40 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
-import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
-public class NeoForgeKeyBindings {
+public final class NeoForgeKeyBindings {
     public static KeyMapping CHAIN_MINING_KEY;
     public static KeyMapping OPEN_CONFIG;
 
-    private static boolean wasKeyDown = false;
-    private static boolean wasConnected = false;
+    private static final int TRANSPORT_RETRY_TICKS = 20;
+    private static final int ACK_RETRY_TICKS = 100;
+    private static final int POLICY_REFRESH_TICKS = 600;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
+
+    private static boolean wasKeyDown;
+    private static boolean wasConnected;
     private static boolean syncPending = true;
+    private static boolean preferencesDirty = true;
     private static int syncRetryDelay;
+    private static int policyRefreshDelay;
+    private static ClientPreferenceRequest pendingRequest;
+
+    private NeoForgeKeyBindings() {
+    }
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
             return;
         }
-
         CHAIN_MINING_KEY = new KeyMapping(
                 "key.onekeyminer.hold",
                 InputConstants.Type.KEYSYM,
@@ -45,7 +59,6 @@ public class NeoForgeKeyBindings {
                 GLFW.GLFW_KEY_UNKNOWN,
                 KeyMapping.Category.GAMEPLAY
         );
-
         NeoForge.EVENT_BUS.addListener(NeoForgeKeyBindings::onClientTick);
         OneKeyMiner.LOGGER.debug("Registered NeoForge key bindings");
     }
@@ -67,74 +80,132 @@ public class NeoForgeKeyBindings {
         );
     }
 
+    /** Coalesces config callbacks; the next client tick captures one snapshot. */
     public static void sendCurrentPreferences() {
         Minecraft minecraft = Minecraft.getInstance();
         if (!minecraft.isSameThread()) {
             minecraft.execute(NeoForgeKeyBindings::sendCurrentPreferences);
             return;
         }
+        markPreferencesDirty(true);
+    }
+
+    private static void markPreferencesDirty(boolean clearAcknowledgement) {
+        SYNC_TRACKER.invalidatePendingAttempt();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        syncRetryDelay = 0;
+        if (clearAcknowledgement) {
+            ClientPreferenceSession.clear();
+        }
+    }
+
+    private static void attemptSynchronization() {
         if (CHAIN_MINING_KEY == null) {
-            syncPending = true;
-            syncRetryDelay = 20;
+            syncRetryDelay = TRANSPORT_RETRY_TICKS;
             return;
         }
-        boolean sent = NeoForgeClientNetworking.trySyncPreferences(CHAIN_MINING_KEY.isDown());
-        syncPending = !sent;
-        syncRetryDelay = sent ? 0 : 20;
-        if (sent) {
-            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        int sequence;
+        if (preferencesDirty || !SYNC_TRACKER.hasPendingAttempt()) {
+            sequence = SYNC_TRACKER.beginAttempt();
+            pendingRequest = ClientPreferenceRequest.capture(CHAIN_MINING_KEY.isDown());
+            preferencesDirty = false;
+        } else {
+            sequence = SYNC_TRACKER.pendingSequence();
         }
+        if (pendingRequest == null) {
+            return;
+        }
+        boolean sent = NeoForgeClientNetworking.trySyncPreferences(sequence, pendingRequest);
+        syncPending = true;
+        syncRetryDelay = sent ? ACK_RETRY_TICKS : TRANSPORT_RETRY_TICKS;
+    }
+
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (!SYNC_TRACKER.confirm(ack)) {
+            return;
+        }
+        pendingRequest = null;
+        syncRetryDelay = 0;
+        if (preferencesDirty) {
+            syncPending = true;
+            return;
+        }
+        ClientPreferenceSession.accept(ack);
+        syncPending = false;
+        policyRefreshDelay = POLICY_REFRESH_TICKS;
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
         boolean connected = minecraft.player != null && minecraft.getConnection() != null;
         if (!connected) {
+            if (wasConnected) {
+                SYNC_TRACKER.reset();
+            }
             wasConnected = false;
             wasKeyDown = false;
             syncPending = true;
+            preferencesDirty = true;
             syncRetryDelay = 0;
+            policyRefreshDelay = 0;
+            pendingRequest = null;
+            ClientPreferenceSession.clear();
             return;
         }
 
         if (OPEN_CONFIG != null && OPEN_CONFIG.consumeClick()) {
             minecraft.setScreen(NeoForgeConfigScreen.createConfigScreen(minecraft.screen));
         }
-
         if (CHAIN_MINING_KEY == null) {
             return;
         }
 
-        boolean isKeyDown = CHAIN_MINING_KEY.isDown();
+        boolean keyDown = CHAIN_MINING_KEY.isDown();
         if (!wasConnected) {
             wasConnected = true;
+            wasKeyDown = keyDown;
+            SYNC_TRACKER.reset();
             syncPending = true;
+            preferencesDirty = true;
             syncRetryDelay = 0;
+            policyRefreshDelay = 0;
+            pendingRequest = null;
+            ClientPreferenceSession.clear();
         }
 
+        if (keyDown != wasKeyDown) {
+            wasKeyDown = keyDown;
+            markPreferencesDirty(false);
+        }
+        if (!syncPending) {
+            policyRefreshDelay--;
+            if (policyRefreshDelay <= 0) {
+                markPreferencesDirty(false);
+            }
+        }
         if (syncPending) {
             if (syncRetryDelay > 0) {
                 syncRetryDelay--;
             } else {
-                sendCurrentPreferences();
-            }
-        } else if (isKeyDown != wasKeyDown) {
-            if (NeoForgeClientNetworking.trySyncPreferences(isKeyDown)) {
-                wasKeyDown = isKeyDown;
-            } else {
-                syncPending = true;
-                syncRetryDelay = 20;
+                attemptSynchronization();
             }
         }
 
         BlockPos lookingAt = null;
-        if (minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
+        if (minecraft.hitResult != null
+                && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
             lookingAt = ((BlockHitResult) minecraft.hitResult).getBlockPos();
         }
-
         Direction playerFacing = minecraft.player.getDirection();
         float playerPitch = minecraft.player.getXRot();
-        ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
+        ChainPreviewManager.getInstance().tick(
+                minecraft.level,
+                lookingAt,
+                playerFacing,
+                playerPitch,
+                keyDown
+        );
     }
-
 }

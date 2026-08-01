@@ -6,6 +6,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeContext;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -49,12 +50,14 @@ public class ChainPreviewManager {
         lastCalculateTime = now;
 
         MinerConfig config = ConfigManager.getConfig();
-        if (!config.enabled) {
+        ClientPreferenceSession.PreviewPolicy policy =
+                ClientPreferenceSession.resolvePreviewPolicy(config);
+        if (!policy.enabled()) {
             clearPreview();
             return;
         }
 
-        ChainShape shape = ShapeRegistry.getShapeOrDefault(config.selectedShape);
+        ChainShape shape = ShapeRegistry.getShapeOrDefault(policy.shapeId());
         if (shape == null) {
             clearPreview();
             return;
@@ -80,9 +83,9 @@ public class ChainPreviewManager {
                     .originState(lookingState)
                     .playerFacing(playerFacing)
                     .playerLookingVertical(verticalDir)
-                    .maxBlocks(config.maxBlocks)
-                    .maxDistance(config.maxDistance)
-                    .allowDiagonal(config.allowDiagonal)
+                    .maxBlocks(policy.maxBlocks())
+                    .maxDistance(policy.maxDistance())
+                    .allowDiagonal(policy.allowDiagonal())
                     .blockMatcher((origin, target) -> !target.isAir() && target.getBlock() == origin.getBlock())
                     .build();
 
