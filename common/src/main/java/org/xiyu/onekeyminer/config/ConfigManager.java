@@ -196,6 +196,7 @@ public class ConfigManager {
         }
         MinerConfig newConfig = CONFIG.get().copy();
         notifyListeners(oldConfig, newConfig);
+        ConfigSyncHelper.triggerSync();
     }
 
     public static MinerConfig getConfig() {
@@ -232,6 +233,56 @@ public class ConfigManager {
                 config.selectedShape,
                 config.teleportDrops,
                 config.teleportExp
+        );
+    }
+
+    /** O(1) logical-server view for effective teleport-policy queries. */
+    public record ServerTeleportPolicySnapshot(
+            boolean allowClientTeleportDrops,
+            boolean allowClientTeleportExp
+    ) {
+        public boolean isDropTeleportEffective(boolean requested) {
+            return allowClientTeleportDrops && requested;
+        }
+
+        public boolean isExperienceTeleportEffective(boolean requested) {
+            return allowClientTeleportExp && requested;
+        }
+    }
+
+    public static ServerTeleportPolicySnapshot getServerTeleportPolicySnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ServerTeleportPolicySnapshot(
+                config.allowClientTeleportDrops,
+                config.allowClientTeleportExp
+        );
+    }
+
+    /** O(1) server view used to acknowledge all client-visible policy inputs. */
+    public record ServerPreferenceSnapshot(
+            boolean enabled,
+            int maxBlocks,
+            int maxBlocksCreative,
+            int maxDistance,
+            boolean allowDiagonal,
+            boolean allowClientTeleportDrops,
+            boolean allowClientTeleportExp
+    ) {
+        public int maxBlocksFor(boolean creative) {
+            return creative ? maxBlocksCreative : maxBlocks;
+        }
+    }
+
+    public static ServerPreferenceSnapshot getServerPreferenceSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ServerPreferenceSnapshot(
+                config.enabled,
+                config.maxBlocks,
+                config.maxBlocksCreative,
+                config.maxDistance,
+                config.allowDiagonal,
+                config.allowClientTeleportDrops,
+                config.allowClientTeleportExp
         );
     }
 

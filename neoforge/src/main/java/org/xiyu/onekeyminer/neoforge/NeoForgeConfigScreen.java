@@ -11,6 +11,7 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -52,7 +53,7 @@ public class NeoForgeConfigScreen {
         protected SimpleConfigScreen(Screen parent) {
             super(Component.translatable("config.onekeyminer.title"));
             this.parent = parent;
-            this.configCopy = ConfigManager.getConfig();
+            this.configCopy = ConfigManager.getConfig().copy();
         }
         
         @Override
@@ -65,10 +66,16 @@ public class NeoForgeConfigScreen {
             int buttonWidth = 200;
             int buttonHeight = 20;
             int spacing = 24;
-            
+
             boolean remoteServer = isRemoteServer();
             if (remoteServer) {
-                initRemotePreferences(centerX, startY, buttonWidth, buttonHeight, spacing);
+                initRemotePreferences(
+                        centerX,
+                        startY + spacing,
+                        buttonWidth,
+                        buttonHeight,
+                        spacing
+                );
             } else {
                 switch (currentPage) {
                     case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
@@ -125,19 +132,31 @@ public class NeoForgeConfigScreen {
             this.addRenderableWidget(Button.builder(
                     getShapeMessage(configCopy.selectedShape),
                     button -> {
-                        configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
+                        configCopy.selectedShape = ShapeRegistry.getNextShapeId(
+                                configCopy.selectedShape
+                        );
                         configCopy.shapeMode = null;
                         button.setMessage(getShapeMessage(configCopy.selectedShape));
                     }
             ).bounds(x - w / 2, y + s * i++, w, h).build());
-            addBoolButton(x, y + s * i++, w, h,
+            addBoolButton(
+                    x,
+                    y + s * i++,
+                    w,
+                    h,
                     "config.onekeyminer.option.teleport_drops",
                     () -> configCopy.teleportDrops,
-                    value -> configCopy.teleportDrops = value);
-            addBoolButton(x, y + s * i, w, h,
+                    value -> configCopy.teleportDrops = value
+            );
+            addBoolButton(
+                    x,
+                    y + s * i,
+                    w,
+                    h,
                     "config.onekeyminer.option.teleport_exp",
                     () -> configCopy.teleportExp,
-                    value -> configCopy.teleportExp = value);
+                    value -> configCopy.teleportExp = value
+            );
         }
 
         private boolean isRemoteServer() {
@@ -254,6 +273,31 @@ public class NeoForgeConfigScreen {
                         this.width / 2,
                         26,
                         0xFFAA00
+                );
+                Component applied = ClientPreferenceSession.lastAck()
+                        .<Component>map(ack -> Component.translatable(
+                                "config.onekeyminer.remote_server_applied",
+                                ack.appliedShapeId(),
+                                Component.translatable(
+                                        ack.teleportDropsApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                ),
+                                Component.translatable(
+                                        ack.teleportExpApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                )
+                        ))
+                        .orElseGet(() -> Component.translatable(
+                                "config.onekeyminer.remote_server_pending"
+                        ));
+                guiGraphics.drawCenteredString(
+                        this.font,
+                        applied,
+                        this.width / 2,
+                        38,
+                        0xAAAAAA
                 );
             }
             int page = isRemoteServer() ? 1 : currentPage + 1;
