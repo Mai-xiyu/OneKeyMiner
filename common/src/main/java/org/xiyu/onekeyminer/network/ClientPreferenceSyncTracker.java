@@ -23,6 +23,15 @@ public final class ClientPreferenceSyncTracker {
         }
     }
 
+    /**
+     * Invalidates the in-flight snapshot when newer local preferences make it
+     * stale. A late acknowledgement for that sequence must not restore sync.
+     */
+    public synchronized void invalidatePendingAttempt() {
+        pendingSequence = 0;
+        synchronizedWithServer = false;
+    }
+
     /** Returns the in-flight sequence, or {@code 0} when no attempt exists. */
     public synchronized int pendingSequence() {
         return pendingSequence;
