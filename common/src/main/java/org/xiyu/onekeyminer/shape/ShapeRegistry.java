@@ -4,6 +4,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.xiyu.onekeyminer.OneKeyMiner;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,22 +12,22 @@ import java.util.Objects;
 
 /**
  * Registry for built-in and addon-provided chain shapes.
- *
- * <p>Writers publish immutable snapshots under one lock; readers never observe a
- * map/order update halfway through.</p>
  */
 public final class ShapeRegistry {
-    private static final Object WRITE_LOCK = new Object();
-    private static volatile Snapshot snapshot = new Snapshot(Map.of(), List.of());
-
-    private record Snapshot(
+    private static final Object REGISTRY_LOCK = new Object();
+    private record RegistryState(
             Map<ResourceLocation, ChainShape> shapes,
             List<ResourceLocation> order
     ) {
+        private static RegistryState empty() {
+            return new RegistryState(Map.of(), List.of());
+        }
     }
 
-    public static final ResourceLocation DEFAULT_SHAPE_ID =
-            ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "amorphous");
+    private static volatile RegistryState state = RegistryState.empty();
+
+    public static final ResourceLocation DEFAULT_SHAPE_ID = ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "amorphous");
+    public static final int MAX_SHAPE_ID_LENGTH = 128;
 
     private ShapeRegistry() {
     }
@@ -34,11 +35,17 @@ public final class ShapeRegistry {
     public static void register(ChainShape shape) {
         Objects.requireNonNull(shape, "Shape must not be null");
         ResourceLocation id = Objects.requireNonNull(shape.getId(), "Shape ID must not be null");
+        if (id.toString().length() > MAX_SHAPE_ID_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Shape ID exceeds " + MAX_SHAPE_ID_LENGTH + " characters: " + id
+            );
+        }
 
-        synchronized (WRITE_LOCK) {
-            Snapshot current = snapshot;
-            Map<ResourceLocation, ChainShape> nextShapes = new LinkedHashMap<>(current.shapes());
-            List<ResourceLocation> nextOrder = new ArrayList<>(current.order());
+        synchronized (REGISTRY_LOCK) {
+            RegistryState snapshot = state;
+            Map<ResourceLocation, ChainShape> nextShapes =
+                    new LinkedHashMap<>(snapshot.shapes());
+            List<ResourceLocation> nextOrder = new ArrayList<>(snapshot.order());
             if (!nextShapes.containsKey(id)) {
                 nextOrder.add(id);
             } else {
@@ -48,45 +55,82 @@ public final class ShapeRegistry {
                 );
             }
             nextShapes.put(id, shape);
-            snapshot = new Snapshot(Map.copyOf(nextShapes), List.copyOf(nextOrder));
+            state = new RegistryState(
+                    Collections.unmodifiableMap(nextShapes),
+                    List.copyOf(nextOrder)
+            );
         }
     }
 
     public static ChainShape getShape(ResourceLocation id) {
-        return snapshot.shapes().get(id);
+        return state.shapes().get(id);
+    }
+
+    /**
+     * Removes an add-on shape. The built-in default remains available so
+     * server-side preference validation always has a deterministic fallback.
+     */
+    public static boolean unregister(ResourceLocation id) {
+        if (id == null || DEFAULT_SHAPE_ID.equals(id)) {
+            return false;
+        }
+        synchronized (REGISTRY_LOCK) {
+            RegistryState snapshot = state;
+            if (!snapshot.shapes().containsKey(id)) {
+                return false;
+            }
+            Map<ResourceLocation, ChainShape> nextShapes =
+                    new LinkedHashMap<>(snapshot.shapes());
+            List<ResourceLocation> nextOrder = new ArrayList<>(snapshot.order());
+            nextShapes.remove(id);
+            nextOrder.remove(id);
+            state = new RegistryState(
+                    Collections.unmodifiableMap(nextShapes),
+                    List.copyOf(nextOrder)
+            );
+            return true;
+        }
     }
 
     public static ChainShape getShapeOrDefault(ResourceLocation id) {
-        Snapshot current = snapshot;
-        ChainShape shape = current.shapes().get(id);
+        Map<ResourceLocation, ChainShape> snapshot = state.shapes();
+        ChainShape shape = snapshot.get(id);
         if (shape == null) {
-            shape = current.shapes().get(DEFAULT_SHAPE_ID);
+            shape = snapshot.get(DEFAULT_SHAPE_ID);
         }
-        if (shape == null && !current.order().isEmpty()) {
-            shape = current.shapes().get(current.order().getFirst());
+        if (shape == null && !snapshot.isEmpty()) {
+            shape = snapshot.values().iterator().next();
         }
         return shape;
     }
 
     public static ChainShape getShapeOrDefault(String idStr) {
-        ResourceLocation id = ResourceLocation.tryParse(idStr);
+        ResourceLocation id = idStr == null || idStr.isBlank()
+                ? null
+                : ResourceLocation.tryParse(idStr);
         return getShapeOrDefault(id != null ? id : DEFAULT_SHAPE_ID);
     }
 
     public static boolean isRegistered(ResourceLocation id) {
-        return snapshot.shapes().containsKey(id);
+        return id != null && state.shapes().containsKey(id);
     }
 
     public static boolean isValidShapeId(String idStr) {
+        if (idStr == null || idStr.isBlank()) {
+            return false;
+        }
+        if (idStr.length() > MAX_SHAPE_ID_LENGTH) {
+            return false;
+        }
         ResourceLocation id = ResourceLocation.tryParse(idStr);
-        return id != null && isRegistered(id);
+        return id != null && state.shapes().containsKey(id);
     }
 
     public static List<ChainShape> getAllShapes() {
-        Snapshot current = snapshot;
-        List<ChainShape> result = new ArrayList<>();
-        for (ResourceLocation id : current.order()) {
-            ChainShape shape = current.shapes().get(id);
+        RegistryState snapshot = state;
+        List<ChainShape> result = new ArrayList<>(snapshot.order().size());
+        for (ResourceLocation id : snapshot.order()) {
+            ChainShape shape = snapshot.shapes().get(id);
             if (shape != null) {
                 result.add(shape);
             }
@@ -95,15 +139,15 @@ public final class ShapeRegistry {
     }
 
     public static List<ResourceLocation> getAllShapeIds() {
-        return snapshot.order();
+        return state.order();
     }
 
     public static int getShapeCount() {
-        return snapshot.shapes().size();
+        return state.shapes().size();
     }
 
     public static String getNextShapeId(String currentId) {
-        List<ResourceLocation> ids = snapshot.order();
+        List<ResourceLocation> ids = getAllShapeIds();
         if (ids.isEmpty()) {
             return DEFAULT_SHAPE_ID.toString();
         }

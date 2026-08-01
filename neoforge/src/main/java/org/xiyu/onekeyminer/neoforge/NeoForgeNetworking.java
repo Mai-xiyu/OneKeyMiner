@@ -5,49 +5,126 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.mining.MiningStateManager;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
+import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
+import org.xiyu.onekeyminer.network.ClientPreferenceServer;
+import org.xiyu.onekeyminer.network.PreferenceCodecGuard;
 
-/**
- * Server-safe NeoForge payload declarations and handlers.
- */
+/** Server-safe NeoForge v3 preference payloads. */
 public final class NeoForgeNetworking {
-    public static final String PROTOCOL_VERSION = "2";
-    public static final int WIRE_VERSION = 2;
-    public static final int MAX_SHAPE_ID_LENGTH = 128;
+    public static final String PROTOCOL_VERSION =
+            Integer.toString(ClientPreferenceProtocol.WIRE_VERSION);
+    public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
+    public static final int MAX_SHAPE_ID_LENGTH =
+            ClientPreferenceProtocol.MAX_SHAPE_ID_LENGTH;
 
     private NeoForgeNetworking() {
     }
 
     public record ClientPreferencesPayload(
             int wireVersion,
+            int sequence,
             boolean holding,
             String shapeId,
             boolean teleportDrops,
             boolean teleportExp
     ) implements CustomPacketPayload {
         public static final ResourceLocation ID =
-                ResourceLocation.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "client_preferences");
+                ResourceLocation.fromNamespaceAndPath(
+                        OneKeyMiner.MOD_ID,
+                        "client_preferences_v" + WIRE_VERSION
+                );
         public static final Type<ClientPreferencesPayload> TYPE = new Type<>(ID);
-        public static final StreamCodec<FriendlyByteBuf, ClientPreferencesPayload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> {
-                    buf.writeVarInt(payload.wireVersion);
-                    buf.writeBoolean(payload.holding);
-                    buf.writeUtf(payload.shapeId == null ? "" : payload.shapeId, MAX_SHAPE_ID_LENGTH);
-                    buf.writeBoolean(payload.teleportDrops);
-                    buf.writeBoolean(payload.teleportExp);
-                },
-                buf -> new ClientPreferencesPayload(
-                        buf.readVarInt(),
-                        buf.readBoolean(),
-                        buf.readUtf(MAX_SHAPE_ID_LENGTH),
-                        buf.readBoolean(),
-                        buf.readBoolean()
-                )
+        public static final StreamCodec<FriendlyByteBuf, ClientPreferencesPayload> STREAM_CODEC =
+                StreamCodec.of(
+                        (buf, payload) -> {
+                            buf.writeVarInt(payload.wireVersion);
+                            buf.writeVarInt(payload.sequence);
+                            buf.writeBoolean(payload.holding);
+                            buf.writeUtf(
+                                    payload.shapeId == null ? "" : payload.shapeId,
+                                    MAX_SHAPE_ID_LENGTH
+                            );
+                            buf.writeBoolean(payload.teleportDrops);
+                            buf.writeBoolean(payload.teleportExp);
+                        },
+                        NeoForgeNetworking::decodeClientPreferences
+                );
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record ServerPreferencesAckPayload(
+            int wireVersion,
+            int sequence,
+            boolean serverEnabled,
+            String appliedShapeId,
+            int maxBlocksApplied,
+            int maxDistanceApplied,
+            boolean allowDiagonalApplied,
+            boolean teleportDropsApplied,
+            boolean teleportExpApplied,
+            int capabilities
+    ) implements CustomPacketPayload {
+        public static final ResourceLocation ID = ResourceLocation.fromNamespaceAndPath(
+                OneKeyMiner.MOD_ID,
+                "server_preferences_ack_v" + WIRE_VERSION
         );
+        public static final Type<ServerPreferencesAckPayload> TYPE = new Type<>(ID);
+        public static final StreamCodec<FriendlyByteBuf, ServerPreferencesAckPayload> STREAM_CODEC =
+                StreamCodec.of(
+                        (buf, payload) -> {
+                            buf.writeVarInt(payload.wireVersion);
+                            buf.writeVarInt(payload.sequence);
+                            buf.writeBoolean(payload.serverEnabled);
+                            buf.writeUtf(payload.appliedShapeId, MAX_SHAPE_ID_LENGTH);
+                            buf.writeVarInt(payload.maxBlocksApplied);
+                            buf.writeVarInt(payload.maxDistanceApplied);
+                            buf.writeBoolean(payload.allowDiagonalApplied);
+                            buf.writeBoolean(payload.teleportDropsApplied);
+                            buf.writeBoolean(payload.teleportExpApplied);
+                            buf.writeVarInt(payload.capabilities);
+                        },
+                        NeoForgeNetworking::decodeServerPreferencesAck
+                );
+
+        static ServerPreferencesAckPayload fromCommon(ClientPreferenceAck ack) {
+            return new ServerPreferencesAckPayload(
+                    ack.wireVersion(),
+                    ack.sequence(),
+                    ack.serverEnabled(),
+                    ack.appliedShapeId(),
+                    ack.maxBlocksApplied(),
+                    ack.maxDistanceApplied(),
+                    ack.allowDiagonalApplied(),
+                    ack.teleportDropsApplied(),
+                    ack.teleportExpApplied(),
+                    ack.capabilities()
+            );
+        }
+
+        ClientPreferenceAck toCommon() {
+            return new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    serverEnabled,
+                    appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
+        }
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -56,46 +133,82 @@ public final class NeoForgeNetworking {
     }
 
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        event.registrar(PROTOCOL_VERSION).playToServer(
+        var registrar = event.registrar(PROTOCOL_VERSION).optional();
+        registrar.playToServer(
                 ClientPreferencesPayload.TYPE,
                 ClientPreferencesPayload.STREAM_CODEC,
                 NeoForgeNetworking::handleClientPreferences
         );
+        registrar.playToClient(
+                ServerPreferencesAckPayload.TYPE,
+                ServerPreferencesAckPayload.STREAM_CODEC,
+                NeoForgeNetworking::handleServerPreferencesAck
+        );
         OneKeyMiner.LOGGER.debug("Registered NeoForge networking payloads");
     }
 
-    private static void handleClientPreferences(ClientPreferencesPayload payload, IPayloadContext context) {
+    private static void handleServerPreferencesAck(
+            ServerPreferencesAckPayload payload,
+            IPayloadContext context
+    ) {
+        context.enqueueWork(
+                () -> ClientPreferenceAckDispatcher.dispatch(payload.toCommon())
+        );
+    }
+
+    private static void handleClientPreferences(
+            ClientPreferencesPayload payload,
+            IPayloadContext context
+    ) {
         if (!(context.player() instanceof ServerPlayer serverPlayer)) {
             return;
         }
-        if (payload.wireVersion() != WIRE_VERSION) {
-            OneKeyMiner.LOGGER.warn(
-                    "Ignoring client preferences from {} with unsupported wire version {}",
-                    serverPlayer.getGameProfile().getName(),
-                    payload.wireVersion()
-            );
-            return;
-        }
-
-        ResourceLocation shapeId = ResourceLocation.tryParse(payload.shapeId());
-        if (shapeId == null || !ShapeRegistry.isRegistered(shapeId)) {
-            OneKeyMiner.LOGGER.warn(
-                    "Replacing invalid shape preference '{}' from {} with the server default",
-                    payload.shapeId(),
-                    serverPlayer.getGameProfile().getName()
-            );
-            shapeId = ShapeRegistry.DEFAULT_SHAPE_ID;
-            if (!ShapeRegistry.isRegistered(shapeId)) {
-                return;
-            }
-        }
-
-        MiningStateManager.updatePreferences(
-                serverPlayer.getUUID(),
+        ClientPreferenceAck ack = ClientPreferenceServer.apply(
+                serverPlayer,
+                payload.wireVersion(),
+                payload.sequence(),
                 payload.holding(),
-                shapeId,
+                payload.shapeId(),
                 payload.teleportDrops(),
                 payload.teleportExp()
         );
+        if (ack != null) {
+            PacketDistributor.sendToPlayer(
+                    serverPlayer,
+                    ServerPreferencesAckPayload.fromCommon(ack)
+            );
+        }
+    }
+
+    private static ClientPreferencesPayload decodeClientPreferences(FriendlyByteBuf buffer) {
+        ClientPreferencesPayload payload = new ClientPreferencesPayload(
+                buffer.readVarInt(),
+                buffer.readVarInt(),
+                buffer.readBoolean(),
+                buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                buffer.readBoolean(),
+                buffer.readBoolean()
+        );
+        PreferenceCodecGuard.requireFullyConsumed(buffer);
+        return payload;
+    }
+
+    private static ServerPreferencesAckPayload decodeServerPreferencesAck(
+            FriendlyByteBuf buffer
+    ) {
+        ServerPreferencesAckPayload payload = new ServerPreferencesAckPayload(
+                buffer.readVarInt(),
+                buffer.readVarInt(),
+                buffer.readBoolean(),
+                buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                buffer.readVarInt(),
+                buffer.readVarInt(),
+                buffer.readBoolean(),
+                buffer.readBoolean(),
+                buffer.readBoolean(),
+                buffer.readVarInt()
+        );
+        PreferenceCodecGuard.requireFullyConsumed(buffer);
+        return payload;
     }
 }

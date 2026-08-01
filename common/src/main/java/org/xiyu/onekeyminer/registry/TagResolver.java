@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * Forge 使用 {@code forge}。可通过 {@code PlatformServices.getInstance().getConventionalTagPrefix()}
  * 获取当前平台的正确前缀。</p>
  *
- * <p>使用缓存机制优化性能，避免频繁的标签查询。</p>
+ * <p>通配符模式会缓存；标签成员始终从当前注册表读取，避免数据包重载后返回陈旧结果。</p>
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
@@ -47,12 +47,6 @@ public final class TagResolver {
     /** 通配符正则模式缓存 */
     private static final Map<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
     
-    /** 方块匹配结果缓存 */
-    private static final Map<String, Set<ResourceLocation>> BLOCK_CACHE = new ConcurrentHashMap<>();
-    
-    /** 物品匹配结果缓存 */
-    private static final Map<String, Set<ResourceLocation>> ITEM_CACHE = new ConcurrentHashMap<>();
-    
     private TagResolver() {
         // 工具类，禁止实例化
     }
@@ -60,12 +54,10 @@ public final class TagResolver {
     /**
      * 清除所有缓存
      * 
-     * <p>应在资源包重载或配置变更时调用</p>
+     * <p>配置大批量变更后可调用；标签成员本身不缓存。</p>
      */
     public static void clearCache() {
         PATTERN_CACHE.clear();
-        BLOCK_CACHE.clear();
-        ITEM_CACHE.clear();
         OneKeyMiner.LOGGER.debug("标签解析器缓存已清除");
     }
     
@@ -265,14 +257,7 @@ public final class TagResolver {
      * @return 编译后的正则表达式
      */
     private static Pattern getOrCreatePattern(String pattern) {
-        return PATTERN_CACHE.computeIfAbsent(pattern, p -> {
-            // 将通配符转换为正则表达式
-            String regex = p
-                    .replace(".", "\\.")
-                    .replace("*", ".*")
-                    .replace("?", ".");
-            return Pattern.compile(regex);
-        });
+        return PATTERN_CACHE.computeIfAbsent(pattern, WildcardPattern::compile);
     }
     
     /**
@@ -294,8 +279,15 @@ public final class TagResolver {
             return false;
         }
         
-        // 尝试解析为 ResourceLocation
-        return ResourceLocation.tryParse(checkEntry.replace("*", "a")) != null;
+        if (entry.startsWith(TAG_PREFIX)
+                && (checkEntry.contains("*") || checkEntry.contains("?"))) {
+            return false;
+        }
+
+        // Validate the literal shape after replacing both supported glob tokens.
+        return ResourceLocation.tryParse(
+                checkEntry.replace("*", "a").replace("?", "a")
+        ) != null;
     }
     
     /**
@@ -327,18 +319,14 @@ public final class TagResolver {
      * @return 匹配的方块 ResourceLocation 集合
      */
     public static Set<ResourceLocation> getBlocksInTag(String tagEntry) {
-        return BLOCK_CACHE.computeIfAbsent(tagEntry, entry -> {
-            Set<ResourceLocation> result = new HashSet<>();
-            
-            TagKey<Block> tag = parseBlockTag(entry);
-            if (tag != null) {
-                for (Holder<Block> holder : BuiltInRegistries.BLOCK.getTagOrEmpty(tag)) {
-                    result.add(holder.unwrapKey().orElseThrow().location());
-                }
+        Set<ResourceLocation> result = new HashSet<>();
+        TagKey<Block> tag = parseBlockTag(tagEntry);
+        if (tag != null) {
+            for (Holder<Block> holder : BuiltInRegistries.BLOCK.getTagOrEmpty(tag)) {
+                holder.unwrapKey().ifPresent(key -> result.add(key.location()));
             }
-            
-            return Collections.unmodifiableSet(result);
-        });
+        }
+        return Set.copyOf(result);
     }
     
     /**
@@ -348,17 +336,13 @@ public final class TagResolver {
      * @return 匹配的物品 ResourceLocation 集合
      */
     public static Set<ResourceLocation> getItemsInTag(String tagEntry) {
-        return ITEM_CACHE.computeIfAbsent(tagEntry, entry -> {
-            Set<ResourceLocation> result = new HashSet<>();
-            
-            TagKey<Item> tag = parseItemTag(entry);
-            if (tag != null) {
-                for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
-                    result.add(holder.unwrapKey().orElseThrow().location());
-                }
+        Set<ResourceLocation> result = new HashSet<>();
+        TagKey<Item> tag = parseItemTag(tagEntry);
+        if (tag != null) {
+            for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
+                holder.unwrapKey().ifPresent(key -> result.add(key.location()));
             }
-            
-            return Collections.unmodifiableSet(result);
-        });
+        }
+        return Set.copyOf(result);
     }
 }
