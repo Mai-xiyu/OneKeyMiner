@@ -39,6 +39,12 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 
+tasks.withType(Jar).configureEach {
+    manifest {
+        attributes('Implementation-Version': mod_version.toString())
+    }
+}
+
 processResources {
     def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "")
     def forgeMajor = (gradle.ext.forge_loader as String).tokenize('.')[0] as int

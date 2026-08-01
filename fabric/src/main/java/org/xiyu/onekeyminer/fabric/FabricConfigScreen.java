@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.config.RemoteConfigPolicy;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -26,6 +27,7 @@ public class FabricConfigScreen extends Screen {
 
     private final Screen parent;
     private final MinerConfig configCopy;
+    private final boolean serverSettingsEditable;
     private int currentPage = 0;
     private final int totalPages = 3;
 
@@ -33,6 +35,11 @@ public class FabricConfigScreen extends Screen {
         super(Component.translatable("config.onekeyminer.title"));
         this.parent = parent;
         this.configCopy = ConfigManager.getConfig().copy();
+        var minecraft = net.minecraft.client.Minecraft.getInstance();
+        this.serverSettingsEditable = RemoteConfigPolicy.canEditServerSettings(
+                minecraft.getConnection() != null,
+                minecraft.hasSingleplayerServer()
+        );
     }
 
     @Override
@@ -79,7 +86,11 @@ public class FabricConfigScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                 Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                 button -> {
-                    ConfigManager.updateConfig(configCopy);
+                    if (serverSettingsEditable) {
+                        ConfigManager.updateConfig(configCopy);
+                    } else {
+                        ConfigManager.updateClientPreferences(configCopy);
+                    }
                     this.onClose();
                 }
         ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
@@ -96,37 +107,42 @@ public class FabricConfigScreen extends Screen {
         int i = 0;
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enabled",
-            () -> configCopy.enabled, v -> configCopy.enabled = v);
+            () -> configCopy.enabled, v -> configCopy.enabled = v, serverSettingsEditable);
 
-        this.addRenderableWidget(Button.builder(
+        Button shapeButton = Button.builder(
             getShapeMessage(configCopy.selectedShape),
             b -> {
                 configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
                 configCopy.shapeMode = null;
                 b.setMessage(getShapeMessage(configCopy.selectedShape));
             }
-        ).bounds(x - w / 2, y + s * i++, w, h).build());
+        ).bounds(x - w / 2, y + s * i++, w, h).build();
+        this.addRenderableWidget(shapeButton);
 
-        this.addRenderableWidget(Button.builder(
+        Button maxBlocksButton = Button.builder(
             getValueMessage("config.onekeyminer.option.max_blocks", configCopy.maxBlocks),
             b -> {
                 int[] presets = {16, 32, 64, 128, 256, 512, 1000};
                 configCopy.maxBlocks = cycleValue(configCopy.maxBlocks, presets);
                 b.setMessage(getValueMessage("config.onekeyminer.option.max_blocks", configCopy.maxBlocks));
             }
-        ).bounds(x - w / 2, y + s * i++, w, h).build());
+        ).bounds(x - w / 2, y + s * i++, w, h).build();
+        maxBlocksButton.active = serverSettingsEditable;
+        this.addRenderableWidget(maxBlocksButton);
 
-        this.addRenderableWidget(Button.builder(
+        Button maxDistanceButton = Button.builder(
             getValueMessage("config.onekeyminer.option.max_distance", configCopy.maxDistance),
             b -> {
                 int[] presets = {8, 16, 32, 64};
                 configCopy.maxDistance = cycleValue(configCopy.maxDistance, presets);
                 b.setMessage(getValueMessage("config.onekeyminer.option.max_distance", configCopy.maxDistance));
             }
-        ).bounds(x - w / 2, y + s * i++, w, h).build());
+        ).bounds(x - w / 2, y + s * i++, w, h).build();
+        maxDistanceButton.active = serverSettingsEditable;
+        this.addRenderableWidget(maxDistanceButton);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_diagonal",
-            () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v);
+            () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v, serverSettingsEditable);
     }
 
     // === 第二页：消耗设置 ===
@@ -134,37 +150,41 @@ public class FabricConfigScreen extends Screen {
         int i = 0;
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.consume_durability",
-            () -> configCopy.consumeDurability, v -> configCopy.consumeDurability = v);
+            () -> configCopy.consumeDurability, v -> configCopy.consumeDurability = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.stop_low_durability",
-            () -> configCopy.stopOnLowDurability, v -> configCopy.stopOnLowDurability = v);
+            () -> configCopy.stopOnLowDurability, v -> configCopy.stopOnLowDurability = v, serverSettingsEditable);
 
-        this.addRenderableWidget(Button.builder(
+        Button preserveDurabilityButton = Button.builder(
             getValueMessage("config.onekeyminer.option.preserve_durability", configCopy.preserveDurability),
             b -> {
                 int[] presets = {1, 5, 10, 20, 50};
                 configCopy.preserveDurability = cycleValue(configCopy.preserveDurability, presets);
                 b.setMessage(getValueMessage("config.onekeyminer.option.preserve_durability", configCopy.preserveDurability));
             }
-        ).bounds(x - w / 2, y + s * i++, w, h).build());
+        ).bounds(x - w / 2, y + s * i++, w, h).build();
+        preserveDurabilityButton.active = serverSettingsEditable;
+        this.addRenderableWidget(preserveDurabilityButton);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.consume_hunger",
-            () -> configCopy.consumeHunger, v -> configCopy.consumeHunger = v);
+            () -> configCopy.consumeHunger, v -> configCopy.consumeHunger = v, serverSettingsEditable);
 
-        this.addRenderableWidget(Button.builder(
+        Button minHungerButton = Button.builder(
             getValueMessage("config.onekeyminer.option.min_hunger", configCopy.minHungerLevel),
             b -> {
                 int[] presets = {0, 2, 6, 10, 14};
                 configCopy.minHungerLevel = cycleValue(configCopy.minHungerLevel, presets);
                 b.setMessage(getValueMessage("config.onekeyminer.option.min_hunger", configCopy.minHungerLevel));
             }
-        ).bounds(x - w / 2, y + s * i++, w, h).build());
+        ).bounds(x - w / 2, y + s * i++, w, h).build();
+        minHungerButton.active = serverSettingsEditable;
+        this.addRenderableWidget(minHungerButton);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.mine_all",
-            () -> configCopy.mineAllBlocks, v -> configCopy.mineAllBlocks = v);
+            () -> configCopy.mineAllBlocks, v -> configCopy.mineAllBlocks = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_bare_hand",
-            () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
+            () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v, serverSettingsEditable);
     }
 
     // === 第三页：高级设置 ===
@@ -172,41 +192,43 @@ public class FabricConfigScreen extends Screen {
         int i = 0;
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction",
-            () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
+            () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting",
-            () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
+            () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting",
-            () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
+            () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant",
-            () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
+            () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops",
-            () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
+            () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v, true);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_exp",
-            () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
+            () -> configCopy.teleportExp, v -> configCopy.teleportExp = v, true);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.play_sound",
-            () -> configCopy.playSound, v -> configCopy.playSound = v);
+            () -> configCopy.playSound, v -> configCopy.playSound = v, serverSettingsEditable);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.strict_match",
-            () -> configCopy.requireExactMatch, v -> configCopy.requireExactMatch = v);
+            () -> configCopy.requireExactMatch, v -> configCopy.requireExactMatch = v, serverSettingsEditable);
     }
 
     // === 辅助方法 ===
 
-    private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
-        this.addRenderableWidget(Button.builder(
+    private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter, boolean editable) {
+        Button optionButton = Button.builder(
             getBoolMessage(key, getter.get()),
             button -> {
                 boolean newState = !getter.get();
                 setter.accept(newState);
                 button.setMessage(getBoolMessage(key, newState));
             }
-        ).bounds(x - w / 2, y, w, h).build());
+        ).bounds(x - w / 2, y, w, h).build();
+        optionButton.active = editable;
+        this.addRenderableWidget(optionButton);
     }
 
     private Component getBoolMessage(String key, boolean value) {
@@ -249,6 +271,15 @@ public class FabricConfigScreen extends Screen {
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+        if (!serverSettingsEditable) {
+            guiGraphics.drawCenteredString(
+                    this.font,
+                    Component.translatable("config.onekeyminer.remote_server_notice"),
+                    this.width / 2,
+                    24,
+                    0xFFD54F
+            );
+        }
         guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
     }
 }

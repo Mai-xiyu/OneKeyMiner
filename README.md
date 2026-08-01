@@ -65,9 +65,11 @@ single binary-compatible public API to add-on mods.
 ### Multiplayer configuration
 
 On dedicated servers, global limits and feature switches are server-authoritative. Client
-screens may display local values, but cannot override server policy. Per-player preferences
-(selected shape and drop/experience teleport settings) are synchronized when joining, when
-the activation key changes, and after saving the configuration screen.
+screens clearly mark those controls read-only and cannot override server policy. Only the
+per-player preferences (selected shape and drop/experience teleport requests) remain editable.
+They are synchronized when joining, when the activation key changes, and after saving the
+configuration screen. The server acknowledges the validated, policy-applied result; until that
+ACK arrives, the client keeps the latest preference snapshot pending and retries it.
 
 ---
 

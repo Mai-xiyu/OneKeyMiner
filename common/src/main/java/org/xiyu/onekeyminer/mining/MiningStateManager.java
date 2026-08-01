@@ -2,6 +2,7 @@ package org.xiyu.onekeyminer.mining;
 
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -190,10 +191,13 @@ public final class MiningStateManager {
     }
 
     public static void clearState(UUID uuid) {
-        PLAYER_STATES.remove(Objects.requireNonNull(uuid, "uuid"));
+        UUID playerId = Objects.requireNonNull(uuid, "uuid");
+        PLAYER_STATES.remove(playerId);
+        ClientPreferenceProtocol.clearPlayer(playerId);
     }
 
     public static void clearAll() {
         PLAYER_STATES.clear();
+        ClientPreferenceProtocol.clearAll();
     }
 }

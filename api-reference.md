@@ -79,7 +79,7 @@ members. The flag is ignored and cannot bypass authoritative permission checks.
 
 ```java
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -359,11 +359,11 @@ position.
 
 ```java
 public final class UpwardColumnShape implements ChainShape {
-    public static final ResourceLocation ID =
-            ResourceLocation.fromNamespaceAndPath("examplemod", "upward_column");
+    public static final Identifier ID =
+            Identifier.fromNamespaceAndPath("examplemod", "upward_column");
 
     @Override
-    public ResourceLocation getId() {
+    public Identifier getId() {
         return ID;
     }
 
@@ -403,7 +403,7 @@ The required interface is:
 
 ```java
 public interface ChainShape {
-    ResourceLocation getId();
+    Identifier getId();
     String getTranslationKey();
     List<BlockPos> collectBlocks(ShapeContext context);
 
@@ -483,6 +483,24 @@ event.
 
 ## Configuration API
 
+### Multiplayer authority and synchronization
+
+On a remote dedicated server, only `selectedShape`, `teleportDrops`, and
+`teleportExp` are client preferences. Global limits and feature switches are
+server-authoritative and must be changed in the server's configuration file.
+The v3 loader-specific wire adapters send one coherent preference snapshot with
+a sequence number. The server validates the shape, applies teleport policy, and
+returns a versioned acknowledgement containing the applied shape, applied
+teleport flags, and capability bitmask. A client considers synchronization
+complete only after the acknowledgement for its latest sequence arrives.
+
+The server accepts at most one preference snapshot per player per server tick.
+Rejected snapshots are not acknowledged, so the client retries its latest
+state. Invalid-packet warnings are sampled per player.
+
+`ConfigManager.updateClientPreferences(config)` persists only those three
+client-owned fields and is the safe update path for a remote-server screen.
+
 `ConfigManager#getConfig()` and `getConfigSnapshot()` return defensive copies.
 Changing fields on those objects does not change active configuration.
 
@@ -505,17 +523,26 @@ ConfigManager.updateConfig(copy, "maxBlocks");
 ```
 
 Prefer `editConfig` for one or a few fields. `OneKeyMinerAPI` also provides
-validated convenience methods:
+explicitly scoped convenience methods:
 
 ```java
 OneKeyMinerAPI.setSelectedShape("examplemod:upward_column");
-OneKeyMinerAPI.setTeleportDropsEnabled(true);
-OneKeyMinerAPI.setTeleportExpEnabled(true);
+OneKeyMinerAPI.setLocalDropTeleportRequested(true);
+OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
+
+// Authoritative server policy:
+OneKeyMinerAPI.setClientDropTeleportAllowed(false);
+OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
+
+// Effective value for one connected player:
+boolean drops = OneKeyMinerAPI.isDropTeleportEffective(serverPlayer);
+boolean experience = OneKeyMinerAPI.isExperienceTeleportEffective(serverPlayer);
 ```
 
-On a dedicated server, these calls must run in the correct server-side policy
-context. Do not present a client-only setting mutation as a way to change server
-limits.
+The legacy `is/setTeleportDropsEnabled` and `is/setTeleportExpEnabled` methods
+remain binary/source compatible but are deprecated because they expose only a
+local request, not the effective dedicated-server behavior. Server integrations
+should use the explicit policy and per-player effective-value methods above.
 
 ## Compatibility notes
 

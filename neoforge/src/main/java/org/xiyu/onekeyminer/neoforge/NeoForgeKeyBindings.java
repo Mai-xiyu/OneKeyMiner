@@ -16,6 +16,8 @@ import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
@@ -27,6 +29,8 @@ public class NeoForgeKeyBindings {
     private static boolean wasConnected = false;
     private static boolean syncPending = true;
     private static int syncRetryDelay;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
@@ -73,11 +77,25 @@ public class NeoForgeKeyBindings {
             syncRetryDelay = 20;
             return;
         }
-        boolean sent = NeoForgeClientNetworking.trySyncPreferences(CHAIN_MINING_KEY.isDown());
-        syncPending = !sent;
-        syncRetryDelay = sent ? 0 : 20;
+        int sequence = SYNC_TRACKER.beginAttempt();
+        boolean sent = NeoForgeClientNetworking.trySyncPreferences(
+                sequence,
+                CHAIN_MINING_KEY.isDown()
+        );
+        if (!sent) {
+            SYNC_TRACKER.cancelAttempt(sequence);
+        }
+        syncPending = true;
+        syncRetryDelay = 20;
         if (sent) {
             wasKeyDown = CHAIN_MINING_KEY.isDown();
+        }
+    }
+
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (SYNC_TRACKER.confirm(ack)) {
+            syncPending = false;
+            syncRetryDelay = 0;
         }
     }
 
@@ -85,6 +103,9 @@ public class NeoForgeKeyBindings {
         Minecraft minecraft = Minecraft.getInstance();
         boolean connected = minecraft.player != null && minecraft.getConnection() != null;
         if (!connected) {
+            if (wasConnected) {
+                SYNC_TRACKER.reset();
+            }
             wasConnected = false;
             wasKeyDown = false;
             syncPending = true;
@@ -114,9 +135,13 @@ public class NeoForgeKeyBindings {
                 sendCurrentPreferences();
             }
         } else if (isKeyDown != wasKeyDown) {
-            if (NeoForgeClientNetworking.trySyncPreferences(isKeyDown)) {
+            int sequence = SYNC_TRACKER.beginAttempt();
+            if (NeoForgeClientNetworking.trySyncPreferences(sequence, isKeyDown)) {
                 wasKeyDown = isKeyDown;
+                syncPending = true;
+                syncRetryDelay = 20;
             } else {
+                SYNC_TRACKER.cancelAttempt(sequence);
                 syncPending = true;
                 syncRetryDelay = 20;
             }
