@@ -1,63 +1,79 @@
 package org.xiyu.onekeyminer.forge;
 
+import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.mining.MiningStateManager;
-import org.xiyu.onekeyminer.platform.PlatformServices;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
+import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
+import org.xiyu.onekeyminer.network.ClientPreferenceServer;
 
 import java.util.Optional;
 import java.util.function.Supplier;
 
-/** Forge 1.20.1 C2S protocol. */
+/** Forge 1.20.1 optional SimpleChannel carrying the atomic v3 protocol. */
 public final class ForgeNetworking {
-
-    /** Change when a discriminator, packet order, or field layout changes. */
-    private static final String WIRE_VERSION = "1";
-    private static final int MAX_SHAPE_ID_LENGTH = 256;
+    public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
+    private static final String PROTOCOL_VERSION = Integer.toString(WIRE_VERSION);
+    private static final int MAX_SHAPE_ID_LENGTH = ClientPreferenceProtocol.MAX_SHAPE_ID_LENGTH;
 
     private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(OneKeyMiner.MOD_ID, "main"),
-            () -> WIRE_VERSION,
-            WIRE_VERSION::equals,
-            WIRE_VERSION::equals
+            new ResourceLocation(OneKeyMiner.MOD_ID, "preferences_v3"),
+            () -> PROTOCOL_VERSION,
+            NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION),
+            NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION)
     );
 
-    private static int packetIndex;
     private static boolean registered;
 
     private ForgeNetworking() {
     }
 
-    public static final class ChainKeyStatePacket {
-        private final boolean pressed;
-        private final String shapeId;
-
-        public ChainKeyStatePacket(boolean pressed, String shapeId) {
-            this.pressed = pressed;
-            this.shapeId = sanitizeShapeId(shapeId);
+    public record ClientPreferencesPacket(
+            int wireVersion,
+            int sequence,
+            boolean holding,
+            String shapeId,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+        public ClientPreferencesPacket {
+            if (shapeId == null || shapeId.length() > MAX_SHAPE_ID_LENGTH) {
+                throw new IllegalArgumentException("invalid shape id length");
+            }
         }
 
-        public static ChainKeyStatePacket fromNetwork(FriendlyByteBuf buf) {
-            return new ChainKeyStatePacket(
-                    buf.readBoolean(),
-                    buf.readUtf(MAX_SHAPE_ID_LENGTH)
+        static ClientPreferencesPacket fromNetwork(FriendlyByteBuf buffer) {
+            ClientPreferencesPacket packet = new ClientPreferencesPacket(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buffer.readBoolean(),
+                    buffer.readBoolean()
             );
+            ForgePreferenceCodec.requireFullyConsumed(buffer);
+            return packet;
         }
 
-        public void write(FriendlyByteBuf buf) {
-            buf.writeBoolean(pressed);
-            buf.writeUtf(shapeId, MAX_SHAPE_ID_LENGTH);
+        void write(FriendlyByteBuf buffer) {
+            buffer.writeVarInt(wireVersion);
+            buffer.writeVarInt(sequence);
+            buffer.writeBoolean(holding);
+            buffer.writeUtf(shapeId, MAX_SHAPE_ID_LENGTH);
+            buffer.writeBoolean(teleportDrops);
+            buffer.writeBoolean(teleportExp);
         }
 
-        public static void handleOnServer(
-                ChainKeyStatePacket packet,
+        static void handle(
+                ClientPreferencesPacket packet,
                 Supplier<NetworkEvent.Context> contextSupplier
         ) {
             NetworkEvent.Context context = contextSupplier.get();
@@ -66,44 +82,110 @@ public final class ForgeNetworking {
                 if (player == null) {
                     return;
                 }
-
-                PlatformServices.getInstance().setChainModeActive(player, packet.pressed);
-                applyShape(player, packet.shapeId);
+                ClientPreferenceAck ack = ClientPreferenceServer.apply(
+                        player,
+                        packet.wireVersion,
+                        packet.sequence,
+                        packet.holding,
+                        packet.shapeId,
+                        packet.teleportDrops,
+                        packet.teleportExp
+                );
+                if (ack != null && CHANNEL.isRemotePresent(player.connection.connection)) {
+                    CHANNEL.send(
+                            PacketDistributor.PLAYER.with(() -> player),
+                            ServerPreferencesAckPacket.fromCommon(ack)
+                    );
+                }
             });
             context.setPacketHandled(true);
         }
     }
 
-    public static final class TeleportSettingsPacket {
-        private final boolean teleportDrops;
-        private final boolean teleportExp;
-
-        public TeleportSettingsPacket(boolean teleportDrops, boolean teleportExp) {
-            this.teleportDrops = teleportDrops;
-            this.teleportExp = teleportExp;
+    public record ServerPreferencesAckPacket(
+            int wireVersion,
+            int sequence,
+            boolean serverEnabled,
+            String appliedShapeId,
+            int maxBlocksApplied,
+            int maxDistanceApplied,
+            boolean allowDiagonalApplied,
+            boolean teleportDropsApplied,
+            boolean teleportExpApplied,
+            int capabilities
+    ) {
+        public ServerPreferencesAckPacket {
+            if (appliedShapeId == null || appliedShapeId.length() > MAX_SHAPE_ID_LENGTH) {
+                throw new IllegalArgumentException("invalid applied shape id length");
+            }
         }
 
-        public static TeleportSettingsPacket fromNetwork(FriendlyByteBuf buf) {
-            return new TeleportSettingsPacket(buf.readBoolean(), buf.readBoolean());
+        static ServerPreferencesAckPacket fromCommon(ClientPreferenceAck ack) {
+            return new ServerPreferencesAckPacket(
+                    ack.wireVersion(),
+                    ack.sequence(),
+                    ack.serverEnabled(),
+                    ack.appliedShapeId(),
+                    ack.maxBlocksApplied(),
+                    ack.maxDistanceApplied(),
+                    ack.allowDiagonalApplied(),
+                    ack.teleportDropsApplied(),
+                    ack.teleportExpApplied(),
+                    ack.capabilities()
+            );
         }
 
-        public void write(FriendlyByteBuf buf) {
-            buf.writeBoolean(teleportDrops);
-            buf.writeBoolean(teleportExp);
+        ClientPreferenceAck toCommon() {
+            return new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    serverEnabled,
+                    appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
         }
 
-        public static void handleOnServer(
-                TeleportSettingsPacket packet,
+        static ServerPreferencesAckPacket fromNetwork(FriendlyByteBuf buffer) {
+            ServerPreferencesAckPacket packet = new ServerPreferencesAckPacket(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readVarInt()
+            );
+            ForgePreferenceCodec.requireFullyConsumed(buffer);
+            return packet;
+        }
+
+        void write(FriendlyByteBuf buffer) {
+            buffer.writeVarInt(wireVersion);
+            buffer.writeVarInt(sequence);
+            buffer.writeBoolean(serverEnabled);
+            buffer.writeUtf(appliedShapeId, MAX_SHAPE_ID_LENGTH);
+            buffer.writeVarInt(maxBlocksApplied);
+            buffer.writeVarInt(maxDistanceApplied);
+            buffer.writeBoolean(allowDiagonalApplied);
+            buffer.writeBoolean(teleportDropsApplied);
+            buffer.writeBoolean(teleportExpApplied);
+            buffer.writeVarInt(capabilities);
+        }
+
+        static void handle(
+                ServerPreferencesAckPacket packet,
                 Supplier<NetworkEvent.Context> contextSupplier
         ) {
             NetworkEvent.Context context = contextSupplier.get();
-            context.enqueueWork(() -> {
-                ServerPlayer player = context.getSender();
-                if (player != null) {
-                    MiningStateManager.setTeleportDrops(player, packet.teleportDrops);
-                    MiningStateManager.setTeleportExp(player, packet.teleportExp);
-                }
-            });
+            context.enqueueWork(() -> ClientPreferenceAckDispatcher.dispatch(packet.toCommon()));
             context.setPacketHandled(true);
         }
     }
@@ -112,68 +194,50 @@ public final class ForgeNetworking {
         if (registered) {
             return;
         }
-
         CHANNEL.registerMessage(
-                packetIndex++,
-                ChainKeyStatePacket.class,
-                ChainKeyStatePacket::write,
-                ChainKeyStatePacket::fromNetwork,
-                ChainKeyStatePacket::handleOnServer,
+                0,
+                ClientPreferencesPacket.class,
+                ClientPreferencesPacket::write,
+                ClientPreferencesPacket::fromNetwork,
+                ClientPreferencesPacket::handle,
                 Optional.of(NetworkDirection.PLAY_TO_SERVER)
         );
         CHANNEL.registerMessage(
-                packetIndex++,
-                TeleportSettingsPacket.class,
-                TeleportSettingsPacket::write,
-                TeleportSettingsPacket::fromNetwork,
-                TeleportSettingsPacket::handleOnServer,
-                Optional.of(NetworkDirection.PLAY_TO_SERVER)
+                1,
+                ServerPreferencesAckPacket.class,
+                ServerPreferencesAckPacket::write,
+                ServerPreferencesAckPacket::fromNetwork,
+                ServerPreferencesAckPacket::handle,
+                Optional.of(NetworkDirection.PLAY_TO_CLIENT)
         );
-
         registered = true;
-        OneKeyMiner.LOGGER.debug("Registered Forge C2S channel, wire version {}", WIRE_VERSION);
     }
 
-    public static void sendKeyState(boolean pressed, String shapeId) {
-        CHANNEL.sendToServer(new ChainKeyStatePacket(pressed, shapeId));
-    }
-
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
-        CHANNEL.sendToServer(new TeleportSettingsPacket(teleportDrops, teleportExp));
-    }
-
-    /**
-     * Sends a complete client preference snapshot using the two existing wire
-     * layouts, preserving compatibility with wire version 1 peers.
-     */
-    public static void sendClientState(
-            boolean pressed,
+    /** Returns false for a vanilla/unmodded server so the client can retry safely. */
+    public static boolean trySendClientPreferences(
+            Connection connection,
+            int sequence,
+            boolean holding,
             String shapeId,
             boolean teleportDrops,
             boolean teleportExp
     ) {
-        sendKeyState(pressed, shapeId);
-        sendTeleportSettings(teleportDrops, teleportExp);
-    }
-
-    private static String sanitizeShapeId(String shapeId) {
-        if (shapeId == null || shapeId.length() > MAX_SHAPE_ID_LENGTH) {
-            return ShapeRegistry.DEFAULT_SHAPE_ID.toString();
+        if (connection == null || !CHANNEL.isRemotePresent(connection)) {
+            return false;
         }
-        return shapeId;
-    }
-
-    private static void applyShape(ServerPlayer player, String shapeId) {
-        ResourceLocation parsed = ResourceLocation.tryParse(shapeId);
-        if (parsed != null && ShapeRegistry.isRegistered(parsed)) {
-            MiningStateManager.setPlayerShape(player, parsed);
-            return;
+        try {
+            CHANNEL.sendToServer(new ClientPreferencesPacket(
+                    WIRE_VERSION,
+                    sequence,
+                    holding,
+                    shapeId,
+                    teleportDrops,
+                    teleportExp
+            ));
+            return true;
+        } catch (RuntimeException exception) {
+            OneKeyMiner.LOGGER.debug("Failed to send Forge preferences", exception);
+            return false;
         }
-
-        OneKeyMiner.LOGGER.warn(
-                "Rejected unregistered shape id from {}: {}",
-                player.getGameProfile().getName(),
-                shapeId
-        );
     }
 }

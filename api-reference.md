@@ -51,7 +51,7 @@ description: 模组开发接口文档
 
 ## 简介
 
-OneKeyMiner 是一个支持 Fabric、NeoForge 和 Forge 的多平台连锁操作模组。本文档面向希望与 OneKeyMiner 集成或扩展其功能的模组开发者。
+OneKeyMiner 1.6.7（Minecraft 1.20.1）支持 Fabric 和 Forge。本文档面向希望与 OneKeyMiner 集成或扩展其功能的模组开发者。
 
 ### 主要特性
 
@@ -68,8 +68,7 @@ OneKeyMiner 是一个支持 Fabric、NeoForge 和 Forge 的多平台连锁操作
 | 平台 | 包名 | 最低版本 |
 |------|------|----------|
 | Fabric | `onekeyminer-fabric` | 0.15.0+ |
-| NeoForge | `onekeyminer-neoforge` | 21.0+ |
-| Forge | `onekeyminer-forge` | 59.0+ |
+| Forge | `onekeyminer-forge` | 47.2.0+、低于 48 |
 
 ---
 
@@ -93,21 +92,6 @@ dependencies {
     
     // 仅 API（编译时依赖）
     modCompileOnly "org.xiyu:onekeyminer-api:${onekeyminer_version}"
-}
-```
-
-#### NeoForge (build.gradle)
-
-```groovy
-repositories {
-    maven {
-        name = "OneKeyMiner"
-        url = "https://maven.example.com/releases"
-    }
-}
-
-dependencies {
-    implementation "org.xiyu:onekeyminer-neoforge:${onekeyminer_version}"
 }
 ```
 
@@ -136,7 +120,7 @@ if (FabricLoader.getInstance().isModLoaded("onekeyminer")) {
     MyModIntegration.init();
 }
 
-// Forge/NeoForge
+// Forge
 if (ModList.get().isLoaded("onekeyminer")) {
     MyModIntegration.init();
 }
@@ -600,7 +584,6 @@ resolver.clearCache();
 | 平台 | 共用标签前缀 | 示例 |
 |------|------------|------|
 | Fabric | `c` | `#c:ores`、`#c:seeds` |
-| NeoForge | `c` | `#c:ores`、`#c:seeds` |
 | Forge | `forge` | `#forge:ores`、`#forge:seeds` |
 
 > **注意**：在配置文件和 API 中使用标签时，无需关心平台差异——模组内部会自动使用当前平台的正确前缀。如果您需要在代码中手动构建共用标签，可以调用
@@ -621,7 +604,7 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
 PlatformServices platform = PlatformServices.getInstance();
 
 // 获取平台名称
-String name = platform.getPlatformName();  // "Fabric"、"NeoForge" 或 "Forge"
+String name = platform.getPlatformName();  // "fabric" 或 "forge"
 
 // 检查模组是否加载
 boolean loaded = platform.isModLoaded("mymod");
@@ -634,7 +617,7 @@ boolean active = platform.isChainModeActive(player);
 platform.setChainModeActive(player, true);
 
 // 获取当前平台的共用标签前缀
-String prefix = platform.getConventionalTagPrefix();  // Fabric/NeoForge="c", Forge="forge"
+String prefix = platform.getConventionalTagPrefix();  // Fabric="c", Forge="forge"
 ```
 
 ### 平台特定实现
@@ -642,7 +625,6 @@ String prefix = platform.getConventionalTagPrefix();  // Fabric/NeoForge="c", Fo
 每个平台都有自己的实现：
 
 - `FabricPlatformServices` - Fabric 实现
-- `NeoForgePlatformServices` - NeoForge 实现
 - `ForgePlatformServices` - Forge 实现
 
 正确的实现通过 SPI（服务提供者接口）自动加载。
@@ -700,7 +682,7 @@ boolean drops = OneKeyMinerAPI.isTeleportDropsEnabled(); // 是否传送掉落�
 boolean exp = OneKeyMinerAPI.isTeleportExpEnabled();     // 是否传送经验
 
 // 修改配置（自动触发网络同步）
-OneKeyMinerAPI.setSelectedShape("SPHERE");
+OneKeyMinerAPI.setSelectedShape("onekeyminer:amorphous");
 OneKeyMinerAPI.setTeleportDropsEnabled(true);
 OneKeyMinerAPI.setTeleportExpEnabled(false);
 
@@ -1226,7 +1208,7 @@ public void onInitialize() {
     }
 }
 
-// Forge/NeoForge
+// Forge
 @SubscribeEvent
 public void onCommonSetup(FMLCommonSetupEvent event) {
     if (ModList.get().isLoaded("onekeyminer")) {
@@ -1275,10 +1257,12 @@ A: 是的，API 保持向后兼容。次版本更新不会破坏现有集成。
 
 ---
 
-*文档版本: 1.7.0 | 最后更新: 2026年1月*
+*文档版本: 1.6.7 | 最后更新: 2026年8月*
 
 ---
 
 ## 版权声明
 
-本项目采用 **All Rights Reserved (ARR)** 协议。未经作者许可，不得复制、修改或分发本项目代码。
+本项目采用 **代码仓库通用许可协议 v1.2**
+（`LicenseRef-Code-Repository-General-License-v1.2`）。准确条款以
+[LICENSE_CN.md](LICENSE_CN.md) 和 [LICENSE_EN.md](LICENSE_EN.md) 为准。

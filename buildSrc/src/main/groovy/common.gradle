@@ -17,6 +17,17 @@ manifold {
 repositories {
     mavenLocal()
     mavenCentral()
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Sponge"
+                url = uri("https://repo.spongepowered.org/repository/maven-public")
+            }
+        }
+        filter {
+            includeGroupAndSubgroups("org.spongepowered")
+        }
+    }
 }
 
 java {
@@ -29,33 +40,100 @@ tasks.withType(JavaCompile).configureEach {
     options.release = gradle.ext.java_version as int
 }
 
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
 dependencies {
     annotationProcessor(manifold.module("preprocessor"))
     annotationProcessor(manifold.module("strings"))
+    testAnnotationProcessor(manifold.module("preprocessor"))
+    testAnnotationProcessor(manifold.module("strings"))
+    testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.12.2"
+}
+
+tasks.withType(Test).configureEach {
+    enabled = true
+    useJUnitPlatform()
+}
+
+if (project.name != 'common') {
+    tasks.named('compileTestJava', JavaCompile).configure {
+        enabled = true
+        classpath += sourceSets.main.compileClasspath
+    }
+    tasks.named('test', Test).configure {
+        classpath += sourceSets.main.runtimeClasspath
+    }
+}
+
+tasks.withType(Jar).configureEach {
+    manifest {
+        attributes('Implementation-Version': mod_version.toString())
+    }
 }
 
 processResources {
-    def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "").replaceAll("]", ",)")
+    def compatible_forgemc_versions = "[${gradle.ext.minecraft_version}]"
+    def forgeMajor = (gradle.ext.forge_loader as String).tokenize('.')[0] as int
+    def forgeLoaderRange = "[${forgeMajor},${forgeMajor + 1})"
+    def forgeVersionRange = "[${gradle.ext.forge_loader},${forgeMajor + 1})"
 
     var expandProps = ['version'                      : mod_version,
                        'group'                        : project.group,
                        'minecraft_version'            : gradle.ext.minecraft_version,
                        'compatible_mc_versions'       : gradle.ext.compatible_mc_versions,
                        'compatible_forgemc_versions'  : compatible_forgemc_versions,
+                       'fabric_loader'                : gradle.ext.fabric_loader,
+                       'fabric_api_version'           : gradle.ext.fabric_api_version,
                        'mod_name'                     : mod_name,
                        'mod_authors'                  : mod_authors,
+                       'mod_authors_display'          : mod_authors_display,
                        'mod_id'                       : mod_id,
                        'license'                      : license,
                        'description'                  : project.description,
                        'neoforge_loader'              : gradle.ext.neoforge_loader,
                        'forge_loader'                 : gradle.ext.forge_loader,
+                       'forge_loader_range'           : forgeLoaderRange,
+                       'forge_version_range'          : forgeVersionRange,
                        'credits'                      : credits,
                        'java_version'                 : gradle.ext.java_version]
 
     filesMatching(['pack.mcmeta', 'fabric.mod.json', 'META-INF/mods.toml', 'META-INF/neoforge.mods.toml', '*.mixins.json']) {
         expand expandProps
     }
+    from(rootProject.file('LICENSE_EN.md'))
+    from(rootProject.file('LICENSE_CN.md'))
     inputs.properties(expandProps)
+}
+
+tasks.register("validateProcessedJsonResources") {
+    dependsOn(tasks.named("processResources"))
+    doLast {
+        def resourcesDirectory = layout.buildDirectory.dir("resources/main").get().asFile
+        if (!resourcesDirectory.exists()) {
+            return
+        }
+        fileTree(resourcesDirectory) {
+            include("**/*.json")
+            include("**/pack.mcmeta")
+        }.each { resource ->
+            try {
+                new groovy.json.JsonSlurper().parse(resource, "UTF-8")
+            } catch (Exception exception) {
+                throw new GradleException(
+                        "Invalid JSON resource ${resource}: ${exception.message}",
+                        exception
+                )
+            }
+        }
+    }
+}
+
+tasks.named("check").configure {
+    dependsOn(tasks.named("validateProcessedJsonResources"))
 }
 
 jvmdg.downgradeTo = JavaVersion.toVersion(gradle.ext.java_version)
@@ -66,13 +144,5 @@ tasks.withType(GenerateModuleMetadata).configureEach {
     enabled = false
 }
 tasks.withType(Sign).configureEach {
-    enabled = false
-}
-
-tasks.withType(Test).configureEach {
-    enabled = false
-}
-
-tasks.matching { it.name.toLowerCase().startsWith("compiletest") }.configureEach {
     enabled = false
 }

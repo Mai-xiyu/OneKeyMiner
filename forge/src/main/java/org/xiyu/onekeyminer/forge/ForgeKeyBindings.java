@@ -18,13 +18,21 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
-/** Forge physical-client key bindings and connection state. */
+/** Forge physical-client key bindings and acknowledged preference synchronization. */
 public final class ForgeKeyBindings {
-
     private static final String CATEGORY = "key.categories.onekeyminer";
+    private static final int TRANSPORT_RETRY_TICKS = 20;
+    private static final int ACK_RETRY_TICKS = 100;
+    private static final int POLICY_REFRESH_TICKS = 600;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
 
     public static final KeyMapping CHAIN_MINING_KEY = new KeyMapping(
             "key.onekeyminer.hold",
@@ -40,6 +48,12 @@ public final class ForgeKeyBindings {
     );
 
     private static boolean wasKeyDown;
+    private static boolean connected;
+    private static boolean syncPending = true;
+    private static boolean preferencesDirty = true;
+    private static int retryDelay;
+    private static int refreshDelay;
+    private static ClientPreferenceRequest pendingRequest;
 
     private ForgeKeyBindings() {
     }
@@ -57,13 +71,109 @@ public final class ForgeKeyBindings {
         return CHAIN_MINING_KEY.isDown();
     }
 
-    public static void resetConnectionState() {
+    public static void sendCurrentState() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!minecraft.isSameThread()) {
+            SYNC_TRACKER.invalidatePendingAttempt();
+            minecraft.execute(ForgeKeyBindings::sendCurrentState);
+            return;
+        }
+        markDirty(true);
+    }
+
+    private static void beginSession() {
+        connected = true;
+        wasKeyDown = CHAIN_MINING_KEY.isDown();
+        SYNC_TRACKER.reset();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        retryDelay = 0;
+        refreshDelay = 0;
+        ClientPreferenceSession.clear();
+    }
+
+    private static void endSession() {
+        connected = false;
         wasKeyDown = false;
+        SYNC_TRACKER.reset();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        retryDelay = 0;
+        refreshDelay = 0;
+        ClientPreferenceSession.clear();
+    }
+
+    private static void markDirty(boolean clearAcknowledgement) {
+        SYNC_TRACKER.invalidatePendingAttempt();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        retryDelay = 0;
+        if (clearAcknowledgement) {
+            ClientPreferenceSession.clear();
+        }
+    }
+
+    private static void tickSynchronization(Minecraft minecraft) {
+        if (!connected || minecraft.player == null || minecraft.getConnection() == null) {
+            return;
+        }
+        boolean keyDown = CHAIN_MINING_KEY.isDown();
+        if (keyDown != wasKeyDown) {
+            wasKeyDown = keyDown;
+            markDirty(false);
+        }
+        if (!syncPending && --refreshDelay <= 0) {
+            markDirty(false);
+        }
+        if (syncPending && (retryDelay <= 0 || --retryDelay <= 0)) {
+            attemptSynchronization(minecraft);
+        }
+    }
+
+    private static void attemptSynchronization(Minecraft minecraft) {
+        int sequence;
+        if (preferencesDirty || !SYNC_TRACKER.hasPendingAttempt()) {
+            sequence = SYNC_TRACKER.beginAttempt();
+            pendingRequest = ClientPreferenceRequest.capture(CHAIN_MINING_KEY.isDown());
+            preferencesDirty = false;
+        } else {
+            sequence = SYNC_TRACKER.pendingSequence();
+        }
+        if (pendingRequest == null || minecraft.getConnection() == null) {
+            return;
+        }
+        boolean sent = ForgeNetworking.trySendClientPreferences(
+                minecraft.getConnection().getConnection(),
+                sequence,
+                pendingRequest.holding(),
+                pendingRequest.shapeId(),
+                pendingRequest.teleportDrops(),
+                pendingRequest.teleportExp()
+        );
+        syncPending = true;
+        retryDelay = sent ? ACK_RETRY_TICKS : TRANSPORT_RETRY_TICKS;
+    }
+
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (!SYNC_TRACKER.confirm(ack)) {
+            return;
+        }
+        pendingRequest = null;
+        retryDelay = 0;
+        if (preferencesDirty) {
+            syncPending = true;
+            return;
+        }
+        ClientPreferenceSession.accept(ack);
+        syncPending = false;
+        refreshDelay = POLICY_REFRESH_TICKS;
     }
 
     @Mod.EventBusSubscriber(modid = OneKeyMiner.MOD_ID, value = Dist.CLIENT)
     public static final class Events {
-
         private Events() {
         }
 
@@ -74,18 +184,12 @@ public final class ForgeKeyBindings {
             }
 
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player == null) {
-                return;
-            }
-
-            if (OPEN_CONFIG.consumeClick()) {
+            if (OPEN_CONFIG.consumeClick() && minecraft.player != null) {
                 minecraft.setScreen(ForgeConfigScreen.createConfigScreen(minecraft.screen));
             }
-
-            boolean keyDown = CHAIN_MINING_KEY.isDown();
-            if (keyDown != wasKeyDown) {
-                wasKeyDown = keyDown;
-                ForgeClientSetup.sendCurrentState();
+            tickSynchronization(minecraft);
+            if (minecraft.player == null || minecraft.level == null) {
+                return;
             }
 
             BlockPos lookingAt = null;
@@ -100,7 +204,7 @@ public final class ForgeKeyBindings {
                     lookingAt,
                     playerFacing,
                     playerPitch,
-                    keyDown
+                    CHAIN_MINING_KEY.isDown()
             );
         }
 
@@ -113,13 +217,12 @@ public final class ForgeKeyBindings {
 
         @SubscribeEvent
         public static void onClientLogin(ClientPlayerNetworkEvent.LoggingIn event) {
-            resetConnectionState();
-            ForgeClientSetup.sendCurrentState();
+            beginSession();
         }
 
         @SubscribeEvent
         public static void onClientLogout(ClientPlayerNetworkEvent.LoggingOut event) {
-            resetConnectionState();
+            endSession();
         }
     }
 }

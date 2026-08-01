@@ -5,6 +5,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -75,7 +76,10 @@ public class ChainPreviewHud {
         Component titleLine = Component.translatable("onekeyminer.hud.preview_title");
         Component shapeLine = Component.translatable("onekeyminer.hud.shape", shapeName);
         Component countLine = Component.translatable("onekeyminer.hud.count", count);
-        Component maxLine = Component.translatable("onekeyminer.hud.max", ConfigManager.getConfig().maxBlocks);
+        int appliedMax = ClientPreferenceSession.resolvePreviewPolicy(
+                ConfigManager.getConfig()
+        ).maxBlocks();
+        Component maxLine = Component.translatable("onekeyminer.hud.max", appliedMax);
         
         // 计算面板大小
         int titleWidth = font.width(titleLine);

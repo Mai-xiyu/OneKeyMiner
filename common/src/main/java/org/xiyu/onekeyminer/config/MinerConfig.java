@@ -11,7 +11,7 @@ import java.util.List;
  * 
  * @author OneKeyMiner Team
  * @version 1.0.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.20.1
  */
 public class MinerConfig {
     
@@ -29,13 +29,13 @@ public class MinerConfig {
     
     /**
      * 单次连锁挖矿的最大方块数量
-     * <p>范围: 1 - 1000，默认: 64</p>
+     * <p>范围: 1 - 10240，默认: 64</p>
      */
     public int maxBlocks = 64;
     
     /**
      * 连锁挖矿的最大距离（从起始点算起）
-     * <p>范围: 1 - 64，默认: 16，单位: 方块</p>
+     * <p>范围: 1 - 128，默认: 16，单位: 方块</p>
      */
     public int maxDistance = 16;
     
@@ -210,6 +210,10 @@ public class MinerConfig {
      * <p>设为 true 时，经验会合并成一个经验球并直接给予玩家</p>
      */
     public boolean teleportExp = false;
+
+    /** Dedicated-server gates for client-requested teleport behavior. */
+    public boolean allowClientTeleportDrops = true;
+    public boolean allowClientTeleportExp = true;
     
     // ==================== 高级设置 ====================
     
@@ -283,24 +287,41 @@ public class MinerConfig {
         copy.allowBareHand = this.allowBareHand;
         copy.teleportDrops = this.teleportDrops;
         copy.teleportExp = this.teleportExp;
+        copy.allowClientTeleportDrops = this.allowClientTeleportDrops;
+        copy.allowClientTeleportExp = this.allowClientTeleportExp;
         copy.requireExactMatch = this.requireExactMatch;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
-        copy.customWhitelist = new ArrayList<>(this.customWhitelist);
-        copy.blacklist = new ArrayList<>(this.blacklist);
-        copy.toolWhitelist = new ArrayList<>(this.toolWhitelist);
-        copy.toolBlacklist = new ArrayList<>(this.toolBlacklist);
-        copy.interactiveItemWhitelist = new ArrayList<>(this.interactiveItemWhitelist);
-        copy.interactiveItemBlacklist = new ArrayList<>(this.interactiveItemBlacklist);
+        copy.strictBlockMatching = this.strictBlockMatching;
+        copy.hungerPerBlock = this.hungerPerBlock;
+        copy.maxBlocksCreative = this.maxBlocksCreative;
+        copy.customWhitelist = copyList(this.customWhitelist);
+        copy.blacklist = copyList(this.blacklist);
+        copy.toolWhitelist = copyList(this.toolWhitelist);
+        copy.toolBlacklist = copyList(this.toolBlacklist);
+        copy.interactiveItemWhitelist = copyList(this.interactiveItemWhitelist);
+        copy.interactiveItemBlacklist = copyList(this.interactiveItemBlacklist);
         copy.enableHarvesting = this.enableHarvesting;
         copy.harvestReplant = this.harvestReplant;
         copy.enableInteraction = this.enableInteraction;
         copy.enablePlanting = this.enablePlanting;
-        copy.interactionToolWhitelist = new ArrayList<>(this.interactionToolWhitelist);
-        copy.interactionToolBlacklist = new ArrayList<>(this.interactionToolBlacklist);
-        copy.seedWhitelist = new ArrayList<>(this.seedWhitelist);
-        copy.seedBlacklist = new ArrayList<>(this.seedBlacklist);
-        copy.farmlandWhitelist = new ArrayList<>(this.farmlandWhitelist);
+        copy.interactionToolWhitelist = copyList(this.interactionToolWhitelist);
+        copy.interactionToolBlacklist = copyList(this.interactionToolBlacklist);
+        copy.seedWhitelist = copyList(this.seedWhitelist);
+        copy.seedBlacklist = copyList(this.seedBlacklist);
+        copy.farmlandWhitelist = copyList(this.farmlandWhitelist);
         return copy;
+    }
+
+    private static <T> List<T> copyList(List<T> source) {
+        return source == null ? new ArrayList<>() : new ArrayList<>(source);
+    }
+
+    public boolean isDropTeleportEnabled(boolean clientRequested) {
+        return allowClientTeleportDrops && clientRequested;
+    }
+
+    public boolean isExperienceTeleportEnabled(boolean clientRequested) {
+        return allowClientTeleportExp && clientRequested;
     }
 }

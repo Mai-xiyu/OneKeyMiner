@@ -24,7 +24,7 @@ import java.util.function.Supplier;
  * <p>此类仅在客户端加载，包含 GUI 相关的客户端引用。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.20.1
  */
 @OnlyIn(Dist.CLIENT)
 public class ForgeConfigScreen {

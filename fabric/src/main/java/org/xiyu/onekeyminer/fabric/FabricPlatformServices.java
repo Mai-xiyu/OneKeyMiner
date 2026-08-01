@@ -1,17 +1,17 @@
 package org.xiyu.onekeyminer.fabric;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.EntityHitResult;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
@@ -24,8 +24,8 @@ import java.util.UUID;
  * <p>实现 {@link PlatformServices} 接口，提供 Fabric 平台特定的功能实现。</p>
  * 
  * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.7
+ * @since Minecraft 1.20.1
  */
 public class FabricPlatformServices implements PlatformServices {
     
@@ -99,7 +99,7 @@ public class FabricPlatformServices implements PlatformServices {
         
         try {
             // 获取 ServerPlayerGameMode 并调用 destroyBlock
-            // 在 1.21.9 中，这个方法可能有不同的名称（取决于映射）
+            // Mojang 映射下由服务端游戏模式执行原版破坏流程。
             return player.gameMode.destroyBlock(pos);
         } catch (Exception e) {
             // 如果方法调用失败，记录错误
@@ -112,7 +112,7 @@ public class FabricPlatformServices implements PlatformServices {
     public boolean simulateItemUseOnBlock(
             ServerPlayer player,
             Level level,
-            BlockPos pos,
+            BlockHitResult hitResult,
             InteractionHand hand,
             ItemStack item
     ) {
@@ -120,24 +120,49 @@ public class FabricPlatformServices implements PlatformServices {
         // 这会触发正确的游戏事件（如锄头耕地、斧头剥皮等）
         
         try {
-            // 构建 BlockHitResult
-            BlockHitResult hitResult = new BlockHitResult(
-                    Vec3.atCenterOf(pos),
-                    Direction.UP,
-                    pos,
-                    false
+            // Route through the authoritative server game mode. Fabric's
+            // UseBlockCallback and vanilla placement/protection checks are
+            // injected into this path.
+            InteractionResult result = player.gameMode.useItemOn(
+                    player,
+                    level,
+                    item,
+                    hand,
+                    hitResult
             );
-            
-            // 构建 UseOnContext
-            UseOnContext context = new UseOnContext(player, hand, hitResult);
-            
-            // 执行物品使用
-            InteractionResult result = item.useOn(context);
             
             return result.consumesAction();
         } catch (Exception e) {
             org.xiyu.onekeyminer.OneKeyMiner.LOGGER.error("模拟物品使用失败: {}", e.getMessage());
             return false;
+        }
+    }
+
+    @Override
+    public InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+            InteractionHand hand
+    ) {
+        try {
+            InteractionResult hookResult = UseEntityCallback.EVENT.invoker().interact(
+                    player,
+                    level,
+                    hand,
+                    target,
+                    new EntityHitResult(target)
+            );
+            if (hookResult != InteractionResult.PASS) {
+                return hookResult;
+            }
+            return player.interactOn(target, hand);
+        } catch (RuntimeException exception) {
+            org.xiyu.onekeyminer.OneKeyMiner.LOGGER.error(
+                    "Authoritative Fabric entity interaction failed",
+                    exception
+            );
+            return InteractionResult.FAIL;
         }
     }
     
