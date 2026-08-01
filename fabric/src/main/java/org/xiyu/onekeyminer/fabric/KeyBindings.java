@@ -9,6 +9,8 @@ import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 
 /**
  * Fabric client key bindings and negotiated C2S preference sync.
@@ -22,6 +24,8 @@ public final class KeyBindings {
     private static boolean wasConnected;
     private static boolean syncPending = true;
     private static int syncRetryDelay;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
 
     private KeyBindings() {
     }
@@ -46,18 +50,20 @@ public final class KeyBindings {
 
     public static void sendCurrentPreferences() {
         boolean sent = trySendCurrentPreferences();
-        syncPending = !sent;
-        syncRetryDelay = sent ? 0 : 20;
+        syncPending = true;
+        syncRetryDelay = 20;
         if (sent && CHAIN_MINING_KEY != null) {
             wasKeyDown = CHAIN_MINING_KEY.isDown();
         }
     }
 
     private static boolean trySendCurrentPreferences() {
+        int sequence = SYNC_TRACKER.beginAttempt();
         try {
             var minecraft = net.minecraft.client.Minecraft.getInstance();
             if (minecraft.getConnection() == null
                     || !ClientPlayNetworking.canSend(FabricPayloads.ClientPreferencesPayload.TYPE)) {
+                SYNC_TRACKER.cancelAttempt(sequence);
                 return false;
             }
 
@@ -65,6 +71,7 @@ public final class KeyBindings {
             boolean holding = CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
             ClientPlayNetworking.send(new FabricPayloads.ClientPreferencesPayload(
                     FabricPayloads.WIRE_VERSION,
+                    sequence,
                     holding,
                     config.selectedShape(),
                     config.teleportDrops(),
@@ -72,8 +79,24 @@ public final class KeyBindings {
             ));
             return true;
         } catch (RuntimeException e) {
+            SYNC_TRACKER.cancelAttempt(sequence);
             OneKeyMiner.LOGGER.debug("Failed to send Fabric client preferences: {}", e.getMessage());
             return false;
+        }
+    }
+
+    static void handlePreferencesAck(FabricPayloads.ServerPreferencesAckPayload payload) {
+        ClientPreferenceAck ack = new ClientPreferenceAck(
+                payload.wireVersion(),
+                payload.sequence(),
+                payload.appliedShapeId(),
+                payload.teleportDropsApplied(),
+                payload.teleportExpApplied(),
+                payload.capabilities()
+        );
+        if (SYNC_TRACKER.confirm(ack)) {
+            syncPending = false;
+            syncRetryDelay = 0;
         }
     }
 
@@ -81,6 +104,9 @@ public final class KeyBindings {
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             boolean connected = client.getConnection() != null && client.player != null;
             if (!connected) {
+                if (wasConnected) {
+                    SYNC_TRACKER.reset();
+                }
                 wasConnected = false;
                 wasKeyDown = false;
                 syncPending = true;
@@ -104,6 +130,8 @@ public final class KeyBindings {
             } else if (isKeyDown != wasKeyDown) {
                 if (trySendCurrentPreferences()) {
                     wasKeyDown = isKeyDown;
+                    syncPending = true;
+                    syncRetryDelay = 20;
                 } else {
                     syncPending = true;
                     syncRetryDelay = 20;

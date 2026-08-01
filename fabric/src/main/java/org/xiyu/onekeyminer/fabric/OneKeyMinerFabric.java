@@ -3,10 +3,9 @@ package org.xiyu.onekeyminer.fabric;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.mining.MiningStateManager;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 /**
@@ -27,37 +26,36 @@ public class OneKeyMinerFabric implements ModInitializer {
                 FabricPayloads.ClientPreferencesPayload.TYPE,
                 FabricPayloads.ClientPreferencesPayload.STREAM_CODEC
         );
+        PayloadTypeRegistry.playS2C().register(
+                FabricPayloads.ServerPreferencesAckPayload.TYPE,
+                FabricPayloads.ServerPreferencesAckPayload.STREAM_CODEC
+        );
 
         ServerPlayNetworking.registerGlobalReceiver(
                 FabricPayloads.ClientPreferencesPayload.TYPE,
                 (payload, context) -> {
-                    if (payload.wireVersion() != FabricPayloads.WIRE_VERSION) {
-                        OneKeyMiner.LOGGER.warn(
-                                "Ignoring client preferences from {} with unsupported wire version {}",
-                                context.player().getGameProfile().name(),
-                                payload.wireVersion()
-                        );
-                        return;
-                    }
-                    Identifier id = Identifier.tryParse(payload.shapeId());
-                    if (id == null || !ShapeRegistry.isRegistered(id)) {
-                        OneKeyMiner.LOGGER.warn(
-                                "Replacing invalid shape preference '{}' from {} with the server default",
-                                payload.shapeId(),
-                                context.player().getGameProfile().name()
-                        );
-                        id = ShapeRegistry.DEFAULT_SHAPE_ID;
-                        if (!ShapeRegistry.isRegistered(id)) {
-                            return;
-                        }
-                    }
-                    MiningStateManager.updatePreferences(
-                            context.player().getUUID(),
+                    ClientPreferenceAck ack = ClientPreferenceProtocol.applyOnServer(
+                            context.player(),
+                            payload.wireVersion(),
+                            payload.sequence(),
                             payload.holding(),
-                            id,
+                            payload.shapeId(),
                             payload.teleportDrops(),
                             payload.teleportExp()
                     );
+                    if (ack != null) {
+                        ServerPlayNetworking.send(
+                                context.player(),
+                                new FabricPayloads.ServerPreferencesAckPayload(
+                                        ack.wireVersion(),
+                                        ack.sequence(),
+                                        ack.appliedShapeId(),
+                                        ack.teleportDropsApplied(),
+                                        ack.teleportExpApplied(),
+                                        ack.capabilities()
+                                )
+                        );
+                    }
                 }
         );
     }

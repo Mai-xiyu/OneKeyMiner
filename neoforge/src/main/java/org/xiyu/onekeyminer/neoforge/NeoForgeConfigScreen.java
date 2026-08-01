@@ -11,6 +11,7 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.config.RemoteConfigPolicy;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -47,6 +48,7 @@ public class NeoForgeConfigScreen {
         
         private final Screen parent;
         private final MinerConfig configCopy;
+        private final boolean serverSettingsEditable;
         private int currentPage = 0;
         private final int totalPages = 3;
         
@@ -54,6 +56,11 @@ public class NeoForgeConfigScreen {
             super(Component.translatable("config.onekeyminer.title"));
             this.parent = parent;
             this.configCopy = ConfigManager.getConfig().copy();
+            var minecraft = net.minecraft.client.Minecraft.getInstance();
+            this.serverSettingsEditable = RemoteConfigPolicy.canEditServerSettings(
+                    minecraft.getConnection() != null,
+                    minecraft.hasSingleplayerServer()
+            );
         }
         
         @Override
@@ -115,7 +122,11 @@ public class NeoForgeConfigScreen {
             this.addRenderableWidget(Button.builder(
                     Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                     button -> {
-                        ConfigManager.updateConfig(configCopy);
+                        if (serverSettingsEditable) {
+                            ConfigManager.updateConfig(configCopy);
+                        } else {
+                            ConfigManager.updateClientPreferences(configCopy);
+                        }
                         this.onClose();
                     }
             ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
@@ -163,6 +174,8 @@ public class NeoForgeConfigScreen {
             int i = 0;
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction", () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting", () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting", () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant", () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops", () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_exp", () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.play_sound", () -> configCopy.playSound, v -> configCopy.playSound = v);
@@ -172,18 +185,22 @@ public class NeoForgeConfigScreen {
         // === 辅助方法 ===
         
         private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
-            this.addRenderableWidget(Button.builder(
+            Button optionButton = Button.builder(
                 getBoolMessage(key, getter.get()),
                 button -> {
                     boolean newState = !getter.get();
                     setter.accept(newState);
                     button.setMessage(getBoolMessage(key, newState));
                 }
-            ).bounds(x - w / 2, y, w, h).build());
+            ).bounds(x - w / 2, y, w, h).build();
+            optionButton.active = serverSettingsEditable
+                    || key.equals("config.onekeyminer.option.teleport_drops")
+                    || key.equals("config.onekeyminer.option.teleport_exp");
+            this.addRenderableWidget(optionButton);
         }
 
         private void addCycleButton(int x, int y, int w, int h, String key, Supplier<Integer> getter, Consumer<Integer> setter, int[] presets) {
-            this.addRenderableWidget(Button.builder(
+            Button button = Button.builder(
                 getValueMessage(key, getter.get()),
                 b -> {
                     int current = getter.get();
@@ -197,7 +214,9 @@ public class NeoForgeConfigScreen {
                     setter.accept(next);
                     b.setMessage(getValueMessage(key, next));
                 }
-            ).bounds(x - w / 2, y, w, h).build());
+            ).bounds(x - w / 2, y, w, h).build();
+            button.active = serverSettingsEditable;
+            this.addRenderableWidget(button);
         }
         
         private Component getBoolMessage(String key, boolean value) {
@@ -228,6 +247,15 @@ public class NeoForgeConfigScreen {
         public void render(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
             super.render(guiGraphics, mouseX, mouseY, partialTick);
             guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+            if (!serverSettingsEditable) {
+                guiGraphics.drawCenteredString(
+                        this.font,
+                        Component.translatable("config.onekeyminer.remote_server_notice"),
+                        this.width / 2,
+                        24,
+                        0xFFD54F
+                );
+            }
             guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
         }
     }

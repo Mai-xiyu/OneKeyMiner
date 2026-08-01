@@ -230,6 +230,15 @@ public class ConfigManager {
         updateConfig(newConfig, "*");
     }
 
+    /** Persists only preferences that a remote server accepts from its client. */
+    public static synchronized void updateClientPreferences(MinerConfig editedConfig) {
+        Objects.requireNonNull(editedConfig, "editedConfig");
+        updateConfig(
+                RemoteConfigPolicy.mergeClientPreferences(CONFIG.get(), editedConfig),
+                "clientPreferences"
+        );
+    }
+
     public static synchronized void updateConfig(MinerConfig newConfig, String changedKey) {
         Objects.requireNonNull(newConfig, "newConfig");
         Objects.requireNonNull(changedKey, "changedKey");

@@ -7,16 +7,18 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.mining.MiningStateManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 /**
  * Server-safe NeoForge payload declaration and handler.
  */
 public final class NeoForgeNetworking {
-    public static final String PROTOCOL_VERSION = "2";
-    public static final int WIRE_VERSION = 2;
+    public static final String PROTOCOL_VERSION = "3";
+    public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
     public static final int MAX_SHAPE_ID_LENGTH = ShapeRegistry.MAX_SHAPE_ID_LENGTH;
 
     private NeoForgeNetworking() {
@@ -24,6 +26,7 @@ public final class NeoForgeNetworking {
 
     public record ClientPreferencesPayload(
             int wireVersion,
+            int sequence,
             boolean holding,
             String shapeId,
             boolean teleportDrops,
@@ -39,6 +42,7 @@ public final class NeoForgeNetworking {
                 StreamCodec.of(
                         (buf, payload) -> {
                             buf.writeVarInt(payload.wireVersion);
+                            buf.writeVarInt(payload.sequence);
                             buf.writeBoolean(payload.holding);
                             buf.writeUtf(
                                     payload.shapeId == null ? "" : payload.shapeId,
@@ -48,6 +52,7 @@ public final class NeoForgeNetworking {
                             buf.writeBoolean(payload.teleportExp);
                         },
                         buf -> new ClientPreferencesPayload(
+                                buf.readVarInt(),
                                 buf.readVarInt(),
                                 buf.readBoolean(),
                                 buf.readUtf(MAX_SHAPE_ID_LENGTH),
@@ -62,11 +67,77 @@ public final class NeoForgeNetworking {
         }
     }
 
+    public record ServerPreferencesAckPayload(
+            int wireVersion,
+            int sequence,
+            String appliedShapeId,
+            boolean teleportDropsApplied,
+            boolean teleportExpApplied,
+            int capabilities
+    ) implements CustomPacketPayload {
+        public static final Identifier ID = Identifier.fromNamespaceAndPath(
+                OneKeyMiner.MOD_ID,
+                "server_preferences_ack_v" + WIRE_VERSION
+        );
+        public static final Type<ServerPreferencesAckPayload> TYPE = new Type<>(ID);
+        public static final StreamCodec<FriendlyByteBuf, ServerPreferencesAckPayload> STREAM_CODEC =
+                StreamCodec.of(
+                        (buf, payload) -> {
+                            buf.writeVarInt(payload.wireVersion);
+                            buf.writeVarInt(payload.sequence);
+                            buf.writeUtf(payload.appliedShapeId, MAX_SHAPE_ID_LENGTH);
+                            buf.writeBoolean(payload.teleportDropsApplied);
+                            buf.writeBoolean(payload.teleportExpApplied);
+                            buf.writeVarInt(payload.capabilities);
+                        },
+                        buf -> new ServerPreferencesAckPayload(
+                                buf.readVarInt(),
+                                buf.readVarInt(),
+                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
+                                buf.readBoolean(),
+                                buf.readBoolean(),
+                                buf.readVarInt()
+                        )
+                );
+
+        ClientPreferenceAck toCommon() {
+            return new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    appliedShapeId,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
+        }
+
+        static ServerPreferencesAckPayload fromCommon(ClientPreferenceAck ack) {
+            return new ServerPreferencesAckPayload(
+                    ack.wireVersion(),
+                    ack.sequence(),
+                    ack.appliedShapeId(),
+                    ack.teleportDropsApplied(),
+                    ack.teleportExpApplied(),
+                    ack.capabilities()
+            );
+        }
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        event.registrar(PROTOCOL_VERSION).playToServer(
+        var registrar = event.registrar(PROTOCOL_VERSION);
+        registrar.playToServer(
                 ClientPreferencesPayload.TYPE,
                 ClientPreferencesPayload.STREAM_CODEC,
                 NeoForgeNetworking::handleClientPreferences
+        );
+        registrar.playToClient(
+                ServerPreferencesAckPayload.TYPE,
+                ServerPreferencesAckPayload.STREAM_CODEC
         );
         OneKeyMiner.LOGGER.debug("Registered NeoForge networking payloads");
     }
@@ -78,34 +149,17 @@ public final class NeoForgeNetworking {
         if (!(context.player() instanceof ServerPlayer serverPlayer)) {
             return;
         }
-        if (payload.wireVersion() != WIRE_VERSION) {
-            OneKeyMiner.LOGGER.warn(
-                    "Ignoring client preferences from {} with unsupported wire version {}",
-                    serverPlayer.getGameProfile().name(),
-                    payload.wireVersion()
-            );
-            return;
-        }
-
-        Identifier shapeId = Identifier.tryParse(payload.shapeId());
-        if (shapeId == null || !ShapeRegistry.isRegistered(shapeId)) {
-            OneKeyMiner.LOGGER.warn(
-                    "Replacing invalid shape preference '{}' from {} with the server default",
-                    payload.shapeId(),
-                    serverPlayer.getGameProfile().name()
-            );
-            shapeId = ShapeRegistry.DEFAULT_SHAPE_ID;
-            if (!ShapeRegistry.isRegistered(shapeId)) {
-                return;
-            }
-        }
-
-        MiningStateManager.updatePreferences(
-                serverPlayer.getUUID(),
+        ClientPreferenceAck ack = ClientPreferenceProtocol.applyOnServer(
+                serverPlayer,
+                payload.wireVersion(),
+                payload.sequence(),
                 payload.holding(),
-                shapeId,
+                payload.shapeId(),
                 payload.teleportDrops(),
                 payload.teleportExp()
         );
+        if (ack != null) {
+            PacketDistributor.sendToPlayer(serverPlayer, ServerPreferencesAckPayload.fromCommon(ack));
+        }
     }
 }
