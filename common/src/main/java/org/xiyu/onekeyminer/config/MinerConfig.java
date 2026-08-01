@@ -125,6 +125,23 @@ public class MinerConfig {
         return copy;
     }
 
+    /**
+     * Copies only settings that a remote client is allowed to own locally.
+     * Server gameplay limits and policy gates are deliberately left unchanged.
+     *
+     * @param preferences client-side preference source
+     */
+    public void applyClientPreferences(MinerConfig preferences) {
+        MinerConfig source = java.util.Objects.requireNonNull(
+                preferences,
+                "preferences"
+        );
+        this.selectedShape = source.selectedShape;
+        this.shapeMode = null;
+        this.teleportDrops = source.teleportDrops;
+        this.teleportExp = source.teleportExp;
+    }
+
     public boolean isDropTeleportEnabled(boolean clientRequested) {
         return allowClientTeleportDrops && clientRequested;
     }
