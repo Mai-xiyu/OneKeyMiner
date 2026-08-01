@@ -21,8 +21,11 @@
       "org.xiyu.onekeyminer.fabric.OneKeyMinerFabricClient"
     ]
   },
+  "mixins": [
+    "onekeyminer.mixins.json",
+    "onekeyminer.fabric.mixins.json"
+  ],
   "depends": {
-    "fabric": "*",
     "fabricloader": ">=${fabric_loader}",
     "fabric-api": ">=${fabric_api_version}",
     "minecraft": $compatible_mc_versions,

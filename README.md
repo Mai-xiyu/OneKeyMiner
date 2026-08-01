@@ -10,8 +10,8 @@
 
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
-  <a href="https://github.com/Mai-xiyu/OneKeyMiner/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Mai-xiyu/OneKeyMiner?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/Minecraft-1.21.9-green?style=flat-square" alt="Minecraft Version">
+  <a href="https://github.com/Mai-xiyu/OneKeyMiner/blob/main/LICENSE_EN.md"><img src="https://img.shields.io/github/license/Mai-xiyu/OneKeyMiner?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/Minecraft-1.21.1-green?style=flat-square" alt="Minecraft Version">
   <img src="https://img.shields.io/badge/Java-21+-orange?style=flat-square" alt="Java Version">
 </p>
 
@@ -42,21 +42,35 @@
 
 | Component | Version |
 |-----------|---------|
-| Minecraft | 1.21.9 |
+| Minecraft | 1.21.1 |
 | Java | 21+ |
-| Fabric Loader | 0.15.0+ |
-| NeoForge | 21.0+ |
-| Forge | 59.0+ |
+| Fabric Loader | 0.18.4+ |
+| Fabric API | 0.116.8+1.21.1 or newer for 1.21.1 |
+| NeoForge | 21.1.219–21.1.x |
+| Forge | 52.1.10–52.x |
 
 ### Download
 
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-x.x.x-1.21.9.jar` for Fabric
-- `onekeyminer-neoforge-x.x.x-1.21.9.jar` for NeoForge  
-- `onekeyminer-forge-x.x.x-1.21.9.jar` for Forge
-- `onekeyminer-x.x.x-1.21.9.jar` for universal (auto-detect)
+- `onekeyminer-fabric-x.x.x-1.21.1.jar` for Fabric
+- `onekeyminer-neoforge-x.x.x-1.21.1.jar` for NeoForge
+- `onekeyminer-forge-x.x.x-1.21.1.jar` for Forge
+
+### Server/client synchronization
+
+Minecraft 1.21.1 uses preference protocol v3 on all three loaders. The client
+sends one immutable key/shape/teleport snapshot and treats it as active only
+after the server acknowledges the same sequence. Missing channels, early-login
+sends, and lost acknowledgements are retried; stale or reused sequences with
+different contents are rejected by the server.
+
+The channel is optional so a server-only installation does not reject vanilla
+clients. Chain activation from the key binding requires the mod on both sides
+and matching protocol versions. A remote client's config screen saves only
+client-owned preferences; gameplay limits and teleport policy remain
+server-authoritative in `config/onekeyminer.json`.
 
 ---
 
@@ -178,9 +192,9 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 ## 🌿 Branching & Releases
 
-- **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.9`).
+- **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.1`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.9-1.6.0`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.21.1-1.6.7`).
 
 
 ## 🐛 Issues & Contributions

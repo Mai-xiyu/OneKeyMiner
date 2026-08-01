@@ -10,8 +10,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
-import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  */
 @OnlyIn(Dist.CLIENT)
 public class NeoForgeConfigScreen {
-    
+
     public static void register(ModContainer modContainer) {
         modContainer.registerExtensionPoint(
                 IConfigScreenFactory.class,
@@ -35,47 +35,58 @@ public class NeoForgeConfigScreen {
         );
         OneKeyMiner.LOGGER.debug("已注册 NeoForge 配置界面");
     }
-    
+
     /**
      * 创建配置界面 (公开静态方法，供按键绑定调用)
      */
     public static Screen createConfigScreen(Screen parent) {
         return new SimpleConfigScreen(parent);
     }
-    
+
     private static class SimpleConfigScreen extends Screen {
-        
+
         private final Screen parent;
         private final MinerConfig configCopy;
         private int currentPage = 0;
         private final int totalPages = 3;
-        
+
         protected SimpleConfigScreen(Screen parent) {
             super(Component.translatable("config.onekeyminer.title"));
             this.parent = parent;
             this.configCopy = ConfigManager.getConfig().copy();
         }
-        
+
         @Override
         protected void init() {
             super.init();
             this.clearWidgets();
-            
+
             int centerX = this.width / 2;
             int startY = 40;
             int buttonWidth = 200;
             int buttonHeight = 20;
             int spacing = 24;
-            
-            switch (currentPage) {
-                case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+
+            boolean remoteServer = isRemoteServer();
+            if (remoteServer) {
+                initRemotePreferences(
+                        centerX,
+                        startY + spacing,
+                        buttonWidth,
+                        buttonHeight,
+                        spacing
+                );
+            } else {
+                switch (currentPage) {
+                    case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                }
             }
-            
+
             // === 底部导航栏 ===
             int bottomY = this.height - 30;
-            
+
             // 上一页
             Button prevBtn = Button.builder(Component.literal("<"), b -> {
                 if (currentPage > 0) {
@@ -83,9 +94,9 @@ public class NeoForgeConfigScreen {
                     this.init();
                 }
             }).bounds(centerX - 155, bottomY, 20, buttonHeight).build();
-            prevBtn.active = currentPage > 0;
+            prevBtn.active = !remoteServer && currentPage > 0;
             this.addRenderableWidget(prevBtn);
-            
+
             // 下一页
             Button nextBtn = Button.builder(Component.literal(">"), b -> {
                 if (currentPage < totalPages - 1) {
@@ -93,31 +104,72 @@ public class NeoForgeConfigScreen {
                     this.init();
                 }
             }).bounds(centerX + 135, bottomY, 20, buttonHeight).build();
-            nextBtn.active = currentPage < totalPages - 1;
+            nextBtn.active = !remoteServer && currentPage < totalPages - 1;
             this.addRenderableWidget(nextBtn);
-            
+
             // 保存
             this.addRenderableWidget(Button.builder(
                     Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                     button -> {
-                        ConfigManager.updateConfig(configCopy);
-                        ConfigSyncHelper.triggerSync();
+                        if (remoteServer) {
+                            ConfigManager.updateClientPreferences(configCopy);
+                        } else {
+                            ConfigManager.updateConfig(configCopy);
+                        }
                         this.onClose();
                     }
             ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
-            
+
             // 取消
             this.addRenderableWidget(Button.builder(
                     Component.translatable("gui.cancel"),
                     button -> this.onClose()
             ).bounds(centerX + 5, bottomY, 120, buttonHeight).build());
         }
-        
+
+        private void initRemotePreferences(int x, int y, int w, int h, int s) {
+            int i = 0;
+            this.addRenderableWidget(Button.builder(
+                    getShapeMessage(configCopy.selectedShape),
+                    button -> {
+                        configCopy.selectedShape = ShapeRegistry.getNextShapeId(
+                                configCopy.selectedShape
+                        );
+                        configCopy.shapeMode = null;
+                        button.setMessage(getShapeMessage(configCopy.selectedShape));
+                    }
+            ).bounds(x - w / 2, y + s * i++, w, h).build());
+            addBoolButton(
+                    x,
+                    y + s * i++,
+                    w,
+                    h,
+                    "config.onekeyminer.option.teleport_drops",
+                    () -> configCopy.teleportDrops,
+                    value -> configCopy.teleportDrops = value
+            );
+            addBoolButton(
+                    x,
+                    y + s * i,
+                    w,
+                    h,
+                    "config.onekeyminer.option.teleport_exp",
+                    () -> configCopy.teleportExp,
+                    value -> configCopy.teleportExp = value
+            );
+        }
+
+        private boolean isRemoteServer() {
+            return this.minecraft != null
+                    && this.minecraft.getConnection() != null
+                    && !this.minecraft.hasSingleplayerServer();
+        }
+
         // === 第一页：基础设置 ===
         private void initPageGeneral(int x, int y, int w, int h, int s) {
             int i = 0;
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enabled", () -> configCopy.enabled, v -> configCopy.enabled = v);
-            
+
             this.addRenderableWidget(Button.builder(
                 getShapeMessage(configCopy.selectedShape),
                 b -> {
@@ -126,12 +178,12 @@ public class NeoForgeConfigScreen {
                     b.setMessage(getShapeMessage(configCopy.selectedShape));
                 }
             ).bounds(x - w / 2, y + s * i++, w, h).build());
-            
+
             addCycleButton(x, y + s * i++, w, h, "config.onekeyminer.option.max_blocks", () -> configCopy.maxBlocks, v -> configCopy.maxBlocks = v, new int[]{16, 32, 64, 128, 256, 512, 1000});
             addCycleButton(x, y + s * i++, w, h, "config.onekeyminer.option.max_distance", () -> configCopy.maxDistance, v -> configCopy.maxDistance = v, new int[]{8, 16, 32, 64});
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_diagonal", () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v);
         }
-        
+
         // === 第二页：消耗设置 ===
         private void initPageConsumption(int x, int y, int w, int h, int s) {
             int i = 0;
@@ -143,22 +195,20 @@ public class NeoForgeConfigScreen {
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.mine_all", () -> configCopy.mineAllBlocks, v -> configCopy.mineAllBlocks = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_bare_hand", () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
         }
-        
+
         // === 第三页：高级设置 ===
         private void initPageAdvanced(int x, int y, int w, int h, int s) {
             int i = 0;
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction", () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting", () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
-            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting", () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
-            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant", () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops", () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_exp", () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.play_sound", () -> configCopy.playSound, v -> configCopy.playSound = v);
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.strict_match", () -> configCopy.requireExactMatch, v -> configCopy.requireExactMatch = v);
         }
-        
+
         // === 辅助方法 ===
-        
+
         private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
             this.addRenderableWidget(Button.builder(
                 getBoolMessage(key, getter.get()),
@@ -187,15 +237,15 @@ public class NeoForgeConfigScreen {
                 }
             ).bounds(x - w / 2, y, w, h).build());
         }
-        
+
         private Component getBoolMessage(String key, boolean value) {
             return Component.translatable(key).append(": ").append(Component.translatable(value ? "gui.yes" : "gui.no").withStyle(value ? ChatFormatting.GREEN : ChatFormatting.RED));
         }
-        
+
         private Component getValueMessage(String key, int value) {
             return Component.translatable(key).append(": " + value);
         }
-        
+
         private Component getEnumMessage(String key, String enumTranslationKey) {
             return Component.translatable(key).append(": ").append(Component.translatable(enumTranslationKey).withStyle(ChatFormatting.YELLOW));
         }
@@ -211,12 +261,48 @@ public class NeoForgeConfigScreen {
         public void onClose() {
             this.minecraft.setScreen(parent);
         }
-        
+
         @Override
         public void render(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
             super.render(guiGraphics, mouseX, mouseY, partialTick);
             guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
-            guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
+            if (isRemoteServer()) {
+                guiGraphics.drawCenteredString(
+                        this.font,
+                        Component.translatable("config.onekeyminer.remote_server_notice"),
+                        this.width / 2,
+                        26,
+                        0xFFAA00
+                );
+                Component applied = ClientPreferenceSession.lastAck()
+                        .<Component>map(ack -> Component.translatable(
+                                "config.onekeyminer.remote_server_applied",
+                                ack.appliedShapeId(),
+                                Component.translatable(
+                                        ack.teleportDropsApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                ),
+                                Component.translatable(
+                                        ack.teleportExpApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                )
+                        ))
+                        .orElseGet(() -> Component.translatable(
+                                "config.onekeyminer.remote_server_pending"
+                        ));
+                guiGraphics.drawCenteredString(
+                        this.font,
+                        applied,
+                        this.width / 2,
+                        38,
+                        0xAAAAAA
+                );
+            }
+            int page = isRemoteServer() ? 1 : currentPage + 1;
+            int pages = isRemoteServer() ? 1 : totalPages;
+            guiGraphics.drawCenteredString(this.font, Component.literal(page + " / " + pages), this.width / 2, this.height - 45, 0xAAAAAA);
         }
     }
 }

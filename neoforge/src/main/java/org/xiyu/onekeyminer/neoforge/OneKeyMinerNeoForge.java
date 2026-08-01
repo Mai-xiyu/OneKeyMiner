@@ -7,10 +7,9 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.fml.loading.FMLLoader;
-import net.neoforged.neoforge.common.NeoForge;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
 @Mod(OneKeyMiner.MOD_ID)
@@ -29,7 +28,6 @@ public class OneKeyMinerNeoForge {
             NeoForgeConfigScreen.register(modContainer);
         }
 
-        NeoForge.EVENT_BUS.register(NeoForgeEventHandler.class);
         OneKeyMiner.LOGGER.info("OneKeyMiner NeoForge initialized");
     }
 
@@ -38,9 +36,10 @@ public class OneKeyMinerNeoForge {
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {
-        ConfigSyncHelper.registerSyncCallback(() -> {
-            NeoForgeKeyBindings.sendCurrentPreferences();
-        });
+        ClientPreferenceAckDispatcher.register(
+                NeoForgeKeyBindings::handlePreferencesAck
+        );
+        ConfigSyncHelper.registerSyncCallback(NeoForgeKeyBindings::sendCurrentPreferences);
         NeoForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("NeoForge client setup complete");
     }

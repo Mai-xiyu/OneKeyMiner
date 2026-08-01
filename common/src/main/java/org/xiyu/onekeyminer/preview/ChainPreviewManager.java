@@ -6,6 +6,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeContext;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -13,29 +14,27 @@ import org.xiyu.onekeyminer.shape.ShapeRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Client-side preview state and throttled shape calculation.
  */
 public class ChainPreviewManager {
-    private static ChainPreviewManager instance;
-    private static final long CALCULATE_INTERVAL_MS = 200;
+    private static final ChainPreviewManager INSTANCE = new ChainPreviewManager();
+    private static final long CALCULATE_INTERVAL_NANOS = 200_000_000L;
 
     private volatile List<BlockPos> previewBlocks = Collections.emptyList();
     private volatile String currentShapeTranslationKey = "";
-    private long lastCalculateTime = 0;
-    private boolean enabled = true;
+    private long lastCalculateTime;
+    private volatile boolean enabled = true;
     private final List<PreviewListener> listeners = new CopyOnWriteArrayList<>();
 
     private ChainPreviewManager() {
     }
 
     public static ChainPreviewManager getInstance() {
-        if (instance == null) {
-            instance = new ChainPreviewManager();
-        }
-        return instance;
+        return INSTANCE;
     }
 
     public void tick(Level level, BlockPos lookingAt, Direction playerFacing, float playerPitch, boolean isChainKeyDown) {
@@ -44,19 +43,21 @@ public class ChainPreviewManager {
             return;
         }
 
-        long now = System.currentTimeMillis();
-        if (now - lastCalculateTime < CALCULATE_INTERVAL_MS) {
+        long now = System.nanoTime();
+        if (now - lastCalculateTime < CALCULATE_INTERVAL_NANOS) {
             return;
         }
         lastCalculateTime = now;
 
         MinerConfig config = ConfigManager.getConfig();
-        if (!config.enabled) {
+        ClientPreferenceSession.PreviewPolicy policy =
+                ClientPreferenceSession.resolvePreviewPolicy(config);
+        if (!policy.enabled()) {
             clearPreview();
             return;
         }
 
-        ChainShape shape = ShapeRegistry.getShapeOrDefault(config.selectedShape);
+        ChainShape shape = ShapeRegistry.getShapeOrDefault(policy.shapeId());
         if (shape == null) {
             clearPreview();
             return;
@@ -82,9 +83,9 @@ public class ChainPreviewManager {
                     .originState(lookingState)
                     .playerFacing(playerFacing)
                     .playerLookingVertical(verticalDir)
-                    .maxBlocks(config.maxBlocks)
-                    .maxDistance(config.maxDistance)
-                    .allowDiagonal(config.allowDiagonal)
+                    .maxBlocks(policy.maxBlocks())
+                    .maxDistance(policy.maxDistance())
+                    .allowDiagonal(policy.allowDiagonal())
                     .blockMatcher((origin, target) -> !target.isAir() && target.getBlock() == origin.getBlock())
                     .build();
 
@@ -119,15 +120,15 @@ public class ChainPreviewManager {
     }
 
     public void addListener(PreviewListener listener) {
-        listeners.add(listener);
+        listeners.add(Objects.requireNonNull(listener, "listener"));
     }
 
     public boolean removeListener(PreviewListener listener) {
-        return listeners.remove(listener);
+        return listener != null && listeners.remove(listener);
     }
 
     private void clearPreview() {
-        if (!previewBlocks.isEmpty()) {
+        if (!previewBlocks.isEmpty() || !currentShapeTranslationKey.isEmpty()) {
             previewBlocks = Collections.emptyList();
             currentShapeTranslationKey = "";
             notifyListeners();

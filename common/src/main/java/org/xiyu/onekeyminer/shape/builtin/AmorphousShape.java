@@ -28,8 +28,8 @@ public class AmorphousShape implements ChainShape {
     };
 
     private static final BlockPos[] DIAGONAL_OFFSETS;
-    private static final long TIMEOUT_MS = 2000;
-    private static final int MAX_ITERATIONS = 10000;
+    private static final long TIMEOUT_NANOS = 2_000_000_000L;
+    private static final int MAX_ITERATIONS = 10_240;
 
     static {
         List<BlockPos> offsets = new ArrayList<>();
@@ -70,9 +70,7 @@ public class AmorphousShape implements ChainShape {
         visited.add(originPos);
         for (BlockPos offset : offsets) {
             BlockPos neighbor = originPos.offset(offset);
-            if (neighbor.distManhattan(originPos) <= maxDistance
-                    && level.hasChunkAt(neighbor)
-                    && visited.add(neighbor)) {
+            if (visited.add(neighbor) && level.hasChunkAt(neighbor)) {
                 BlockState neighborState = level.getBlockState(neighbor);
                 if (context.isMatchingBlock(neighborState)) {
                     queue.add(neighbor);
@@ -80,10 +78,10 @@ public class AmorphousShape implements ChainShape {
             }
         }
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         int iterations = 0;
         while (!queue.isEmpty() && result.size() < maxBlocks && iterations < MAX_ITERATIONS) {
-            if (System.currentTimeMillis() - start > TIMEOUT_MS) {
+            if (System.nanoTime() - start > TIMEOUT_NANOS) {
                 break;
             }
             iterations++;
@@ -96,8 +94,8 @@ public class AmorphousShape implements ChainShape {
             for (BlockPos offset : offsets) {
                 BlockPos neighbor = current.offset(offset);
                 if (neighbor.distManhattan(originPos) <= maxDistance
-                        && level.hasChunkAt(neighbor)
-                        && visited.add(neighbor)) {
+                        && visited.add(neighbor)
+                        && level.hasChunkAt(neighbor)) {
                     BlockState neighborState = level.getBlockState(neighbor);
                     if (context.isMatchingBlock(neighborState)) {
                         queue.add(neighbor);
