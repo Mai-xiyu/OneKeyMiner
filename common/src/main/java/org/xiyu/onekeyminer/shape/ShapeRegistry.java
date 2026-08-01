@@ -19,6 +19,8 @@ import java.util.Objects;
  */
 public final class ShapeRegistry {
 
+    public static final int MAX_SHAPE_ID_LENGTH = 256;
+
     public static final ResourceLocation DEFAULT_SHAPE_ID =
             new ResourceLocation(OneKeyMiner.MOD_ID, "amorphous");
 

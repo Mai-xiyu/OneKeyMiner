@@ -1,17 +1,15 @@
 package org.xiyu.onekeyminer.neoforge;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.fml.loading.FMLPaths;
@@ -71,8 +69,9 @@ public final class NeoForgePlatformServices implements PlatformServices {
             BlockPos pos,
             BlockState state
     ) {
-        return !player.isSpectator()
-                && player.mayUseItemAt(pos, Direction.UP, player.getMainHandItem());
+        // Authoritative use/break methods below still run NeoForge and vanilla
+        // permission hooks. This precheck must not reject valid off-hand uses.
+        return !player.isSpectator();
     }
 
     @Override
@@ -93,28 +92,45 @@ public final class NeoForgePlatformServices implements PlatformServices {
     public boolean simulateItemUseOnBlock(
             ServerPlayer player,
             Level level,
-            BlockPos pos,
+            BlockHitResult hitResult,
             InteractionHand hand,
             ItemStack item
     ) {
         try {
-            BlockHitResult hitResult = new BlockHitResult(
-                    Vec3.atCenterOf(pos),
-                    Direction.UP,
-                    pos,
-                    false
-            );
-            InteractionResult result = item.useOn(
-                    new UseOnContext(player, hand, hitResult)
+            InteractionResult result = player.gameMode.useItemOn(
+                    player,
+                    level,
+                    item,
+                    hand,
+                    hitResult
             );
             return result.consumesAction();
         } catch (RuntimeException exception) {
             OneKeyMiner.LOGGER.error(
                     "NeoForge item interaction failed at {}",
-                    pos,
+                    hitResult.getBlockPos(),
                     exception
             );
             return false;
+        }
+    }
+
+    @Override
+    public InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+            InteractionHand hand
+    ) {
+        try {
+            return player.interactOn(target, hand);
+        } catch (RuntimeException exception) {
+            OneKeyMiner.LOGGER.error(
+                    "NeoForge entity interaction failed for {}",
+                    target.getUUID(),
+                    exception
+            );
+            return InteractionResult.FAIL;
         }
     }
 
