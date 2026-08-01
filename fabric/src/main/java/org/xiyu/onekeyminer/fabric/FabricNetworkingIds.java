@@ -2,21 +2,20 @@ package org.xiyu.onekeyminer.fabric;
 
 import net.minecraft.resources.ResourceLocation;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
 
-/** Side-neutral networking constants safe to load on a dedicated server. */
+/** Fabric 1.20.1 raw-payload channel identifiers for wire version 3. */
 public final class FabricNetworkingIds {
-
-    public static final int WIRE_VERSION = 1;
-    public static final int MAX_SHAPE_ID_LENGTH = 256;
-
-    public static final ResourceLocation CLIENT_STATE =
-            new ResourceLocation(OneKeyMiner.MOD_ID, "client_state_v1");
-
-    /** Legacy channels retained for rolling upgrades within the 1.20.1 branch. */
-    public static final ResourceLocation LEGACY_CHAIN_KEY_STATE =
-            new ResourceLocation(OneKeyMiner.MOD_ID, "chain_key_state");
-    public static final ResourceLocation LEGACY_TELEPORT_SETTINGS =
-            new ResourceLocation(OneKeyMiner.MOD_ID, "teleport_settings");
+    public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
+    public static final int MAX_SHAPE_ID_LENGTH = ClientPreferenceProtocol.MAX_SHAPE_ID_LENGTH;
+    public static final ResourceLocation CLIENT_PREFERENCES = new ResourceLocation(
+            OneKeyMiner.MOD_ID,
+            "client_preferences_v" + WIRE_VERSION
+    );
+    public static final ResourceLocation SERVER_PREFERENCES_ACK = new ResourceLocation(
+            OneKeyMiner.MOD_ID,
+            "server_preferences_ack_v" + WIRE_VERSION
+    );
 
     private FabricNetworkingIds() {
     }

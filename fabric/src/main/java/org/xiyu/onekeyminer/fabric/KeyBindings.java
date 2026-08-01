@@ -3,26 +3,40 @@ package org.xiyu.onekeyminer.fabric;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 
-/** Fabric client key bindings and client-state synchronization. */
+/** Fabric client key bindings and acknowledged preference synchronization. */
 @Environment(EnvType.CLIENT)
 public final class KeyBindings {
-
     public static KeyMapping CHAIN_MINING_KEY;
     public static KeyMapping OPEN_CONFIG;
 
+    private static final int TRANSPORT_RETRY_TICKS = 20;
+    private static final int ACK_RETRY_TICKS = 100;
+    private static final int POLICY_REFRESH_TICKS = 600;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
+
     private static boolean wasKeyDown;
+    private static boolean connected;
+    private static boolean syncPending = true;
+    private static boolean preferencesDirty = true;
+    private static int retryDelay;
+    private static int refreshDelay;
+    private static ClientPreferenceRequest pendingRequest;
 
     private KeyBindings() {
     }
@@ -41,98 +55,128 @@ public final class KeyBindings {
                 "key.categories.onekeyminer"
         ));
 
-        registerKeyHandler();
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
-            resetConnectionState();
-            client.execute(KeyBindings::sendCurrentState);
-        });
-        ClientPlayConnectionEvents.DISCONNECT.register(
-                (handler, client) -> resetConnectionState()
-        );
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
+                client.execute(KeyBindings::beginSession));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
+                endSession());
+        ClientTickEvents.END_CLIENT_TICK.register(client -> tick());
     }
 
-    /** Compatibility API; the complete state is always sent. */
-    public static void sendTeleportSettings(boolean teleportDrops, boolean teleportExp) {
-        sendCurrentState(teleportDrops, teleportExp);
+    /** Compatibility API: all preferences are always captured together. */
+    public static void sendTeleportSettings(boolean ignoredDrops, boolean ignoredExp) {
+        sendCurrentState();
     }
 
     public static void sendCurrentState() {
-        var config = ConfigManager.getConfig();
-        sendCurrentState(config.teleportDrops, config.teleportExp);
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!minecraft.isSameThread()) {
+            // Invalidate immediately so a stale ACK cannot win before queued work runs.
+            SYNC_TRACKER.invalidatePendingAttempt();
+            minecraft.execute(KeyBindings::sendCurrentState);
+            return;
+        }
+        markDirty(true);
     }
 
-    public static void resetConnectionState() {
+    private static void beginSession() {
+        connected = true;
+        wasKeyDown = CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
+        SYNC_TRACKER.reset();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        retryDelay = 0;
+        refreshDelay = 0;
+        ClientPreferenceSession.clear();
+    }
+
+    private static void endSession() {
+        connected = false;
         wasKeyDown = false;
+        SYNC_TRACKER.reset();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        retryDelay = 0;
+        refreshDelay = 0;
+        ClientPreferenceSession.clear();
     }
 
-    private static void sendCurrentState(boolean teleportDrops, boolean teleportExp) {
-        try {
-            var minecraft = net.minecraft.client.Minecraft.getInstance();
-            if (minecraft.getConnection() == null) {
-                return;
-            }
+    private static void markDirty(boolean clearAcknowledgement) {
+        SYNC_TRACKER.invalidatePendingAttempt();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        retryDelay = 0;
+        if (clearAcknowledgement) {
+            ClientPreferenceSession.clear();
+        }
+    }
 
-            boolean keyDown = CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
-            String shapeId = getSafeShapeId(ConfigManager.getConfig().selectedShape);
+    private static void tick() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!connected || minecraft.getConnection() == null || minecraft.player == null) {
+            return;
+        }
+        boolean keyDown = CHAIN_MINING_KEY.isDown();
+        if (keyDown != wasKeyDown) {
+            wasKeyDown = keyDown;
+            markDirty(false);
+        }
+        if (!syncPending && --refreshDelay <= 0) {
+            markDirty(false);
+        }
+        if (syncPending && (retryDelay <= 0 || --retryDelay <= 0)) {
+            attemptSynchronization();
+        }
+    }
 
-            if (ClientPlayNetworking.canSend(FabricNetworkingIds.CLIENT_STATE)) {
-                FriendlyByteBuf buf = PacketByteBufs.create();
-                buf.writeByte(FabricNetworkingIds.WIRE_VERSION);
-                buf.writeBoolean(keyDown);
-                buf.writeUtf(shapeId, FabricNetworkingIds.MAX_SHAPE_ID_LENGTH);
-                buf.writeBoolean(teleportDrops);
-                buf.writeBoolean(teleportExp);
-                ClientPlayNetworking.send(FabricNetworkingIds.CLIENT_STATE, buf);
-                return;
-            }
-
-            // Rolling-upgrade fallback for the previous two-packet protocol.
-            if (ClientPlayNetworking.canSend(FabricNetworkingIds.LEGACY_CHAIN_KEY_STATE)) {
-                FriendlyByteBuf keyBuf = PacketByteBufs.create();
-                keyBuf.writeBoolean(keyDown);
-                keyBuf.writeUtf(shapeId, FabricNetworkingIds.MAX_SHAPE_ID_LENGTH);
-                ClientPlayNetworking.send(
-                        FabricNetworkingIds.LEGACY_CHAIN_KEY_STATE,
-                        keyBuf
-                );
-            }
-            if (ClientPlayNetworking.canSend(FabricNetworkingIds.LEGACY_TELEPORT_SETTINGS)) {
-                FriendlyByteBuf settingsBuf = PacketByteBufs.create();
-                settingsBuf.writeBoolean(teleportDrops);
-                settingsBuf.writeBoolean(teleportExp);
-                ClientPlayNetworking.send(
-                        FabricNetworkingIds.LEGACY_TELEPORT_SETTINGS,
-                        settingsBuf
-                );
-            }
-        } catch (RuntimeException exception) {
-            OneKeyMiner.LOGGER.warn(
-                    "Failed to send Fabric client state: {}",
-                    exception.getMessage()
+    private static void attemptSynchronization() {
+        int sequence;
+        if (preferencesDirty || !SYNC_TRACKER.hasPendingAttempt()) {
+            sequence = SYNC_TRACKER.beginAttempt();
+            pendingRequest = ClientPreferenceRequest.capture(
+                    CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown()
             );
+            preferencesDirty = false;
+        } else {
+            sequence = SYNC_TRACKER.pendingSequence();
         }
+        if (pendingRequest == null) {
+            return;
+        }
+        boolean sent = trySend(sequence, pendingRequest);
+        syncPending = true;
+        retryDelay = sent ? ACK_RETRY_TICKS : TRANSPORT_RETRY_TICKS;
     }
 
-    private static String getSafeShapeId(String configuredShapeId) {
-        if (configuredShapeId != null
-                && configuredShapeId.length() <= FabricNetworkingIds.MAX_SHAPE_ID_LENGTH) {
-            ResourceLocation parsed = ResourceLocation.tryParse(configuredShapeId);
-            if (parsed != null && ShapeRegistry.isRegistered(parsed)) {
-                return configuredShapeId;
+    private static boolean trySend(int sequence, ClientPreferenceRequest request) {
+        try {
+            if (!ClientPlayNetworking.canSend(FabricNetworkingIds.CLIENT_PREFERENCES)) {
+                return false;
             }
+            FriendlyByteBuf buffer = PacketByteBufs.create();
+            FabricPreferenceCodec.writeRequest(buffer, sequence, request);
+            ClientPlayNetworking.send(FabricNetworkingIds.CLIENT_PREFERENCES, buffer);
+            return true;
+        } catch (RuntimeException exception) {
+            OneKeyMiner.LOGGER.debug("Failed to send Fabric preferences", exception);
+            return false;
         }
-        return ShapeRegistry.DEFAULT_SHAPE_ID.toString();
     }
 
-    private static void registerKeyHandler() {
-        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(
-                client -> {
-                    boolean keyDown = CHAIN_MINING_KEY.isDown();
-                    if (keyDown != wasKeyDown) {
-                        wasKeyDown = keyDown;
-                        sendCurrentState();
-                    }
-                }
-        );
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (!SYNC_TRACKER.confirm(ack)) {
+            return;
+        }
+        pendingRequest = null;
+        retryDelay = 0;
+        if (preferencesDirty) {
+            syncPending = true;
+            return;
+        }
+        ClientPreferenceSession.accept(ack);
+        syncPending = false;
+        refreshDelay = POLICY_REFRESH_TICKS;
     }
 }

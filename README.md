@@ -56,9 +56,10 @@ Choose the correct version for your platform:
 - `onekeyminer-forge-x.x.x-1.20.1.jar` for Forge
 
 Install the matching loader artifact and the same OneKeyMiner version on both
-the dedicated server and every connecting client. Forge rejects an
-incompatible wire protocol; Fabric negotiates the versioned channel and falls
-back to the legacy state packets when the server advertises only those.
+the dedicated server and every connecting client. Version 1.6.7 uses one
+atomic, versioned preference packet plus a server acknowledgement on both
+loaders. A missing or incompatible optional channel never sends partial state;
+the client keeps retrying and uses local preview policy until an ACK arrives.
 
 ---
 
@@ -129,10 +130,10 @@ OneKeyMiner provides a comprehensive API for mod developers.
 
 ```groovy
 // Fabric
-modImplementation "org.xiyu:onekeyminer-fabric:1.6.6"
+modImplementation "org.xiyu:onekeyminer-fabric:1.6.7"
 
 // Forge
-implementation "org.xiyu:onekeyminer-forge:1.6.6"
+implementation "org.xiyu:onekeyminer-forge:1.6.7"
 ```
 
 ### Basic API Usage
@@ -145,7 +146,7 @@ OneKeyMinerAPI.registerBlock("mymod:custom_ore");
 OneKeyMinerAPI.registerBlockTag("#mymod:ores");
 
 // Register custom tools
-OneKeyMinerAPI.registerTool("mymod:super_pickaxe");
+OneKeyMinerAPI.whitelistTool("mymod:super_pickaxe");
 
 // Listen to events
 ChainEvents.registerPreActionListener(event -> {
@@ -185,7 +186,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.20.1`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.20.1-1.6.6`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.20.1-1.6.7`).
 
 
 ## 🐛 Issues & Contributions
@@ -199,7 +200,9 @@ Found a bug or have a suggestion?
 
 ## 📜 License
 
-This project is licensed under **All Rights Reserved (ARR)**. You may not copy, modify, or distribute the code without permission from the author.
+This project uses the **Code Repository General License Agreement v1.2**
+(`LicenseRef-Code-Repository-General-License-v1.2`). See
+[LICENSE_EN.md](LICENSE_EN.md) or [LICENSE_CN.md](LICENSE_CN.md) for the exact terms.
 
 ---
 

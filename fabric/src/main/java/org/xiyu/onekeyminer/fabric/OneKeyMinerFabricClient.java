@@ -4,6 +4,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -14,6 +15,7 @@ import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
 
 /**
  * Fabric 平台客户端入口点
@@ -29,6 +31,17 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     
     @Override
     public void onInitializeClient() {
+        ClientPlayNetworking.registerGlobalReceiver(
+                FabricNetworkingIds.SERVER_PREFERENCES_ACK,
+                (client, handler, buffer, responseSender) -> {
+                    try {
+                        ClientPreferenceAck ack = FabricPreferenceCodec.readAck(buffer);
+                        client.execute(() -> KeyBindings.handlePreferencesAck(ack));
+                    } catch (RuntimeException exception) {
+                        OneKeyMiner.LOGGER.warn("Rejected malformed Fabric preference ACK");
+                    }
+                }
+        );
         // 注册配置同步回调
         ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentState);
         

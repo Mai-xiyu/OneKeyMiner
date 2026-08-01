@@ -7,336 +7,286 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
-/**
- * 配置管理器
- * 
- * <p>负责加载、保存和管理模组的所有配置选项。
- * 支持热重载，配置文件使用 JSON 格式存储。</p>
- * 
- * <h2>配置文件位置</h2>
- * <ul>
- *   <li>Fabric: {@code .minecraft/config/onekeyminer.json}</li>
- *   <li>NeoForge/Forge: {@code .minecraft/config/onekeyminer.json}</li>
- * </ul>
- * 
- * @author Mai_xiyu
- * @version 2.0.0
- * @since Minecraft 1.21.9
- */
-public class ConfigManager {
-    
-    /** 配置文件名 */
+/** Publishes immutable-by-convention config snapshots and persists them atomically. */
+public final class ConfigManager {
     private static final String CONFIG_FILE_NAME = "onekeyminer.json";
-    
-    /** JSON 序列化器 */
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
             .create();
-    
-    /** 当前配置实例（线程安全） */
-    private static final AtomicReference<MinerConfig> CONFIG = new AtomicReference<>(new MinerConfig());
-    
-    /** 配置变更监听器列表 */
+    private static final AtomicReference<MinerConfig> CONFIG =
+            new AtomicReference<>(normalized(new MinerConfig()));
     private static final List<ConfigChangeListener> LISTENERS =
             new CopyOnWriteArrayList<>();
-    
-    /**
-     * 加载配置文件
-     * 
-     * <p>如果配置文件不存在，将创建默认配置并保存。</p>
-     */
-    public static void load() {
-        Path configPath = getConfigPath();
-        
-        try {
-            if (Files.exists(configPath)) {
-                String json = Files.readString(configPath);
-                MinerConfig loaded = GSON.fromJson(json, MinerConfig.class);
-                if (loaded != null) {
-                    CONFIG.set(loaded);
-                    OneKeyMiner.LOGGER.info("配置文件加载成功: {}", configPath);
-                }
-            } else {
-                // 创建默认配置
-                save();
-                OneKeyMiner.LOGGER.info("已创建默认配置文件: {}", configPath);
-            }
-        } catch (IOException e) {
-            OneKeyMiner.LOGGER.error("加载配置文件失败: {}", e.getMessage());
-        }
-        
-        // 验证配置值
-        validateConfig();
+
+    private ConfigManager() {
     }
-    
-    /**
-     * 保存当前配置到文件
-     */
-    public static void save() {
+
+    public static synchronized void load() {
         Path configPath = getConfigPath();
-        
-        try {
-            // 确保目录存在
-            Files.createDirectories(configPath.getParent());
-            
-            String json = GSON.toJson(CONFIG.get());
-            Files.writeString(configPath, json);
-            OneKeyMiner.LOGGER.debug("配置文件已保存: {}", configPath);
-        } catch (IOException e) {
-            OneKeyMiner.LOGGER.error("保存配置文件失败: {}", e.getMessage());
-        }
-    }
-    
-    /**
-     * 热重载配置
-     * 
-     * <p>从磁盘重新加载配置文件，进行逐字段验证。
-     * 有效的字段被接受，无效字段回退到内存中的旧值。</p>
-     */
-    public static void reload() {
-        MinerConfig oldConfig = CONFIG.get();
-        
-        Path configPath = getConfigPath();
-        MinerConfig diskConfig = null;
-        
-        try {
-            if (Files.exists(configPath)) {
-                String json = Files.readString(configPath);
-                diskConfig = GSON.fromJson(json, MinerConfig.class);
-            }
-        } catch (Exception e) {
-            OneKeyMiner.LOGGER.error("重载配置文件失败: {}", e.getMessage());
-            return; // 解析完全失败，保留旧配置
-        }
-        
-        if (diskConfig == null) {
-            OneKeyMiner.LOGGER.warn("配置文件解析结果为 null，保留当前配置");
+        if (!Files.exists(configPath)) {
+            save();
             return;
         }
-        
-        // 逐字段验证并合并
+        try {
+            MinerConfig loaded = GSON.fromJson(Files.readString(configPath), MinerConfig.class);
+            if (loaded == null) {
+                throw new IllegalArgumentException("configuration document is null");
+            }
+            CONFIG.set(normalized(loaded));
+            OneKeyMiner.LOGGER.info("Loaded config from {}", configPath);
+        } catch (IOException | RuntimeException exception) {
+            OneKeyMiner.LOGGER.error(
+                    "Could not load config {}; retaining safe defaults",
+                    configPath,
+                    exception
+            );
+        }
+    }
+
+    public static synchronized void save() {
+        Path configPath = getConfigPath();
+        Path temporary = configPath.resolveSibling(configPath.getFileName() + ".tmp");
+        try {
+            Files.createDirectories(configPath.getParent());
+            Files.writeString(temporary, GSON.toJson(CONFIG.get()));
+            try {
+                Files.move(
+                        temporary,
+                        configPath,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING
+                );
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(temporary, configPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException exception) {
+            OneKeyMiner.LOGGER.error("Could not save config {}", configPath, exception);
+        }
+    }
+
+    /** Reloads valid fields without exposing a half-parsed or mutable instance. */
+    public static synchronized void reload() {
+        Path configPath = getConfigPath();
+        final MinerConfig diskConfig;
+        try {
+            diskConfig = GSON.fromJson(Files.readString(configPath), MinerConfig.class);
+            if (diskConfig == null) {
+                throw new IllegalArgumentException("configuration document is null");
+            }
+        } catch (IOException | RuntimeException exception) {
+            OneKeyMiner.LOGGER.error("Could not reload config {}; retaining current values", configPath, exception);
+            return;
+        }
+
+        MinerConfig oldConfig = CONFIG.get().copy();
         MinerConfig merged = oldConfig.copy();
-        List<String> rejected = new ArrayList<>();
-        
-        // 基础设置
-        merged.enabled = diskConfig.enabled;
-        
-        // selectedShape: 验证是否为已注册形状
-        if (diskConfig.selectedShape != null && ShapeRegistry.isValidShapeId(diskConfig.selectedShape)) {
-            merged.selectedShape = diskConfig.selectedShape;
-        } else if (diskConfig.selectedShape != null) {
-            rejected.add("selectedShape (无效的形状 ID: " + diskConfig.selectedShape + ")");
-        }
-        
-        // maxBlocks: 1 - 10240
-        if (diskConfig.maxBlocks >= 1 && diskConfig.maxBlocks <= 10240) {
-            merged.maxBlocks = diskConfig.maxBlocks;
-        } else {
-            rejected.add("maxBlocks (" + diskConfig.maxBlocks + " 超出范围 1-10240)");
-        }
-        
-        // maxDistance: 1 - 128
-        if (diskConfig.maxDistance >= 1 && diskConfig.maxDistance <= 128) {
-            merged.maxDistance = diskConfig.maxDistance;
-        } else {
-            rejected.add("maxDistance (" + diskConfig.maxDistance + " 超出范围 1-128)");
-        }
-        
-        // 布尔值字段直接接受
-        merged.allowDiagonal = diskConfig.allowDiagonal;
-        merged.consumeDurability = diskConfig.consumeDurability;
-        merged.stopOnLowDurability = diskConfig.stopOnLowDurability;
-        merged.consumeHunger = diskConfig.consumeHunger;
-        merged.mineAllBlocks = diskConfig.mineAllBlocks;
-        merged.allowBareHand = diskConfig.allowBareHand;
-        merged.teleportDrops = diskConfig.teleportDrops;
-        merged.teleportExp = diskConfig.teleportExp;
-        merged.requireExactMatch = diskConfig.requireExactMatch;
-        merged.playSound = diskConfig.playSound;
-        merged.showStats = diskConfig.showStats;
-        merged.enableInteraction = diskConfig.enableInteraction;
-        merged.enablePlanting = diskConfig.enablePlanting;
-        merged.enableHarvesting = diskConfig.enableHarvesting;
-        merged.harvestReplant = diskConfig.harvestReplant;
-        merged.strictBlockMatching = diskConfig.strictBlockMatching;
-        
-        // preserveDurability: >= 0
-        if (diskConfig.preserveDurability >= 0) {
-            merged.preserveDurability = diskConfig.preserveDurability;
-        } else {
-            rejected.add("preserveDurability (" + diskConfig.preserveDurability + " < 0)");
-        }
-        
-        // hungerMultiplier: 0 - 10
-        if (diskConfig.hungerMultiplier >= 0 && diskConfig.hungerMultiplier <= 10) {
-            merged.hungerMultiplier = diskConfig.hungerMultiplier;
-        } else {
-            rejected.add("hungerMultiplier (" + diskConfig.hungerMultiplier + " 超出范围 0-10)");
-        }
-        
-        // minHungerLevel: 0 - 20
-        if (diskConfig.minHungerLevel >= 0 && diskConfig.minHungerLevel <= 20) {
-            merged.minHungerLevel = diskConfig.minHungerLevel;
-        } else {
-            rejected.add("minHungerLevel (" + diskConfig.minHungerLevel + " 超出范围 0-20)");
-        }
-        
-        // hungerPerBlock: >= 0
-        if (diskConfig.hungerPerBlock >= 0) {
-            merged.hungerPerBlock = diskConfig.hungerPerBlock;
-        } else {
-            rejected.add("hungerPerBlock (" + diskConfig.hungerPerBlock + " < 0)");
-        }
-        
-        // maxBlocksCreative: >= 1
-        if (diskConfig.maxBlocksCreative >= 1) {
-            merged.maxBlocksCreative = diskConfig.maxBlocksCreative;
-        } else {
-            rejected.add("maxBlocksCreative (" + diskConfig.maxBlocksCreative + " < 1)");
-        }
-        
-        // 列表字段直接接受（null 时保留旧值）
-        if (diskConfig.customWhitelist != null) merged.customWhitelist = new ArrayList<>(diskConfig.customWhitelist);
-        if (diskConfig.blacklist != null) merged.blacklist = new ArrayList<>(diskConfig.blacklist);
-        if (diskConfig.toolWhitelist != null) merged.toolWhitelist = new ArrayList<>(diskConfig.toolWhitelist);
-        if (diskConfig.toolBlacklist != null) merged.toolBlacklist = new ArrayList<>(diskConfig.toolBlacklist);
-        if (diskConfig.interactionToolWhitelist != null) merged.interactionToolWhitelist = new ArrayList<>(diskConfig.interactionToolWhitelist);
-        if (diskConfig.interactionToolBlacklist != null) merged.interactionToolBlacklist = new ArrayList<>(diskConfig.interactionToolBlacklist);
-        if (diskConfig.seedWhitelist != null) merged.seedWhitelist = new ArrayList<>(diskConfig.seedWhitelist);
-        if (diskConfig.seedBlacklist != null) merged.seedBlacklist = new ArrayList<>(diskConfig.seedBlacklist);
-        if (diskConfig.farmlandWhitelist != null) merged.farmlandWhitelist = new ArrayList<>(diskConfig.farmlandWhitelist);
-        if (diskConfig.interactiveItemWhitelist != null) merged.interactiveItemWhitelist = new ArrayList<>(diskConfig.interactiveItemWhitelist);
-        if (diskConfig.interactiveItemBlacklist != null) merged.interactiveItemBlacklist = new ArrayList<>(diskConfig.interactiveItemBlacklist);
-        
-        // 应用合并后的配置
-        CONFIG.set(merged);
-        
-        // 报告结果
-        if (!rejected.isEmpty()) {
-            OneKeyMiner.LOGGER.warn("配置热重载：以下字段验证失败，已回退旧值: {}", String.join(", ", rejected));
-        }
-        
-        // 通知所有监听器
-        MinerConfig newConfig = CONFIG.get();
-        LISTENERS.forEach(listener -> listener.onConfigChanged(oldConfig, newConfig));
-        
-        OneKeyMiner.LOGGER.info("配置已热重载 (接受: {}, 拒绝: {})", 
-                "大部分字段", rejected.isEmpty() ? "无" : rejected.size() + " 个");
+        mergeDiskConfig(merged, diskConfig);
+        MinerConfig committed = normalized(merged);
+        CONFIG.set(committed);
+        notifyListeners(oldConfig, committed.copy());
+        ConfigSyncHelper.triggerSync();
     }
-    
-    /**
-     * 获取当前配置实例
-     * 
-     * @return 当前配置（不可变副本）
-     */
+
+    /** Returns an isolated snapshot; callers cannot mutate the published config. */
     public static MinerConfig getConfig() {
-        return CONFIG.get();
+        return CONFIG.get().copy();
     }
-    
-    /**
-     * 更新配置并保存
-     * 
-     * @param newConfig 新的配置实例
-     */
-    public static void updateConfig(MinerConfig newConfig) {
-        MinerConfig oldConfig = CONFIG.get();
-        CONFIG.set(newConfig);
-        validateConfig();
+
+    public record ClientPreferencesSnapshot(
+            String selectedShape,
+            boolean teleportDrops,
+            boolean teleportExp
+    ) {
+    }
+
+    public static ClientPreferencesSnapshot getClientPreferencesSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ClientPreferencesSnapshot(
+                config.selectedShape,
+                config.teleportDrops,
+                config.teleportExp
+        );
+    }
+
+    public record ServerPreferenceSnapshot(
+            boolean enabled,
+            int maxBlocks,
+            int maxBlocksCreative,
+            int maxDistance,
+            boolean allowDiagonal,
+            boolean allowClientTeleportDrops,
+            boolean allowClientTeleportExp
+    ) {
+        public int maxBlocksFor(boolean creative) {
+            return creative ? maxBlocksCreative : maxBlocks;
+        }
+    }
+
+    public static ServerPreferenceSnapshot getServerPreferenceSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ServerPreferenceSnapshot(
+                config.enabled,
+                config.maxBlocks,
+                config.maxBlocksCreative,
+                config.maxDistance,
+                config.allowDiagonal,
+                config.allowClientTeleportDrops,
+                config.allowClientTeleportExp
+        );
+    }
+
+    public static synchronized void updateConfig(MinerConfig newConfig) {
+        updateConfig(newConfig, "all");
+    }
+
+    public static synchronized void updateConfig(MinerConfig newConfig, String changedKey) {
+        Objects.requireNonNull(newConfig, "newConfig");
+        Objects.requireNonNull(changedKey, "changedKey");
+        MinerConfig oldConfig = CONFIG.get().copy();
+        MinerConfig committed = normalized(newConfig);
+        CONFIG.set(committed);
         save();
-        
-        // 通知所有监听器
-        LISTENERS.forEach(listener -> listener.onConfigChanged(oldConfig, newConfig));
+        notifyListeners(oldConfig, committed.copy());
+        ConfigSyncHelper.notifyConfigChanged(changedKey);
     }
-    
-    /**
-     * 注册配置变更监听器
-     * 
-     * @param listener 监听器实例
-     */
+
+    /** Atomic copy-edit-publish helper for public API setters. */
+    public static synchronized void editConfig(String changedKey, Consumer<MinerConfig> editor) {
+        Objects.requireNonNull(changedKey, "changedKey");
+        Objects.requireNonNull(editor, "editor");
+        MinerConfig edited = CONFIG.get().copy();
+        editor.accept(edited);
+        updateConfig(edited, changedKey);
+    }
+
     public static void addListener(ConfigChangeListener listener) {
-        LISTENERS.add(listener);
+        LISTENERS.add(Objects.requireNonNull(listener, "listener"));
     }
-    
-    /**
-     * 移除配置变更监听器
-     * 
-     * @param listener 监听器实例
-     */
+
     public static void removeListener(ConfigChangeListener listener) {
         LISTENERS.remove(listener);
     }
-    
-    /**
-     * 获取配置文件路径
-     */
+
     private static Path getConfigPath() {
         return PlatformServices.getInstance().getConfigDirectory().resolve(CONFIG_FILE_NAME);
     }
-    
-    /**
-     * 验证配置值，确保在有效范围内
-     */
-    private static void validateConfig() {
-        MinerConfig config = CONFIG.get();
-        boolean changed = false;
 
-        if (config.selectedShape == null || config.selectedShape.isEmpty()) {
-            config.selectedShape = "onekeyminer:amorphous";
-            changed = true;
-            OneKeyMiner.LOGGER.warn("selectedShape 为空，已重置为默认值 onekeyminer:amorphous");
+    private static MinerConfig normalized(MinerConfig source) {
+        Objects.requireNonNull(source, "source");
+        MinerConfig result = source.copy();
+        normalizeCollections(result);
+        result.maxBlocks = Math.max(1, Math.min(10_240, result.maxBlocks));
+        result.maxBlocksCreative = Math.max(1, Math.min(10_240, result.maxBlocksCreative));
+        result.maxDistance = Math.max(1, Math.min(128, result.maxDistance));
+        result.preserveDurability = Math.max(0, result.preserveDurability);
+        if (!Float.isFinite(result.hungerMultiplier)) {
+            result.hungerMultiplier = 1.0f;
         }
-        
-        // 限制最大方块数量
-        if (config.maxBlocks < 1) {
-            config.maxBlocks = 1;
-            changed = true;
-        } else if (config.maxBlocks > 10240) {
-            config.maxBlocks = 10240;
-            changed = true;
+        result.hungerMultiplier = Math.max(
+                0.0f,
+                Math.min(10.0f, result.hungerMultiplier)
+        );
+        result.minHungerLevel = Math.max(0, Math.min(20, result.minHungerLevel));
+        if (!Float.isFinite(result.hungerPerBlock)) {
+            result.hungerPerBlock = 0.025f;
         }
-        
-        // 限制最大距离
-        if (config.maxDistance < 1) {
-            config.maxDistance = 1;
-            changed = true;
-        } else if (config.maxDistance > 128) {
-            config.maxDistance = 128;
-            changed = true;
+        result.hungerPerBlock = Math.max(0.0f, result.hungerPerBlock);
+        if (!ShapeRegistry.isValidShapeId(result.selectedShape)) {
+            result.selectedShape = ShapeRegistry.DEFAULT_SHAPE_ID.toString();
         }
-        
-        // 限制饥饿消耗倍率
-        if (config.hungerMultiplier < 0) {
-            config.hungerMultiplier = 0;
-            changed = true;
-        } else if (config.hungerMultiplier > 10) {
-            config.hungerMultiplier = 10;
-            changed = true;
+        normalizeCollections(result);
+        return result;
+    }
+
+    private static void normalizeCollections(MinerConfig config) {
+        if (config.interactionToolWhitelist == null) config.interactionToolWhitelist = new ArrayList<>();
+        if (config.interactionToolBlacklist == null) config.interactionToolBlacklist = new ArrayList<>();
+        if (config.seedWhitelist == null) config.seedWhitelist = new ArrayList<>();
+        if (config.seedBlacklist == null) config.seedBlacklist = new ArrayList<>();
+        if (config.farmlandWhitelist == null) config.farmlandWhitelist = new ArrayList<>();
+        if (config.interactiveItemWhitelist == null) config.interactiveItemWhitelist = new ArrayList<>();
+        if (config.interactiveItemBlacklist == null) config.interactiveItemBlacklist = new ArrayList<>();
+        if (config.customWhitelist == null) config.customWhitelist = new ArrayList<>();
+        if (config.blacklist == null) config.blacklist = new ArrayList<>();
+        if (config.toolWhitelist == null) config.toolWhitelist = new ArrayList<>();
+        if (config.toolBlacklist == null) config.toolBlacklist = new ArrayList<>();
+    }
+
+    private static void mergeDiskConfig(MinerConfig target, MinerConfig disk) {
+        target.enabled = disk.enabled;
+        if (ShapeRegistry.isValidShapeId(disk.selectedShape)) target.selectedShape = disk.selectedShape;
+        if (disk.maxBlocks >= 1 && disk.maxBlocks <= 10_240) target.maxBlocks = disk.maxBlocks;
+        if (disk.maxBlocksCreative >= 1 && disk.maxBlocksCreative <= 10_240) target.maxBlocksCreative = disk.maxBlocksCreative;
+        if (disk.maxDistance >= 1 && disk.maxDistance <= 128) target.maxDistance = disk.maxDistance;
+        target.allowDiagonal = disk.allowDiagonal;
+        target.consumeDurability = disk.consumeDurability;
+        target.stopOnLowDurability = disk.stopOnLowDurability;
+        if (disk.preserveDurability >= 0) target.preserveDurability = disk.preserveDurability;
+        target.consumeHunger = disk.consumeHunger;
+        if (Float.isFinite(disk.hungerMultiplier)
+                && disk.hungerMultiplier >= 0
+                && disk.hungerMultiplier <= 10) {
+            target.hungerMultiplier = disk.hungerMultiplier;
         }
-        
-        if (changed) {
-            OneKeyMiner.LOGGER.warn("部分配置值超出有效范围，已自动修正");
+        if (disk.minHungerLevel >= 0 && disk.minHungerLevel <= 20) target.minHungerLevel = disk.minHungerLevel;
+        if (Float.isFinite(disk.hungerPerBlock) && disk.hungerPerBlock >= 0) {
+            target.hungerPerBlock = disk.hungerPerBlock;
+        }
+        target.enableInteraction = disk.enableInteraction;
+        target.enablePlanting = disk.enablePlanting;
+        target.enableHarvesting = disk.enableHarvesting;
+        target.harvestReplant = disk.harvestReplant;
+        target.strictBlockMatching = disk.strictBlockMatching;
+        target.mineAllBlocks = disk.mineAllBlocks;
+        target.allowBareHand = disk.allowBareHand;
+        target.teleportDrops = disk.teleportDrops;
+        target.teleportExp = disk.teleportExp;
+        target.allowClientTeleportDrops = disk.allowClientTeleportDrops;
+        target.allowClientTeleportExp = disk.allowClientTeleportExp;
+        target.requireExactMatch = disk.requireExactMatch;
+        target.playSound = disk.playSound;
+        target.showStats = disk.showStats;
+        copyCollections(target, disk);
+    }
+
+    private static void copyCollections(MinerConfig target, MinerConfig source) {
+        if (source.interactionToolWhitelist != null) target.interactionToolWhitelist = new ArrayList<>(source.interactionToolWhitelist);
+        if (source.interactionToolBlacklist != null) target.interactionToolBlacklist = new ArrayList<>(source.interactionToolBlacklist);
+        if (source.seedWhitelist != null) target.seedWhitelist = new ArrayList<>(source.seedWhitelist);
+        if (source.seedBlacklist != null) target.seedBlacklist = new ArrayList<>(source.seedBlacklist);
+        if (source.farmlandWhitelist != null) target.farmlandWhitelist = new ArrayList<>(source.farmlandWhitelist);
+        if (source.interactiveItemWhitelist != null) target.interactiveItemWhitelist = new ArrayList<>(source.interactiveItemWhitelist);
+        if (source.interactiveItemBlacklist != null) target.interactiveItemBlacklist = new ArrayList<>(source.interactiveItemBlacklist);
+        if (source.customWhitelist != null) target.customWhitelist = new ArrayList<>(source.customWhitelist);
+        if (source.blacklist != null) target.blacklist = new ArrayList<>(source.blacklist);
+        if (source.toolWhitelist != null) target.toolWhitelist = new ArrayList<>(source.toolWhitelist);
+        if (source.toolBlacklist != null) target.toolBlacklist = new ArrayList<>(source.toolBlacklist);
+    }
+
+    private static void notifyListeners(MinerConfig oldConfig, MinerConfig newConfig) {
+        for (ConfigChangeListener listener : LISTENERS) {
+            try {
+                listener.onConfigChanged(oldConfig.copy(), newConfig.copy());
+            } catch (RuntimeException exception) {
+                OneKeyMiner.LOGGER.error("Config change listener failed", exception);
+            }
         }
     }
-    
-    /**
-     * 配置变更监听器接口
-     */
+
     @FunctionalInterface
     public interface ConfigChangeListener {
-        /**
-         * 当配置发生变更时调用
-         * 
-         * @param oldConfig 旧配置
-         * @param newConfig 新配置
-         */
         void onConfigChanged(MinerConfig oldConfig, MinerConfig newConfig);
     }
 }

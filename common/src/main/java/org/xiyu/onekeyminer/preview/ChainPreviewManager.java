@@ -7,6 +7,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeContext;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -94,12 +95,14 @@ public class ChainPreviewManager {
         
         // 获取配置和形状
         MinerConfig config = ConfigManager.getConfig();
-        if (!config.enabled) {
+        ClientPreferenceSession.PreviewPolicy policy =
+                ClientPreferenceSession.resolvePreviewPolicy(config);
+        if (!policy.enabled()) {
             clearPreview();
             return;
         }
         
-        String shapeIdStr = config.selectedShape;
+        String shapeIdStr = policy.shapeId();
         ChainShape shape = ShapeRegistry.getShapeOrDefault(shapeIdStr);
         if (shape == null) {
             clearPreview();
@@ -127,9 +130,9 @@ public class ChainPreviewManager {
                     .originState(lookingState)
                     .playerFacing(playerFacing)
                     .playerLookingVertical(verticalDir)
-                    .maxBlocks(config.maxBlocks)
-                    .maxDistance(config.maxDistance)
-                    .allowDiagonal(config.allowDiagonal)
+                    .maxBlocks(policy.maxBlocks())
+                    .maxDistance(policy.maxDistance())
+                    .allowDiagonal(policy.allowDiagonal())
                     // 预览模式使用简单匹配：同类方块
                     .blockMatcher((origin, target) -> !target.isAir() && target.getBlock() == origin.getBlock())
                     .build();

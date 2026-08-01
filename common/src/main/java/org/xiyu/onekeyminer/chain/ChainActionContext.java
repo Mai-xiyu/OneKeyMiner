@@ -6,6 +6,9 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+
+import java.util.UUID;
 
 /**
  * 链式操作上下文
@@ -14,8 +17,8 @@ import net.minecraft.world.level.block.state.BlockState;
  * 使用 Builder 模式构建，确保所有必需参数都被正确设置。</p>
  * 
  * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.7
+ * @since Minecraft 1.20.1
  */
 public final class ChainActionContext {
     
@@ -44,6 +47,12 @@ public final class ChainActionContext {
 
     /** 交互类型覆盖（仅用于交互操作） */
     private final InteractionOverride interactionOverride;
+
+    /** Exact clicked entity, when this is an entity interaction. */
+    private final UUID originEntityId;
+
+    /** Original block click geometry used for derived server interactions. */
+    private final BlockHitResult blockHitResult;
     
     // ========== 可选参数 ==========
     
@@ -58,6 +67,12 @@ public final class ChainActionContext {
     
     /** 是否跳过权限检查 */
     private final boolean skipPermissionCheck;
+
+    /** Activation was observed by the loader before the original action completed. */
+    private final boolean activationVerified;
+
+    /** The original action succeeded and must not be executed a second time. */
+    private final boolean originAlreadyHandled;
     
     /**
      * 私有构造函数，使用 Builder 构建
@@ -71,10 +86,14 @@ public final class ChainActionContext {
         this.heldItem = builder.heldItem;
         this.hand = builder.hand;
         this.interactionOverride = builder.interactionOverride;
+        this.originEntityId = builder.originEntityId;
+        this.blockHitResult = builder.blockHitResult;
         this.maxCount = builder.maxCount;
         this.maxDistance = builder.maxDistance;
         this.allowDiagonal = builder.allowDiagonal;
         this.skipPermissionCheck = builder.skipPermissionCheck;
+        this.activationVerified = builder.activationVerified;
+        this.originAlreadyHandled = builder.originAlreadyHandled;
     }
     
     // ========== Getters ==========
@@ -109,6 +128,22 @@ public final class ChainActionContext {
 
     public InteractionOverride getInteractionOverride() {
         return interactionOverride;
+    }
+
+    public UUID getOriginEntityId() {
+        return originEntityId;
+    }
+
+    public BlockHitResult getBlockHitResult() {
+        return blockHitResult;
+    }
+
+    public boolean isActivationVerified() {
+        return activationVerified;
+    }
+
+    public boolean isOriginAlreadyHandled() {
+        return originAlreadyHandled;
     }
     
     public int getMaxCount() {
@@ -169,6 +204,75 @@ public final class ChainActionContext {
                 .heldItem(player.getMainHandItem())
                 .hand(InteractionHand.MAIN_HAND)
                 .build();
+    }
+
+    public static ChainActionContext forVerifiedMining(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            BlockState state
+    ) {
+        return builder()
+                .player(player)
+                .level(level)
+                .originPos(pos)
+                .originState(state)
+                .actionType(ChainActionType.MINING)
+                .heldItem(player.getMainHandItem())
+                .hand(InteractionHand.MAIN_HAND)
+                .activationVerified(true)
+                .originAlreadyHandled(true)
+                .build();
+    }
+
+    public static ChainActionContext forCompletedBlockUse(
+            ServerPlayer player,
+            Level level,
+            BlockPos originPos,
+            BlockState originalState,
+            ChainActionType actionType,
+            InteractionHand hand,
+            InteractionOverride interactionOverride,
+            BlockHitResult hitResult
+    ) {
+        return builder()
+                .player(player)
+                .level(level)
+                .originPos(originPos)
+                .originState(originalState)
+                .actionType(actionType)
+                .heldItem(player.getItemInHand(hand))
+                .hand(hand)
+                .interactionOverride(interactionOverride)
+                .blockHitResult(hitResult)
+                .activationVerified(true)
+                .originAlreadyHandled(true)
+                .build();
+    }
+
+    public static ChainActionContext forCompletedEntityUse(
+            ServerPlayer player,
+            Level level,
+            EntityIdentity origin,
+            BlockState originalState,
+            InteractionHand hand
+    ) {
+        return builder()
+                .player(player)
+                .level(level)
+                .originPos(origin.position())
+                .originState(originalState)
+                .actionType(ChainActionType.INTERACTION)
+                .heldItem(player.getItemInHand(hand))
+                .hand(hand)
+                .interactionOverride(InteractionOverride.SHEARING)
+                .originEntityId(origin.id())
+                .activationVerified(true)
+                .originAlreadyHandled(true)
+                .build();
+    }
+
+    public record EntityIdentity(UUID id, BlockPos position) {
     }
     
     /**
@@ -265,10 +369,14 @@ public final class ChainActionContext {
         private ItemStack heldItem = ItemStack.EMPTY;
         private InteractionHand hand = InteractionHand.MAIN_HAND;
         private InteractionOverride interactionOverride;
+        private UUID originEntityId;
+        private BlockHitResult blockHitResult;
         private int maxCount = -1;  // -1 表示使用配置值
         private int maxDistance = -1;
         private boolean allowDiagonal = true;
         private boolean skipPermissionCheck = false;
+        private boolean activationVerified;
+        private boolean originAlreadyHandled;
         
         public Builder player(ServerPlayer player) {
             this.player = player;
@@ -307,6 +415,26 @@ public final class ChainActionContext {
 
         public Builder interactionOverride(InteractionOverride override) {
             this.interactionOverride = override;
+            return this;
+        }
+
+        public Builder originEntityId(UUID id) {
+            this.originEntityId = id;
+            return this;
+        }
+
+        public Builder blockHitResult(BlockHitResult hitResult) {
+            this.blockHitResult = hitResult;
+            return this;
+        }
+
+        public Builder activationVerified(boolean verified) {
+            this.activationVerified = verified;
+            return this;
+        }
+
+        public Builder originAlreadyHandled(boolean handled) {
+            this.originAlreadyHandled = handled;
             return this;
         }
         
@@ -359,6 +487,7 @@ public final class ChainActionContext {
         STRIPPING,
         PATH_MAKING,
         BRUSHING,
+        ITEM_USE,
         GENERIC
     }
 }
