@@ -4,12 +4,12 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
@@ -22,6 +22,12 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentPreferences);
+        ClientPlayNetworking.registerGlobalReceiver(
+                FabricPayloads.ServerPreferencesAckPayload.TYPE,
+                (payload, context) -> context.client().execute(
+                        () -> KeyBindings.handlePreferencesAck(payload.toCommon())
+                )
+        );
 
         KeyBindings.register();
         registerPreviewSystem();
