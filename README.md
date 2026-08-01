@@ -11,9 +11,9 @@
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
   <a href="LICENSE_EN.md"><img src="https://img.shields.io/badge/license-Custom%20v1.2-red?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.6-blue?style=flat-square" alt="OneKeyMiner Version">
+  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.7-blue?style=flat-square" alt="OneKeyMiner Version">
   <img src="https://img.shields.io/badge/Minecraft-26.1-green?style=flat-square" alt="Minecraft Version">
-  <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square" alt="Java Version">
+  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java Version">
 </p>
 
 <p align="center">
@@ -42,8 +42,8 @@
 | Component | Version |
 |-----------|---------|
 | Minecraft | 26.1 |
-| OneKeyMiner | 1.6.6 |
-| Java | 21 |
+| OneKeyMiner | 1.6.7 |
+| Java | 25 |
 | Fabric Loader | 0.18.4 |
 | Fabric API | 0.144.0+26.1 |
 | NeoForge | 26.1.0.1-beta |
@@ -54,9 +54,9 @@
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-1.6.6-26.1.jar` for Fabric
-- `onekeyminer-neoforge-1.6.6-26.1.jar` for NeoForge
-- `onekeyminer-forge-1.6.6-26.1.jar` for Forge
+- `onekeyminer-fabric-1.6.7-26.1.jar` for Fabric
+- `onekeyminer-neoforge-1.6.7-26.1.jar` for NeoForge
+- `onekeyminer-forge-1.6.7-26.1.jar` for Forge
 
 Use the matching platform JAR on both the client and server. A universal JAR
 is not published because loader-specific Minecraft mappings cannot provide a
@@ -64,10 +64,18 @@ single binary-compatible public API to add-on mods.
 
 ### Multiplayer configuration
 
-On dedicated servers, global limits and feature switches are server-authoritative. Client
-screens may display local values, but cannot override server policy. Per-player preferences
-(selected shape and drop/experience teleport settings) are synchronized when joining, when
-the activation key changes, and after saving the configuration screen.
+On dedicated servers, global limits, feature switches, and teleport permission gates are
+server-authoritative. While connected to a remote server, the config screen shows and saves
+only client-owned preferences: selected shape plus drop/experience teleport requests. Local
+and integrated-singleplayer screens retain the complete configuration.
+
+Preference synchronization uses the versioned v3 protocol on all three loaders. A changed
+preference allocates a new sequence and immutable snapshot; transport and ACK retries reuse
+that exact pair. Synchronization completes only when the matching server ACK reports the
+applied shape, server enable state, preview limits, diagonal policy, effective teleport values,
+and supported capabilities. The result is connection-local and never overwrites saved client
+requests. Clients refresh it periodically so server hot reloads converge. Incompatible protocol
+versions use distinct payload IDs or exact channel negotiation and are rejected before decoding.
 
 ---
 
@@ -110,8 +118,8 @@ Configuration file location: `config/onekeyminer.json`
 | `consumeHunger` | `true` | Consume hunger for each block |
 | `minHungerLevel` | `1` | Stop when hunger reaches this value |
 | `allowBareHand` | `true` | Allow chain mining without tools |
-| `teleportDrops` | `false` | Teleport drops to player inventory |
-| `teleportExp` | `false` | Teleport experience to player |
+| `teleportDrops` | `false` | Client request to teleport drops to player inventory |
+| `teleportExp` | `false` | Client request to teleport experience to player |
 | `allowClientTeleportDrops` | `true` | Server policy gate for client-requested drop teleport |
 | `allowClientTeleportExp` | `true` | Server policy gate for client-requested experience teleport |
 
@@ -139,13 +147,13 @@ compile-only dependency.
 
 ```groovy
 // Fabric Loom
-modCompileOnly files("libs/onekeyminer-fabric-1.6.6-26.1.jar")
+modCompileOnly files("libs/onekeyminer-fabric-1.6.7-26.1.jar")
 
 // ForgeGradle
-compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-26.1.jar"))
+compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-26.1.jar"))
 
 // NeoGradle or ModDevGradle
-compileOnly files("libs/onekeyminer-neoforge-1.6.6-26.1.jar")
+compileOnly files("libs/onekeyminer-neoforge-1.6.7-26.1.jar")
 ```
 
 Install OneKeyMiner separately at runtime and declare it in the add-on's loader
@@ -163,6 +171,12 @@ OneKeyMinerAPI.registerBlockTag("#mymod:ores");
 
 // Register custom tools
 OneKeyMinerAPI.whitelistTool("mymod:super_pickaxe");
+
+// Current-connection server result; saved local requests remain unchanged.
+OneKeyMinerAPI.getAcknowledgedServerPreferences().ifPresent(ack -> {
+    System.out.println("Server shape: " + ack.appliedShapeId());
+    System.out.println("Server max blocks: " + ack.maxBlocksApplied());
+});
 
 // Listen to events
 ChainEvents.registerPreActionListener(event -> {
@@ -183,6 +197,15 @@ authorize unrelated neighboring work.
 `ConfigManager.getConfig()` returns a defensive copy. Use
 `ConfigManager.editConfig(key, editor)` for atomic changes. The deprecated
 `skipPermissionCheck` context option is ignored.
+
+Teleport APIs explicitly separate client request, server policy, and the
+per-player effective result. Use `setLocalDropTeleportRequested` /
+`setLocalExperienceTeleportRequested` on a physical client,
+`setClientDropTeleportAllowed` / `setClientExperienceTeleportAllowed` on the
+logical server, and query `isDropTeleportEffective(ServerPlayer)` /
+`isExperienceTeleportEffective(ServerPlayer)` during server-side gameplay.
+The older `*Teleport*Enabled` methods remain compatible but are deprecated
+aliases for local requests.
 
 See [API Documentation](api-reference.md) for the complete 26.1 reference,
 including the current event, shape, context, and tool-rule signatures. Shape IDs
@@ -219,7 +242,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `26.1`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `26.1-1.6.6`).
+- **Tag format**: `<branch>-<mod_version>` (example: `26.1-1.6.7`).
 
 
 ## 🐛 Issues & Contributions

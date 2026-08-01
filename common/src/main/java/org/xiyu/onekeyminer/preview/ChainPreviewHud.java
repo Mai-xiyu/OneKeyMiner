@@ -5,6 +5,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 
 /**
  * Lightweight HUD panel for the current chain preview.
@@ -36,7 +37,10 @@ public class ChainPreviewHud {
         Component titleLine = Component.translatable("onekeyminer.hud.preview_title");
         Component shapeLine = Component.translatable("onekeyminer.hud.shape", shapeName);
         Component countLine = Component.translatable("onekeyminer.hud.count", count);
-        Component maxLine = Component.translatable("onekeyminer.hud.max", ConfigManager.getConfig().maxBlocks);
+        int effectiveMaxBlocks = ClientPreferenceSession.resolvePreviewPolicy(
+                ConfigManager.getConfig()
+        ).maxBlocks();
+        Component maxLine = Component.translatable("onekeyminer.hud.max", effectiveMaxBlocks);
 
         int panelWidth = Math.max(
                 Math.max(font.width(titleLine), font.width(shapeLine)),

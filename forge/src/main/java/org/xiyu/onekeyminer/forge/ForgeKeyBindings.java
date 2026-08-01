@@ -17,20 +17,22 @@ import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
 import java.lang.reflect.Method;
 
 @OnlyIn(Dist.CLIENT)
-public class ForgeKeyBindings {
+public final class ForgeKeyBindings {
     public static final KeyMapping CHAIN_MINING_KEY = new KeyMapping(
             "key.onekeyminer.hold",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_GRAVE_ACCENT,
             KeyMapping.Category.GAMEPLAY
     );
-
     public static final KeyMapping OPEN_CONFIG = new KeyMapping(
             "key.onekeyminer.config",
             InputConstants.Type.KEYSYM,
@@ -38,15 +40,27 @@ public class ForgeKeyBindings {
             KeyMapping.Category.GAMEPLAY
     );
 
+    private static final int TRANSPORT_RETRY_TICKS = 20;
+    private static final int ACK_RETRY_TICKS = 100;
+    private static final int POLICY_REFRESH_TICKS = 600;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
+
+    private static boolean wasKeyDown;
+    private static boolean wasConnected;
+    private static boolean syncPending = true;
+    private static boolean preferencesDirty = true;
+    private static int syncRetryDelay;
+    private static int policyRefreshDelay;
+    private static ClientPreferenceRequest pendingRequest;
+
     static {
         CHAIN_MINING_KEY.setKeyConflictContext(KeyConflictContext.IN_GAME);
         OPEN_CONFIG.setKeyConflictContext(KeyConflictContext.IN_GAME);
     }
 
-    private static boolean wasKeyDown = false;
-    private static boolean wasConnected = false;
-    private static boolean syncPending = true;
-    private static int syncRetryDelay;
+    private ForgeKeyBindings() {
+    }
 
     public static void register() {
         OneKeyMiner.LOGGER.debug("Forge key bindings initialized");
@@ -54,12 +68,15 @@ public class ForgeKeyBindings {
 
     private static void openConfigScreen(Minecraft minecraft) {
         try {
-            Method createMethod = ForgeConfigScreen.class.getDeclaredMethod("createConfigScreen", Screen.class);
+            Method createMethod = ForgeConfigScreen.class.getDeclaredMethod(
+                    "createConfigScreen",
+                    Screen.class
+            );
             createMethod.setAccessible(true);
             Screen configScreen = (Screen) createMethod.invoke(null, minecraft.screen);
             minecraft.setScreen(configScreen);
         } catch (Exception e) {
-            OneKeyMiner.LOGGER.error("Failed to open Forge config screen: {}", e.getMessage());
+            OneKeyMiner.LOGGER.error("Failed to open Forge config screen", e);
         }
     }
 
@@ -69,22 +86,64 @@ public class ForgeKeyBindings {
         OneKeyMiner.LOGGER.info("Registered Forge key mappings");
     }
 
+    /** Coalesces config callbacks; the next client tick captures one snapshot. */
     public static void sendCurrentPreferences() {
         Minecraft minecraft = Minecraft.getInstance();
         if (!minecraft.isSameThread()) {
             minecraft.execute(ForgeKeyBindings::sendCurrentPreferences);
             return;
         }
-        boolean sent = ForgeClientNetworking.trySyncPreferences(CHAIN_MINING_KEY.isDown());
-        syncPending = !sent;
-        syncRetryDelay = sent ? 0 : 20;
-        if (sent) {
-            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        markPreferencesDirty(true);
+    }
+
+    private static void markPreferencesDirty(boolean clearAcknowledgement) {
+        SYNC_TRACKER.invalidatePendingAttempt();
+        pendingRequest = null;
+        preferencesDirty = true;
+        syncPending = true;
+        syncRetryDelay = 0;
+        if (clearAcknowledgement) {
+            ClientPreferenceSession.clear();
         }
     }
 
+    private static void attemptSynchronization() {
+        int sequence;
+        if (preferencesDirty || !SYNC_TRACKER.hasPendingAttempt()) {
+            sequence = SYNC_TRACKER.beginAttempt();
+            pendingRequest = ClientPreferenceRequest.capture(CHAIN_MINING_KEY.isDown());
+            preferencesDirty = false;
+        } else {
+            sequence = SYNC_TRACKER.pendingSequence();
+        }
+        if (pendingRequest == null) {
+            return;
+        }
+        boolean sent = ForgeClientNetworking.trySyncPreferences(sequence, pendingRequest);
+        syncPending = true;
+        syncRetryDelay = sent ? ACK_RETRY_TICKS : TRANSPORT_RETRY_TICKS;
+    }
+
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (!SYNC_TRACKER.confirm(ack)) {
+            return;
+        }
+        pendingRequest = null;
+        syncRetryDelay = 0;
+        if (preferencesDirty) {
+            syncPending = true;
+            return;
+        }
+        ClientPreferenceSession.accept(ack);
+        syncPending = false;
+        policyRefreshDelay = POLICY_REFRESH_TICKS;
+    }
+
     @Mod.EventBusSubscriber(modid = OneKeyMiner.MOD_ID, value = Dist.CLIENT)
-    public static class Events {
+    public static final class Events {
+        private Events() {
+        }
+
         @SubscribeEvent
         public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
             registerKeyMappings(event);
@@ -93,12 +152,20 @@ public class ForgeKeyBindings {
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent.Post event) {
             Minecraft minecraft = Minecraft.getInstance();
-            boolean connected = minecraft.player != null && minecraft.getConnection() != null;
+            boolean connected = minecraft.player != null
+                    && minecraft.getConnection() != null;
             if (!connected) {
+                if (wasConnected) {
+                    SYNC_TRACKER.reset();
+                }
                 wasConnected = false;
                 wasKeyDown = false;
                 syncPending = true;
+                preferencesDirty = true;
                 syncRetryDelay = 0;
+                policyRefreshDelay = 0;
+                pendingRequest = null;
+                ClientPreferenceSession.clear();
                 return;
             }
 
@@ -106,38 +173,51 @@ public class ForgeKeyBindings {
                 openConfigScreen(minecraft);
             }
 
-            boolean isKeyDown = CHAIN_MINING_KEY.isDown();
-
+            boolean keyDown = CHAIN_MINING_KEY.isDown();
             if (!wasConnected) {
                 wasConnected = true;
+                wasKeyDown = keyDown;
+                SYNC_TRACKER.reset();
                 syncPending = true;
+                preferencesDirty = true;
                 syncRetryDelay = 0;
+                policyRefreshDelay = 0;
+                pendingRequest = null;
+                ClientPreferenceSession.clear();
             }
 
+            if (keyDown != wasKeyDown) {
+                wasKeyDown = keyDown;
+                markPreferencesDirty(false);
+            }
+            if (!syncPending) {
+                policyRefreshDelay--;
+                if (policyRefreshDelay <= 0) {
+                    markPreferencesDirty(false);
+                }
+            }
             if (syncPending) {
                 if (syncRetryDelay > 0) {
                     syncRetryDelay--;
                 } else {
-                    sendCurrentPreferences();
-                }
-            } else if (isKeyDown != wasKeyDown) {
-                if (ForgeClientNetworking.trySyncPreferences(isKeyDown)) {
-                    wasKeyDown = isKeyDown;
-                } else {
-                    syncPending = true;
-                    syncRetryDelay = 20;
+                    attemptSynchronization();
                 }
             }
 
             BlockPos lookingAt = null;
-            if (minecraft.hitResult != null && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
+            if (minecraft.hitResult != null
+                    && minecraft.hitResult.getType() == HitResult.Type.BLOCK) {
                 lookingAt = ((BlockHitResult) minecraft.hitResult).getBlockPos();
             }
-
             Direction playerFacing = minecraft.player.getDirection();
             float playerPitch = minecraft.player.getXRot();
-            ChainPreviewManager.getInstance().tick(minecraft.level, lookingAt, playerFacing, playerPitch, isKeyDown);
+            ChainPreviewManager.getInstance().tick(
+                    minecraft.level,
+                    lookingAt,
+                    playerFacing,
+                    playerPitch,
+                    keyDown
+            );
         }
-
     }
 }
