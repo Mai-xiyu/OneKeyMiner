@@ -3,6 +3,9 @@
   "config.onekeyminer.info": "编辑配置文件以修改设置",
   "config.onekeyminer.openFolder": "打开配置文件夹",
   "config.onekeyminer.reload": "重新加载配置",
+  "config.onekeyminer.remote_server_notice": "远程服务器：这里只能修改客户端偏好，服务端策略仍具有最终决定权",
+  "config.onekeyminer.remote_server_pending": "正在等待服务端确认……",
+  "config.onekeyminer.remote_server_applied": "服务端已应用：%s；掉落物 %s；经验 %s",
 
   "config.onekeyminer.category.basic": "基础设置",
   "config.onekeyminer.category.activation": "激活设置",

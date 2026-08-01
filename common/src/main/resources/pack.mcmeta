@@ -2,6 +2,6 @@
   "pack": {
     "description": "${mod_name}",
     "min_format": [88, 0],
-    "max_format": [107, 1]
+    "max_format": [88, 0]
   }
 }

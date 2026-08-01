@@ -9,7 +9,10 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 
 /**
  * Fabric client key bindings and negotiated C2S preference sync.
@@ -22,7 +25,15 @@ public final class KeyBindings {
     private static boolean wasKeyDown;
     private static boolean wasConnected;
     private static boolean syncPending = true;
+    private static boolean preferencesDirty = true;
     private static int syncRetryDelay;
+    private static int policyRefreshDelay;
+    private static ClientPreferenceRequest pendingRequest;
+    private static final int TRANSPORT_RETRY_TICKS = 20;
+    private static final int ACK_RETRY_TICKS = 100;
+    private static final int POLICY_REFRESH_TICKS = 600;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
 
     private KeyBindings() {
     }
@@ -53,15 +64,16 @@ public final class KeyBindings {
             minecraft.execute(KeyBindings::sendCurrentPreferences);
             return;
         }
-        boolean sent = trySendCurrentPreferences();
-        syncPending = !sent;
-        syncRetryDelay = sent ? 0 : 20;
-        if (sent && CHAIN_MINING_KEY != null) {
-            wasKeyDown = CHAIN_MINING_KEY.isDown();
-        }
+        ClientPreferenceSession.clear();
+        preferencesDirty = true;
+        syncPending = true;
+        syncRetryDelay = 0;
     }
 
-    private static boolean trySendCurrentPreferences() {
+    private static boolean trySendCurrentPreferences(
+            int sequence,
+            ClientPreferenceRequest request
+    ) {
         try {
             var minecraft = net.minecraft.client.Minecraft.getInstance();
             if (minecraft.getConnection() == null
@@ -69,14 +81,13 @@ public final class KeyBindings {
                 return false;
             }
 
-            var config = ConfigManager.getClientPreferencesSnapshot();
-            boolean holding = CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown();
             ClientPlayNetworking.send(new FabricPayloads.ClientPreferencesPayload(
                     FabricPayloads.WIRE_VERSION,
-                    holding,
-                    config.selectedShape(),
-                    config.teleportDrops(),
-                    config.teleportExp()
+                    sequence,
+                    request.holding(),
+                    request.shapeId(),
+                    request.teleportDrops(),
+                    request.teleportExp()
             ));
             return true;
         } catch (RuntimeException e) {
@@ -85,14 +96,50 @@ public final class KeyBindings {
         }
     }
 
+    private static void attemptSynchronization() {
+        int sequence;
+        if (preferencesDirty || !SYNC_TRACKER.hasPendingAttempt()) {
+            sequence = SYNC_TRACKER.beginAttempt();
+            pendingRequest = ClientPreferenceRequest.capture(
+                    CHAIN_MINING_KEY != null && CHAIN_MINING_KEY.isDown()
+            );
+            preferencesDirty = false;
+        } else {
+            sequence = SYNC_TRACKER.pendingSequence();
+        }
+        if (pendingRequest == null) {
+            return;
+        }
+        boolean sent = trySendCurrentPreferences(sequence, pendingRequest);
+        syncPending = true;
+        syncRetryDelay = sent ? ACK_RETRY_TICKS : TRANSPORT_RETRY_TICKS;
+    }
+
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (SYNC_TRACKER.confirm(ack)) {
+            ClientPreferenceSession.accept(ack);
+            pendingRequest = null;
+            syncPending = false;
+            syncRetryDelay = 0;
+            policyRefreshDelay = POLICY_REFRESH_TICKS;
+        }
+    }
+
     private static void registerKeyHandler() {
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             boolean connected = client.getConnection() != null && client.player != null;
             if (!connected) {
+                if (wasConnected) {
+                    SYNC_TRACKER.reset();
+                }
                 wasConnected = false;
                 wasKeyDown = false;
                 syncPending = true;
+                preferencesDirty = true;
                 syncRetryDelay = 0;
+                policyRefreshDelay = 0;
+                pendingRequest = null;
+                ClientPreferenceSession.clear();
                 return;
             }
 
@@ -100,21 +147,29 @@ public final class KeyBindings {
             if (!wasConnected) {
                 wasConnected = true;
                 syncPending = true;
+                preferencesDirty = true;
                 syncRetryDelay = 0;
+                policyRefreshDelay = 0;
+                pendingRequest = null;
+                ClientPreferenceSession.clear();
             }
 
+            if (isKeyDown != wasKeyDown) {
+                wasKeyDown = isKeyDown;
+                preferencesDirty = true;
+                syncPending = true;
+                syncRetryDelay = 0;
+            }
+            if (!syncPending && --policyRefreshDelay <= 0) {
+                preferencesDirty = true;
+                syncPending = true;
+                syncRetryDelay = 0;
+            }
             if (syncPending) {
                 if (syncRetryDelay > 0) {
                     syncRetryDelay--;
                 } else {
-                    sendCurrentPreferences();
-                }
-            } else if (isKeyDown != wasKeyDown) {
-                if (trySendCurrentPreferences()) {
-                    wasKeyDown = isKeyDown;
-                } else {
-                    syncPending = true;
-                    syncRetryDelay = 20;
+                    attemptSynchronization();
                 }
             }
 

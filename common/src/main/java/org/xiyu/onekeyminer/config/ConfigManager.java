@@ -196,6 +196,7 @@ public class ConfigManager {
         }
         MinerConfig newConfig = CONFIG.get().copy();
         notifyListeners(oldConfig, newConfig);
+        ConfigSyncHelper.triggerSync();
     }
 
     public static MinerConfig getConfig() {
@@ -226,8 +227,67 @@ public class ConfigManager {
         );
     }
 
+    /** O(1) logical-server view used for packet ACKs and public queries. */
+    public record ServerTeleportPolicySnapshot(
+            boolean allowClientTeleportDrops,
+            boolean allowClientTeleportExp
+    ) {
+        public boolean isDropTeleportEffective(boolean requested) {
+            return allowClientTeleportDrops && requested;
+        }
+
+        public boolean isExperienceTeleportEffective(boolean requested) {
+            return allowClientTeleportExp && requested;
+        }
+    }
+
+    public static ServerTeleportPolicySnapshot getServerTeleportPolicySnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ServerTeleportPolicySnapshot(
+                config.allowClientTeleportDrops,
+                config.allowClientTeleportExp
+        );
+    }
+
+    /** O(1) server view used to acknowledge all client-visible policy inputs. */
+    public record ServerPreferenceSnapshot(
+            boolean enabled,
+            int maxBlocks,
+            int maxBlocksCreative,
+            int maxDistance,
+            boolean allowDiagonal,
+            boolean allowClientTeleportDrops,
+            boolean allowClientTeleportExp
+    ) {
+        public int maxBlocksFor(boolean creative) {
+            return creative ? maxBlocksCreative : maxBlocks;
+        }
+    }
+
+    public static ServerPreferenceSnapshot getServerPreferenceSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ServerPreferenceSnapshot(
+                config.enabled,
+                config.maxBlocks,
+                config.maxBlocksCreative,
+                config.maxDistance,
+                config.allowDiagonal,
+                config.allowClientTeleportDrops,
+                config.allowClientTeleportExp
+        );
+    }
+
     public static void updateConfig(MinerConfig newConfig) {
         updateConfig(newConfig, "*");
+    }
+
+    /** Persists only preferences that a remote server accepts from its client. */
+    public static synchronized void updateClientPreferences(MinerConfig editedConfig) {
+        Objects.requireNonNull(editedConfig, "editedConfig");
+        updateConfig(
+                RemoteConfigPolicy.mergeClientPreferences(CONFIG.get(), editedConfig),
+                "clientPreferences"
+        );
     }
 
     public static synchronized void updateConfig(MinerConfig newConfig, String changedKey) {

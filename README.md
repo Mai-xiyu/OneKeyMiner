@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
   <a href="LICENSE_EN.md"><img src="https://img.shields.io/badge/license-Custom%20v1.2-red?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.6-blue?style=flat-square" alt="OneKeyMiner Version">
+  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.7-blue?style=flat-square" alt="OneKeyMiner Version">
   <img src="https://img.shields.io/badge/Minecraft-26.2-green?style=flat-square" alt="Minecraft Version">
   <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java Version">
 </p>
@@ -42,7 +42,7 @@
 | Component | Version |
 |-----------|---------|
 | Minecraft | 26.2 |
-| OneKeyMiner | 1.6.6 |
+| OneKeyMiner | 1.6.7 |
 | Java | 25 |
 | Fabric Loader | 0.19.2 |
 | Fabric API | 0.148.3+26.2 |
@@ -54,9 +54,9 @@
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-1.6.6-26.2.jar` for Fabric
-- `onekeyminer-neoforge-1.6.6-26.2.jar` for NeoForge
-- `onekeyminer-forge-1.6.6-26.2.jar` for Forge
+- `onekeyminer-fabric-1.6.7-26.2.jar` for Fabric
+- `onekeyminer-neoforge-1.6.7-26.2.jar` for NeoForge
+- `onekeyminer-forge-1.6.7-26.2.jar` for Forge
 
 Use the matching platform JAR on both the client and server. A universal JAR
 is not published because loader-specific Minecraft mappings cannot provide a
@@ -64,10 +64,13 @@ single binary-compatible public API to add-on mods.
 
 ### Multiplayer configuration
 
-On dedicated servers, global limits and feature switches are server-authoritative. Client
-screens may display local values, but cannot override server policy. Per-player preferences
-(selected shape and drop/experience teleport settings) are synchronized when joining, when
-the activation key changes, and after saving the configuration screen.
+On dedicated servers, global limits and feature switches are server-authoritative. While
+connected to a remote server, the config screen exposes and saves only the selected shape
+and drop/experience teleport preferences. It does not present local copies of server
+settings as if they controlled the server. Those preferences are synchronized when joining,
+when the activation key changes, and after saving the screen. Synchronization is considered
+complete only after a versioned server acknowledgement reports the applied shape, effective
+teleport policy result, and supported preference capabilities.
 
 ---
 
@@ -139,13 +142,13 @@ compile-only dependency.
 
 ```groovy
 // Fabric Loom
-modCompileOnly files("libs/onekeyminer-fabric-1.6.6-26.2.jar")
+modCompileOnly files("libs/onekeyminer-fabric-1.6.7-26.2.jar")
 
 // ForgeGradle
-compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-26.2.jar"))
+compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-26.2.jar"))
 
 // NeoGradle or ModDevGradle
-compileOnly files("libs/onekeyminer-neoforge-1.6.6-26.2.jar")
+compileOnly files("libs/onekeyminer-neoforge-1.6.7-26.2.jar")
 ```
 
 Install OneKeyMiner separately at runtime and declare it in the add-on's loader
@@ -164,6 +167,19 @@ OneKeyMinerAPI.registerBlockTag("#mymod:ores");
 // Register custom tools
 OneKeyMinerAPI.whitelistTool("mymod:super_pickaxe");
 
+// Client-local requests (the server may reject teleport requests by policy)
+OneKeyMinerAPI.setLocalDropTeleportRequested(true);
+OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
+
+// Server policy; call on the authoritative server
+OneKeyMinerAPI.setClientDropTeleportAllowed(false);
+OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
+
+OneKeyMinerAPI.getAcknowledgedServerPreferences().ifPresent(ack -> {
+    // Current connection only; this does not overwrite local preferences.
+    System.out.println("Server shape: " + ack.appliedShapeId());
+});
+
 // Listen to events
 ChainEvents.registerPreActionListener(event -> {
     // Custom logic before chain operation
@@ -179,6 +195,11 @@ completed; it cannot roll back an original interaction that already succeeded.
 Native actions must also produce their expected block/entity transition, so a
 button, container, composter, or protection-mod cancellation result cannot
 authorize unrelated neighboring work.
+
+The compatibility methods setTeleportDropsEnabled and setTeleportExpEnabled
+are deprecated aliases for local preferences. Calling them in a
+dedicated-server process does not update connected clients or the
+allowClientTeleport* server-policy gates.
 
 `ConfigManager.getConfig()` returns a defensive copy. Use
 `ConfigManager.editConfig(key, editor)` for atomic changes. The deprecated
@@ -219,7 +240,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `26.2`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `26.2-1.6.6`).
+- **Tag format**: `<branch>-<mod_version>` (example: `26.2-1.6.7`).
 
 
 ## 🐛 Issues & Contributions
