@@ -1,6 +1,6 @@
 # OneKeyMiner 26.2 API Reference
 
-This document describes the public API shipped by OneKeyMiner `1.6.6` for
+This document describes the public API shipped by OneKeyMiner `1.6.7` for
 Minecraft `26.2`.
 
 ## Supported environment
@@ -21,9 +21,9 @@ against the platform JAR that it will run with.
 
 Copy one production JAR into your add-on project's `libs/` directory:
 
-- `onekeyminer-fabric-1.6.6-26.2.jar`
-- `onekeyminer-forge-1.6.6-26.2.jar`
-- `onekeyminer-neoforge-1.6.6-26.2.jar`
+- `onekeyminer-fabric-1.6.7-26.2.jar`
+- `onekeyminer-forge-1.6.7-26.2.jar`
+- `onekeyminer-neoforge-1.6.7-26.2.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
 contain Minecraft types whose runtime mappings differ by loader, so add-ons
@@ -36,7 +36,7 @@ Fabric Loom:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/onekeyminer-fabric-1.6.6-26.2.jar")
+    modCompileOnly files("libs/onekeyminer-fabric-1.6.7-26.2.jar")
 }
 ```
 
@@ -44,7 +44,7 @@ ForgeGradle:
 
 ```groovy
 dependencies {
-    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-26.2.jar"))
+    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-26.2.jar"))
 }
 ```
 
@@ -52,7 +52,7 @@ NeoGradle or ModDevGradle:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/onekeyminer-neoforge-1.6.6-26.2.jar")
+    compileOnly files("libs/onekeyminer-neoforge-1.6.7-26.2.jar")
 }
 ```
 
@@ -509,18 +509,50 @@ validated convenience methods:
 
 ```java
 OneKeyMinerAPI.setSelectedShape("examplemod:upward_column");
-OneKeyMinerAPI.setTeleportDropsEnabled(true);
-OneKeyMinerAPI.setTeleportExpEnabled(true);
+OneKeyMinerAPI.setLocalDropTeleportRequested(true);
+OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
 ```
 
-On a dedicated server, these calls must run in the correct server-side policy
-context. Do not present a client-only setting mutation as a way to change server
-limits.
+The teleport values above are local client preferences. The server applies its
+own policy and acknowledges the actual result. The older
+is/setTeleportDropsEnabled and is/setTeleportExpEnabled methods remain
+binary/source compatible but are deprecated aliases for those local
+preferences. Calling them in a dedicated-server process does not affect
+connected clients and does not modify server policy.
+
+Use the explicit policy API on the authoritative server:
+
+```java
+OneKeyMinerAPI.setClientDropTeleportAllowed(false);
+OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
+
+boolean dropsAllowed = OneKeyMinerAPI.isClientDropTeleportAllowed();
+boolean expAllowed = OneKeyMinerAPI.isClientExperienceTeleportAllowed();
+
+boolean dropsEffective = OneKeyMinerAPI.isDropTeleportEffective(serverPlayer);
+boolean expEffective = OneKeyMinerAPI.isExperienceTeleportEffective(serverPlayer);
+
+OneKeyMinerAPI.getAcknowledgedServerPreferences().ifPresent(ack -> {
+    String appliedShape = ack.appliedShapeId();
+    int appliedLimit = ack.maxBlocksApplied();
+    boolean dropsApplied = ack.teleportDropsApplied();
+});
+```
+
+Client preference synchronization uses a versioned C2S snapshot and S2C
+acknowledgement. A transport send alone is not confirmation: only the ACK for
+the current sequence confirms synchronization. Retries reuse the same sequence
+and immutable snapshot, while changed preferences allocate a new sequence. The
+ACK contains the shape and preview limits actually accepted by the server, the
+policy-filtered teleport values, and a capability bitmask. It is held only for
+the current connection and does not overwrite the client's saved requests.
+Clients refresh it periodically so server hot-reloads converge. Invalid or
+excessive packets are rejected server-side.
 
 ## Compatibility notes
 
 - API examples in this document target only Minecraft 26.2 / OneKeyMiner
-  1.6.6. Other branches must be compiled against their own platform JAR.
+  1.6.7. Other branches must be compiled against their own platform JAR.
 - A production add-on must declare its supported OneKeyMiner and Minecraft
   versions in loader metadata.
 - Do not depend on `org.xiyu.onekeyminer.platform.*` implementations. They are

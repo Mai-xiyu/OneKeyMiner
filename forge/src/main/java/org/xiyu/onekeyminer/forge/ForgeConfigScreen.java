@@ -14,6 +14,8 @@ import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.config.RemoteConfigPolicy;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -50,13 +52,18 @@ public class ForgeConfigScreen {
         
         private final Screen parent;
         private final MinerConfig configCopy;
+        private final boolean serverSettingsEditable;
         private int currentPage = 0;
-        private final int totalPages = 3;
         
         protected SimpleConfigScreen(Screen parent) {
             super(Component.translatable("config.onekeyminer.title"));
             this.parent = parent;
             this.configCopy = ConfigManager.getConfig().copy();
+            var minecraft = net.minecraft.client.Minecraft.getInstance();
+            this.serverSettingsEditable = RemoteConfigPolicy.canEditServerSettings(
+                    minecraft.getConnection() != null,
+                    minecraft.hasSingleplayerServer()
+            );
         }
         
         @Override
@@ -85,10 +92,14 @@ public class ForgeConfigScreen {
             int buttonHeight = 20;
             int spacing = 24;
             
-            switch (currentPage) {
-                case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+            if (!serverSettingsEditable) {
+                initClientPreferencesPage(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+            } else {
+                switch (currentPage) {
+                    case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                }
             }
             
             // === 底部导航栏 ===
@@ -106,19 +117,23 @@ public class ForgeConfigScreen {
             
             // 下一页
             Button nextBtn = Button.builder(Component.literal(">"), b -> {
-                if (currentPage < totalPages - 1) {
+                if (currentPage < totalPages() - 1) {
                     currentPage++;
                     this.init();
                 }
             }).bounds(centerX + 135, bottomY, 20, buttonHeight).build();
-            nextBtn.active = currentPage < totalPages - 1;
+            nextBtn.active = currentPage < totalPages() - 1;
             this.addRenderableWidget(nextBtn);
             
             // 保存 (使用 gui.done 或自定义保存键)
             this.addRenderableWidget(Button.builder(
                     Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                     button -> {
-                        ConfigManager.updateConfig(configCopy);
+                        if (serverSettingsEditable) {
+                            ConfigManager.updateConfig(configCopy);
+                        } else {
+                            ConfigManager.updateClientPreferences(configCopy);
+                        }
                         this.onClose();
                     }
             ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
@@ -171,6 +186,26 @@ public class ForgeConfigScreen {
             // 对角线连锁
             addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.allow_diagonal", 
                 () -> configCopy.allowDiagonal, v -> configCopy.allowDiagonal = v);
+        }
+
+        private void initClientPreferencesPage(int x, int y, int w, int h, int s) {
+            int i = 0;
+            this.addRenderableWidget(Button.builder(
+                    getShapeMessage(configCopy.selectedShape),
+                    b -> {
+                        configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
+                        configCopy.shapeMode = null;
+                        b.setMessage(getShapeMessage(configCopy.selectedShape));
+                    }
+            ).bounds(x - w / 2, y + s * i++, w, h).build());
+            addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops",
+                    () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);
+            addBoolButton(x, y + s * i, w, h, "config.onekeyminer.option.teleport_exp",
+                    () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
+        }
+
+        private int totalPages() {
+            return serverSettingsEditable ? 3 : 1;
         }
         
         // === 第二页：消耗设置 ===
@@ -317,7 +352,24 @@ public class ForgeConfigScreen {
         public void extractRenderState(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
             super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
             guiGraphics.centeredText(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
-            guiGraphics.centeredText(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
+            if (!serverSettingsEditable) {
+                guiGraphics.centeredText(
+                        this.font,
+                        Component.translatable("config.onekeyminer.remote_server_notice"),
+                        this.width / 2,
+                        28,
+                        0xFFD54F
+                );
+                var acknowledgement = ClientPreferenceSession.lastAck();
+                Component applied = acknowledgement.<Component>map(ack -> Component.translatable(
+                        "config.onekeyminer.remote_server_applied",
+                        ack.appliedShapeId(),
+                        Component.translatable(ack.teleportDropsApplied() ? "options.on" : "options.off"),
+                        Component.translatable(ack.teleportExpApplied() ? "options.on" : "options.off")
+                )).orElseGet(() -> Component.translatable("config.onekeyminer.remote_server_pending"));
+                guiGraphics.centeredText(this.font, applied, this.width / 2, 40, 0xAAAAAA);
+            }
+            guiGraphics.centeredText(this.font, Component.literal((currentPage + 1) + " / " + totalPages()), this.width / 2, this.height - 45, 0xAAAAAA);
         }
     }
 }

@@ -5,6 +5,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
@@ -24,6 +25,12 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentPreferences);
+        ClientPlayNetworking.registerGlobalReceiver(
+                FabricPayloads.ServerPreferencesAckPayload.TYPE,
+                (payload, context) -> context.client().execute(
+                        () -> KeyBindings.handlePreferencesAck(payload.toCommon())
+                )
+        );
 
         KeyBindings.register();
         registerPreviewSystem();

@@ -15,7 +15,10 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
-import org.xiyu.onekeyminer.config.ConfigManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
+import org.xiyu.onekeyminer.network.ClientPreferenceSyncTracker;
 import org.xiyu.onekeyminer.preview.ChainPreviewHud;
 import org.xiyu.onekeyminer.preview.ChainPreviewManager;
 
@@ -26,7 +29,15 @@ public class NeoForgeKeyBindings {
     private static boolean wasKeyDown = false;
     private static boolean wasConnected = false;
     private static boolean syncPending = true;
+    private static boolean preferencesDirty = true;
     private static int syncRetryDelay;
+    private static int policyRefreshDelay;
+    private static ClientPreferenceRequest pendingRequest;
+    private static final int TRANSPORT_RETRY_TICKS = 20;
+    private static final int ACK_RETRY_TICKS = 100;
+    private static final int POLICY_REFRESH_TICKS = 600;
+    private static final ClientPreferenceSyncTracker SYNC_TRACKER =
+            new ClientPreferenceSyncTracker();
 
     public static void register() {
         if (CHAIN_MINING_KEY != null) {
@@ -73,16 +84,40 @@ public class NeoForgeKeyBindings {
             minecraft.execute(NeoForgeKeyBindings::sendCurrentPreferences);
             return;
         }
+        ClientPreferenceSession.clear();
+        preferencesDirty = true;
+        syncPending = true;
+        syncRetryDelay = 0;
+    }
+
+    private static void attemptSynchronization() {
         if (CHAIN_MINING_KEY == null) {
-            syncPending = true;
-            syncRetryDelay = 20;
+            syncRetryDelay = TRANSPORT_RETRY_TICKS;
             return;
         }
-        boolean sent = NeoForgeClientNetworking.trySyncPreferences(CHAIN_MINING_KEY.isDown());
-        syncPending = !sent;
-        syncRetryDelay = sent ? 0 : 20;
-        if (sent) {
-            wasKeyDown = CHAIN_MINING_KEY.isDown();
+        int sequence;
+        if (preferencesDirty || !SYNC_TRACKER.hasPendingAttempt()) {
+            sequence = SYNC_TRACKER.beginAttempt();
+            pendingRequest = ClientPreferenceRequest.capture(CHAIN_MINING_KEY.isDown());
+            preferencesDirty = false;
+        } else {
+            sequence = SYNC_TRACKER.pendingSequence();
+        }
+        if (pendingRequest == null) {
+            return;
+        }
+        boolean sent = NeoForgeClientNetworking.trySyncPreferences(sequence, pendingRequest);
+        syncPending = true;
+        syncRetryDelay = sent ? ACK_RETRY_TICKS : TRANSPORT_RETRY_TICKS;
+    }
+
+    static void handlePreferencesAck(ClientPreferenceAck ack) {
+        if (SYNC_TRACKER.confirm(ack)) {
+            ClientPreferenceSession.accept(ack);
+            pendingRequest = null;
+            syncPending = false;
+            syncRetryDelay = 0;
+            policyRefreshDelay = POLICY_REFRESH_TICKS;
         }
     }
 
@@ -90,10 +125,17 @@ public class NeoForgeKeyBindings {
         Minecraft minecraft = Minecraft.getInstance();
         boolean connected = minecraft.player != null && minecraft.getConnection() != null;
         if (!connected) {
+            if (wasConnected) {
+                SYNC_TRACKER.reset();
+            }
             wasConnected = false;
             wasKeyDown = false;
             syncPending = true;
+            preferencesDirty = true;
             syncRetryDelay = 0;
+            policyRefreshDelay = 0;
+            pendingRequest = null;
+            ClientPreferenceSession.clear();
             return;
         }
 
@@ -109,21 +151,29 @@ public class NeoForgeKeyBindings {
         if (!wasConnected) {
             wasConnected = true;
             syncPending = true;
+            preferencesDirty = true;
             syncRetryDelay = 0;
+            policyRefreshDelay = 0;
+            pendingRequest = null;
+            ClientPreferenceSession.clear();
         }
 
+        if (isKeyDown != wasKeyDown) {
+            wasKeyDown = isKeyDown;
+            preferencesDirty = true;
+            syncPending = true;
+            syncRetryDelay = 0;
+        }
+        if (!syncPending && --policyRefreshDelay <= 0) {
+            preferencesDirty = true;
+            syncPending = true;
+            syncRetryDelay = 0;
+        }
         if (syncPending) {
             if (syncRetryDelay > 0) {
                 syncRetryDelay--;
             } else {
-                sendCurrentPreferences();
-            }
-        } else if (isKeyDown != wasKeyDown) {
-            if (NeoForgeClientNetworking.trySyncPreferences(isKeyDown)) {
-                wasKeyDown = isKeyDown;
-            } else {
-                syncPending = true;
-                syncRetryDelay = 20;
+                attemptSynchronization();
             }
         }
 
