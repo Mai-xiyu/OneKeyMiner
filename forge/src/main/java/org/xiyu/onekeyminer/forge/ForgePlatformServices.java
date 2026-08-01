@@ -1,17 +1,15 @@
 package org.xiyu.onekeyminer.forge;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -27,8 +25,8 @@ import java.util.UUID;
  * <p>实现 {@link PlatformServices} 接口，提供 Forge 平台特定的功能实现。</p>
  * 
  * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.7
+ * @since Minecraft 1.20.4
  */
 public class ForgePlatformServices implements PlatformServices {
     
@@ -110,7 +108,7 @@ public class ForgePlatformServices implements PlatformServices {
     public boolean simulateItemUseOnBlock(
             ServerPlayer player,
             Level level,
-            BlockPos pos,
+            BlockHitResult hitResult,
             InteractionHand hand,
             ItemStack item
     ) {
@@ -118,24 +116,37 @@ public class ForgePlatformServices implements PlatformServices {
         // 这会触发正确的游戏事件（如锄头耕地、斧头剥皮等）
         
         try {
-            // 构建 BlockHitResult
-            BlockHitResult hitResult = new BlockHitResult(
-                    Vec3.atCenterOf(pos),
-                    Direction.UP,
-                    pos,
-                    false
+            // ServerPlayerGameMode invokes Forge's right-click hook and all
+            // vanilla placement/permission checks for every derived target.
+            InteractionResult result = player.gameMode.useItemOn(
+                    player,
+                    level,
+                    item,
+                    hand,
+                    hitResult
             );
-            
-            // 构建 UseOnContext
-            UseOnContext context = new UseOnContext(player, hand, hitResult);
-            
-            // 执行物品使用
-            InteractionResult result = item.useOn(context);
             
             return result.consumesAction();
         } catch (Exception e) {
             OneKeyMiner.LOGGER.error("Forge 模拟物品使用失败: {}", e.getMessage());
             return false;
+        }
+    }
+
+    @Override
+    public InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+            InteractionHand hand
+    ) {
+        try {
+            // Player#interactOn is Forge-patched to invoke
+            // ForgeHooks#onInteractEntity before vanilla/entity item logic.
+            return player.interactOn(target, hand);
+        } catch (RuntimeException exception) {
+            OneKeyMiner.LOGGER.error("Authoritative Forge entity interaction failed", exception);
+            return InteractionResult.FAIL;
         }
     }
     

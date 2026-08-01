@@ -3,6 +3,9 @@
   "config.onekeyminer.info": "编辑配置文件以修改设置",
   "config.onekeyminer.openFolder": "打开配置文件夹",
   "config.onekeyminer.reload": "重新加载配置",
+  "config.onekeyminer.remote_server_notice": "服务器控制全局挖掘设置",
+  "config.onekeyminer.remote_server_pending": "服务器策略：等待确认",
+  "config.onekeyminer.remote_server_applied": "服务器已应用：%s｜掉落物 %s｜经验 %s",
 
   "config.onekeyminer.category.basic": "基础设置",
   "config.onekeyminer.category.activation": "激活设置",

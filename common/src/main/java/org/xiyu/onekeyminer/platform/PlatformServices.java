@@ -1,23 +1,28 @@
 package org.xiyu.onekeyminer.platform;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Path;
 
 /**
  * 平台服务抽象层
  * 
- * <p>定义了跨平台的服务接口，用于处理 Fabric、NeoForge 和 Forge 之间的差异。
+ * <p>定义了跨平台的服务接口，用于处理 Fabric 和 Forge 之间的差异。
  * 各平台需要在入口点初始化时调用 {@link #setInstance(PlatformServices)} 注册实现。</p>
  * 
  * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.7
+ * @since Minecraft 1.20.4
  */
 public interface PlatformServices {
     
@@ -70,7 +75,7 @@ public interface PlatformServices {
     /**
      * 获取当前运行的平台名称
      * 
-     * @return 平台名称（"fabric", "neoforge", "forge"）
+     * @return 平台名称（"fabric" 或 "forge"）
      */
     String getPlatformName();
     
@@ -165,9 +170,38 @@ public interface PlatformServices {
             InteractionHand hand, 
             ItemStack item
     ) {
-        // 默认实现：由 ChainActionLogic 处理
+        return simulateItemUseOnBlock(
+                player,
+                level,
+                new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false),
+                hand,
+                item
+        );
+    }
+
+    /**
+     * Performs an authoritative block interaction while preserving the
+     * original click face and hit coordinates.
+     */
+    default boolean simulateItemUseOnBlock(
+            ServerPlayer player,
+            Level level,
+            BlockHitResult hitResult,
+            InteractionHand hand,
+            ItemStack item
+    ) {
         return false;
     }
+
+    /**
+     * Performs an authoritative entity interaction through loader hooks.
+     */
+    InteractionResult simulateEntityInteraction(
+            ServerPlayer player,
+            Level level,
+            Entity target,
+            InteractionHand hand
+    );
     
     /**
      * 检查指定模组是否已加载
@@ -234,7 +268,6 @@ public interface PlatformServices {
      * <ul>
      *   <li>Fabric: {@code "c"}  — 由 Fabric API 的 fabric-convention-tags 提供</li>
      *   <li>Forge 1.20.x: {@code "forge"}  — 由 MinecraftForge 提供</li>
-     *   <li>NeoForge 1.21+: {@code "c"}  — 由 NeoForge 提供</li>
      * </ul>
      * 
      * @return 标签命名空间前缀（不包含冒号）

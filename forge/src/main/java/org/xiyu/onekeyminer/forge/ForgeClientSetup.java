@@ -1,11 +1,10 @@
 package org.xiyu.onekeyminer.forge;
 
-import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
 
 /** Physical-client-only Forge bootstrap. */
 public final class ForgeClientSetup {
@@ -21,21 +20,12 @@ public final class ForgeClientSetup {
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
-        ConfigSyncHelper.registerSyncCallback(ForgeClientSetup::sendCurrentState);
-        ForgeKeyBindings.register();
-    }
-
-    public static void sendCurrentState() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.getConnection() == null) {
-            return;
-        }
-        var config = ConfigManager.getConfig();
-        ForgeClientNetworking.sendClientState(
-                ForgeKeyBindings.isChainKeyDown(),
-                config.selectedShape,
-                config.teleportDrops,
-                config.teleportExp
+        ClientPreferenceAckDispatcher.register(
+                ForgeClientNetworking::handlePreferencesAck
         );
+        ConfigSyncHelper.registerSyncCallback(
+                ForgeKeyBindings::sendCurrentPreferences
+        );
+        ForgeKeyBindings.register();
     }
 }

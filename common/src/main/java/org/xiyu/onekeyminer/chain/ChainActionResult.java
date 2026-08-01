@@ -23,8 +23,8 @@ import java.util.Objects;
  * <p>使用 Java Record 实现不可变数据结构。</p>
  * 
  * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.7
+ * @since Minecraft 1.20.4
  */
 public record ChainActionResult(
         /** 操作类型 */

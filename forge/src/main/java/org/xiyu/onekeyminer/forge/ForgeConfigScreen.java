@@ -12,6 +12,7 @@ import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -24,7 +25,7 @@ import java.util.function.Supplier;
  * <p>此类仅在客户端加载，包含 GUI 相关的客户端引用。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
- * @since Minecraft 1.21.9
+ * @since Minecraft 1.20.4
  */
 @OnlyIn(Dist.CLIENT)
 public class ForgeConfigScreen {
@@ -67,10 +68,15 @@ public class ForgeConfigScreen {
             int buttonHeight = 20;
             int spacing = 24;
             
-            switch (currentPage) {
-                case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+            boolean remoteServer = isRemoteServer();
+            if (remoteServer) {
+                initRemotePreferences(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+            } else {
+                switch (currentPage) {
+                    case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                }
             }
             
             // === 底部导航栏 ===
@@ -83,7 +89,7 @@ public class ForgeConfigScreen {
                     this.init();
                 }
             }).bounds(centerX - 155, bottomY, 20, buttonHeight).build();
-            prevBtn.active = currentPage > 0;
+            prevBtn.active = !remoteServer && currentPage > 0;
             this.addRenderableWidget(prevBtn);
             
             // 下一页
@@ -93,15 +99,18 @@ public class ForgeConfigScreen {
                     this.init();
                 }
             }).bounds(centerX + 135, bottomY, 20, buttonHeight).build();
-            nextBtn.active = currentPage < totalPages - 1;
+            nextBtn.active = !remoteServer && currentPage < totalPages - 1;
             this.addRenderableWidget(nextBtn);
             
             // 保存 (使用 gui.done 或自定义保存键)
             this.addRenderableWidget(Button.builder(
                     Component.translatable("gui.done").withStyle(ChatFormatting.GREEN),
                     button -> {
-                        ConfigManager.updateConfig(configCopy);
-                        ForgeClientSetup.sendCurrentState();
+                        if (remoteServer) {
+                            ConfigManager.updateClientPreferences(configCopy);
+                        } else {
+                            ConfigManager.updateConfig(configCopy);
+                        }
                         this.onClose();
                     }
             ).bounds(centerX - 125, bottomY, 120, buttonHeight).build());
@@ -111,6 +120,32 @@ public class ForgeConfigScreen {
                     Component.translatable("gui.cancel"),
                     button -> this.onClose()
             ).bounds(centerX + 5, bottomY, 120, buttonHeight).build());
+        }
+
+        private void initRemotePreferences(int x, int y, int w, int h, int s) {
+            int i = 0;
+            this.addRenderableWidget(Button.builder(
+                    getShapeMessage(configCopy.selectedShape),
+                    button -> {
+                        configCopy.selectedShape = ShapeRegistry.getNextShapeId(configCopy.selectedShape);
+                        configCopy.shapeMode = null;
+                        button.setMessage(getShapeMessage(configCopy.selectedShape));
+                    }
+            ).bounds(x - w / 2, y + s * i++, w, h).build());
+            addBoolButton(x, y + s * i++, w, h,
+                    "config.onekeyminer.option.teleport_drops",
+                    () -> configCopy.teleportDrops,
+                    value -> configCopy.teleportDrops = value);
+            addBoolButton(x, y + s * i, w, h,
+                    "config.onekeyminer.option.teleport_exp",
+                    () -> configCopy.teleportExp,
+                    value -> configCopy.teleportExp = value);
+        }
+
+        private boolean isRemoteServer() {
+            return this.minecraft != null
+                    && this.minecraft.getConnection() != null
+                    && !this.minecraft.hasSingleplayerServer();
         }
         
         // === 第一页：基础设置 ===
@@ -300,14 +335,26 @@ public class ForgeConfigScreen {
         public void render(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
             super.render(guiGraphics, mouseX, mouseY, partialTick);
             guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
-            guiGraphics.drawCenteredString(
-                    this.font,
-                    Component.literal("Dedicated-server global settings are controlled by the server config"),
-                    this.width / 2,
-                    24,
-                    0xAAAAAA
-            );
-            guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);
+            if (isRemoteServer()) {
+                renderRemoteStatus(guiGraphics);
+            }
+            int page = isRemoteServer() ? 1 : currentPage + 1;
+            int pages = isRemoteServer() ? 1 : totalPages;
+            guiGraphics.drawCenteredString(this.font, Component.literal(page + " / " + pages), this.width / 2, this.height - 45, 0xAAAAAA);
+        }
+
+        private void renderRemoteStatus(net.minecraft.client.gui.GuiGraphics guiGraphics) {
+            guiGraphics.drawCenteredString(this.font,
+                    Component.translatable("config.onekeyminer.remote_server_notice"),
+                    this.width / 2, 26, 0xFFAA00);
+            Component applied = ClientPreferenceSession.lastAck()
+                    .<Component>map(ack -> Component.translatable(
+                            "config.onekeyminer.remote_server_applied",
+                            ack.appliedShapeId(),
+                            Component.translatable(ack.teleportDropsApplied() ? "options.on" : "options.off"),
+                            Component.translatable(ack.teleportExpApplied() ? "options.on" : "options.off")))
+                    .orElseGet(() -> Component.translatable("config.onekeyminer.remote_server_pending"));
+            guiGraphics.drawCenteredString(this.font, applied, this.width / 2, 38, 0xAAAAAA);
         }
     }
 }

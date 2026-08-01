@@ -10,9 +10,8 @@ repositories {
 dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${gradle.ext.fabric_api_version}"
     
-    // ModMenu 和 ClothConfig 是可选依赖
-    // 当前 Minecraft 1.21.9 版本还没有兼容的 ModMenu/ClothConfig
-    // 一旦有兼容版本发布，取消下面的注释即可启用
+    // ModMenu 和 Cloth Config 是可选集成。这里固定了 Minecraft 1.20.4
+    // 对应的依赖版本，但在实现相应入口前保持禁用。
     
     // ModMenu - 配置界面入口（可选依赖）
     // compileOnly("com.terraformersmc:modmenu:${gradle.ext.modmenu_version}") {

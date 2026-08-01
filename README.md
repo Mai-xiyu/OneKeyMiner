@@ -16,9 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="README_CN.md">🇨🇳 中文文档</a> | 
-  <a href="USER_GUIDE.md">📖 User Guide</a> | 
-  <a href="API_DOCS_EN.md">🔧 API Documentation</a>
+  <a href="api-reference.md">API Documentation / API 文档</a>
 </p>
 
 ---
@@ -58,9 +56,16 @@ Choose the correct version for your platform:
 - `onekeyminer-forge-x.x.x-1.20.4.jar` for Forge
 
 Install the matching loader artifact and the same OneKeyMiner version on both
-the dedicated server and every connecting client. Forge and NeoForge reject an
-incompatible wire protocol; Fabric negotiates the versioned channel and falls
-back to the legacy state packets when the server advertises only those.
+the dedicated server and every connecting client. Version 1.6.7 uses one
+versioned preference snapshot plus a server acknowledgement. Forge and NeoForge
+reject incompatible wire versions; Fabric sends only when the versioned channel
+is advertised. Clients retry an unacknowledged snapshot instead of silently
+assuming that it took effect.
+
+Derived actions start only after the server confirms that the original break
+or use succeeded. Every additional break, block use, entity interaction, item
+pickup, and experience pickup is routed through the corresponding vanilla and
+loader hook path so protection mods and gameplay mechanics remain authoritative.
 
 ---
 
@@ -92,7 +97,10 @@ Configuration file location: `config/onekeyminer.json`
 
 On a dedicated server, global limits and feature switches are authoritative in
 the server's config file. The in-game client screen synchronizes only the
-selected shape and the per-player drop/experience teleport preferences.
+selected shape and the per-player drop/experience teleport preferences. The
+screen displays the values acknowledged by the server. Server operators can
+independently deny client-requested drop or experience teleportation with
+`allowClientTeleportDrops` and `allowClientTeleportExp`.
 
 ### Key Settings
 
@@ -109,6 +117,8 @@ selected shape and the per-player drop/experience teleport preferences.
 | `allowBareHand` | `true` | Allow chain mining without tools |
 | `teleportDrops` | `false` | Teleport drops to player inventory |
 | `teleportExp` | `false` | Teleport experience to player |
+| `allowClientTeleportDrops` | `true` | Server policy gate for client drop teleport requests |
+| `allowClientTeleportExp` | `true` | Server policy gate for client experience teleport requests |
 
 ### Block/Tool Lists
 
@@ -131,10 +141,10 @@ OneKeyMiner provides a comprehensive API for mod developers.
 
 ```groovy
 // Fabric
-modImplementation "org.xiyu:onekeyminer-fabric:1.6.6"
+modImplementation "org.xiyu:onekeyminer-fabric:1.6.7"
 
 // NeoForge/Forge
-implementation "org.xiyu:onekeyminer-neoforge:1.6.6"
+implementation "org.xiyu:onekeyminer-neoforge:1.6.7"
 ```
 
 ### Basic API Usage
@@ -155,7 +165,8 @@ ChainEvents.registerPreActionListener(event -> {
 });
 ```
 
-See [API Documentation](API_DOCS_EN.md) for complete API reference.
+See [API Documentation](api-reference.md) for the complete API reference,
+including the distinction between local requests and server-effective values.
 
 ---
 
@@ -188,7 +199,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.20.4`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.20.4-1.6.6`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.20.4-1.6.7`).
 
 
 ## 🐛 Issues & Contributions
@@ -202,7 +213,9 @@ Found a bug or have a suggestion?
 
 ## 📜 License
 
-This project is licensed under **All Rights Reserved (ARR)**. You may not copy, modify, or distribute the code without permission from the author.
+This project uses the repository-specific **Code Repository General License
+Agreement v1.2**. See [LICENSE_EN.md](LICENSE_EN.md) or
+[LICENSE_CN.md](LICENSE_CN.md) for the applicable permissions and restrictions.
 
 ---
 

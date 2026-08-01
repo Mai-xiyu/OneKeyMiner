@@ -26,7 +26,7 @@ public final class OneKeyMinerNeoForge {
         modEventBus.addListener(NeoForgeNetworking::registerPayloadHandlers);
         DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> NeoForgeClientSetup::register);
 
-        NeoForge.EVENT_BUS.register(NeoForgeEventHandler.class);
+        NeoForge.EVENT_BUS.register(new NeoForgeEventHandler());
         OneKeyMiner.LOGGER.info("OneKeyMiner NeoForge initialized");
     }
 

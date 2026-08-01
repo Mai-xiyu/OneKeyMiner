@@ -33,8 +33,8 @@ import java.util.regex.Pattern;
  * <p>使用缓存机制优化性能，避免频繁的标签查询。</p>
  * 
  * @author OneKeyMiner Team
- * @version 2.0.0
- * @since Minecraft 1.21.9
+ * @version 1.6.7
+ * @since Minecraft 1.20.4
  */
 public final class TagResolver {
     

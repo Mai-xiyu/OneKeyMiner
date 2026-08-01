@@ -3,6 +3,9 @@
   "config.onekeyminer.info": "Edit the config file to modify settings",
   "config.onekeyminer.openFolder": "Open Config Folder",
   "config.onekeyminer.reload": "Reload Config",
+  "config.onekeyminer.remote_server_notice": "Connected server controls global mining settings",
+  "config.onekeyminer.remote_server_pending": "Server policy: waiting for acknowledgement",
+  "config.onekeyminer.remote_server_applied": "Server applied: %s | Drops %s | XP %s",
 
   "config.onekeyminer.category.basic": "Basic Settings",
   "config.onekeyminer.category.activation": "Activation Settings",

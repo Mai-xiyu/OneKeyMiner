@@ -234,6 +234,30 @@ OneKeyMinerAPI.registerMiningToolRule(
     "mymod:ore_wand",
     "#c:ores"
 );
+
+// 消耗型右键物品（例如自定义骨粉）
+OneKeyMinerAPI.registerInteractionToolRule(
+    "mymod:growth_powder",
+    OneKeyMinerAPI.ToolTargetType.BLOCK,
+    OneKeyMinerAPI.InteractionRule.ITEM_USE,
+    "#mymod:fertilizable"
+);
+```
+
+工具动作规则会校验目标类型、动作类型与 `InteractionRule` 的组合，并保存
+不可变的目标快照。实体目标当前仅支持 `INTERACTION + SHEARING`；方块目标不接受
+`SHEARING`，`HARVESTING` 也不能通过通用工具规则注册。规则可通过
+`getToolActionRules()` 获取不可变快照，再按实例调用 `unregisterToolAction(rule)` 注销。
+
+对于需要运行时判断方块状态的消耗型物品，可注册并注销验证器：
+
+```java
+BiPredicate<ItemStack, BlockState> validator = (stack, state) ->
+    stack.is(MyItems.GROWTH_POWDER) && state.is(MyTags.FERTILIZABLE);
+
+OneKeyMinerAPI.registerInteractionValidator(validator);
+// 模组卸载或规则失效时：
+OneKeyMinerAPI.unregisterInteractionValidator(validator);
 ```
 
 #### 可种植物品
@@ -659,7 +683,7 @@ String prefix = platform.getConventionalTagPrefix();  // Fabric/NeoForge="c", Fo
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.config.ConfigManager;
 
-// 获取当前配置
+// 获取不可变用途的深拷贝快照；修改该对象不会改变运行时配置
 MinerConfig config = ConfigManager.getConfig();
 
 // 访问配置值
@@ -674,6 +698,8 @@ int minHungerLevel = config.minHungerLevel;    // 最低饥饿值
 boolean allowBareHand = config.allowBareHand;  // 允许空手
 boolean teleportDrops = config.teleportDrops;  // 传送掉落物
 boolean teleportExp = config.teleportExp;      // 传送经验
+boolean allowClientDrops = config.allowClientTeleportDrops; // 服务端策略门控
+boolean allowClientExp = config.allowClientTeleportExp;     // 服务端策略门控
 boolean playSound = config.playSound;          // 播放音效
 ```
 
@@ -683,26 +709,44 @@ boolean playSound = config.playSound;          // 播放音效
 // 从文件重新加载配置
 ConfigManager.reload();
 
-// 保存当前配置到文件
-ConfigManager.save();
+// 原子修改最新快照、校验、落盘并触发配置同步
+ConfigManager.editConfig("maxBlocks", config -> config.maxBlocks = 128);
+
+// 整体替换也会复制、校验并落盘
+MinerConfig replacement = ConfigManager.getConfig();
+replacement.maxDistance = 32;
+ConfigManager.updateConfig(replacement, "maxDistance");
 ```
+
+不要修改 `ConfigManager.getConfig()` 返回值后单独调用 `save()`：读取方法返回深拷贝，
+这种写法不会修改运行时快照。
 
 ### Config API（面向附属模组）
 
-附属模组可用 `OneKeyMinerAPI` 提供的配置读写方法，修改后会自动通过网络同步到服务端：
+附属模组可用 `OneKeyMinerAPI` 提供的配置读写方法。客户端 setter 修改的是本地请求值，
+会触发带序列号的偏好同步；服务端最终生效值以 ACK 和服务端策略为准：
 
 ```java
 import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
 
 // 读取配置
 String shape = OneKeyMinerAPI.getSelectedShape();      // 获取当前挖矿形状
-boolean drops = OneKeyMinerAPI.isTeleportDropsEnabled(); // 是否传送掉落物
-boolean exp = OneKeyMinerAPI.isTeleportExpEnabled();     // 是否传送经验
+boolean drops = OneKeyMinerAPI.isLocalDropTeleportRequested();
+boolean exp = OneKeyMinerAPI.isLocalExperienceTeleportRequested();
 
 // 修改配置（自动触发网络同步）
-OneKeyMinerAPI.setSelectedShape("SPHERE");
-OneKeyMinerAPI.setTeleportDropsEnabled(true);
-OneKeyMinerAPI.setTeleportExpEnabled(false);
+OneKeyMinerAPI.setSelectedShape("onekeyminer:cube");
+OneKeyMinerAPI.setLocalDropTeleportRequested(true);
+OneKeyMinerAPI.setLocalExperienceTeleportRequested(false);
+
+// 逻辑服务端：策略门控和某个玩家的实际值
+OneKeyMinerAPI.setClientDropTeleportAllowed(false);
+boolean effectiveDrops = OneKeyMinerAPI.isDropTeleportEffective(serverPlayer);
+
+// 物理客户端：最近一次由服务端确认的快照；未确认时 Optional 为空
+OneKeyMinerAPI.getAcknowledgedServerPreferences().ifPresent(ack -> {
+    LOGGER.info("服务器应用形状: {}", ack.appliedShapeId());
+});
 
 // 监听配置变更
 OneKeyMinerAPI.addConfigChangeListener(key -> {
@@ -1079,11 +1123,15 @@ public class OKMChainComponent implements IBlockComponentProvider {
 | `findToolActionForBlock(ItemStack, BlockState)` | 查询方块上的工具规则 |
 | `findToolActionForEntity(ItemStack, Entity)` | 查询实体上的工具规则 |
 | `hasToolActionRule(ItemStack, ChainActionType)` | 判断工具是否有规则 |
+| `getToolActionRules()` | 获取已注册工具规则的不可变快照 |
+| `unregisterToolAction(ToolActionRule)` | 按实例注销工具动作规则 |
+| `registerInteractionValidator(BiPredicate<ItemStack, BlockState>)` | 注册消耗型方块交互验证器 |
+| `unregisterInteractionValidator(BiPredicate<ItemStack, BlockState>)` | 按实例注销交互验证器 |
 | `whitelistPlantable(String)` | 将物品添加到可种植白名单（支持 `#tag` 格式） |
 | `blacklistPlantable(String)` | 将物品添加到可种植黑名单（支持 `#tag` 格式） |
 | `addBlockToGroup(String, String)` | 将方块添加到分组 |
 | `areBlocksInSameGroup(Block, Block)` | 检查方块是否在同一组 |
-| `blocksShareTag(BlockState, BlockState)` | 检查方块是否共享任何标签 |
+| `blocksShareTag(Block, Block)` | 检查方块是否共享任何标签 |
 | `isBlockAllowed(Block)` | 检查方块是否允许连锁 |
 | `isBlockBlacklisted(Block)` | 检查方块是否在黑名单中 |
 | `isToolAllowed(ItemStack)` | 检查工具是否允许挖掘 |
@@ -1091,10 +1139,19 @@ public class OKMChainComponent implements IBlockComponentProvider {
 | `isPlantableAllowed(ItemStack)` | 检查物品是否可种植 |
 | `getSelectedShape()` | 获取当前挖矿形状名称 |
 | `setSelectedShape(String)` | 设置挖矿形状（自动触发网络同步） |
-| `isTeleportDropsEnabled()` | 获取是否启用传送掉落物 |
-| `setTeleportDropsEnabled(boolean)` | 设置是否传送掉落物（自动触发网络同步） |
-| `isTeleportExpEnabled()` | 获取是否启用传送经验 |
-| `setTeleportExpEnabled(boolean)` | 设置是否传送经验（自动触发网络同步） |
+| `isLocalDropTeleportRequested()` | 获取客户端本地的掉落物传送请求 |
+| `setLocalDropTeleportRequested(boolean)` | 设置客户端请求并触发同步 |
+| `isLocalExperienceTeleportRequested()` | 获取客户端本地的经验传送请求 |
+| `setLocalExperienceTeleportRequested(boolean)` | 设置客户端请求并触发同步 |
+| `isClientDropTeleportAllowed()` | 获取服务端是否允许客户端请求掉落物传送 |
+| `setClientDropTeleportAllowed(boolean)` | 修改掉落物传送服务端策略 |
+| `isClientExperienceTeleportAllowed()` | 获取服务端是否允许客户端请求经验传送 |
+| `setClientExperienceTeleportAllowed(boolean)` | 修改经验传送服务端策略 |
+| `isDropTeleportEffective(ServerPlayer)` | 查询指定玩家当前实际掉落物传送状态 |
+| `isExperienceTeleportEffective(ServerPlayer)` | 查询指定玩家当前实际经验传送状态 |
+| `getAcknowledgedServerPreferences()` | 获取客户端最近一次服务端确认快照 |
+| `isTeleportDropsEnabled()` / `setTeleportDropsEnabled(boolean)` | 已弃用的本地请求别名 |
+| `isTeleportExpEnabled()` / `setTeleportExpEnabled(boolean)` | 已弃用的本地请求别名 |
 | `addConfigChangeListener(Consumer)` | 注册配置变更监听器 |
 | `removeConfigChangeListener(Consumer)` | 移除配置变更监听器 |
 
@@ -1275,10 +1332,11 @@ A: 是的，API 保持向后兼容。次版本更新不会破坏现有集成。
 
 ---
 
-*文档版本: 1.7.0 | 最后更新: 2026年1月*
+*文档版本: 1.6.7 | 最后更新: 2026年8月*
 
 ---
 
 ## 版权声明
 
-本项目采用 **All Rights Reserved (ARR)** 协议。未经作者许可，不得复制、修改或分发本项目代码。
+本项目采用 **代码仓库通用许可协议 v1.2**。具体权限与限制以
+`LICENSE_CN.md` / `LICENSE_EN.md` 为准。
