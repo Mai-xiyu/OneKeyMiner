@@ -13,7 +13,9 @@ import org.xiyu.onekeyminer.shape.builtin.*;
 public class OneKeyMiner {
     public static final String MOD_ID = "onekeyminer";
     public static final String MOD_NAME = "OneKeyMiner";
-    public static final String VERSION = "1.6.6";
+    public static final String VERSION = RuntimeVersion.resolve(
+            OneKeyMiner.class.getPackage().getImplementationVersion()
+    );
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
 
     private static boolean initialized = false;

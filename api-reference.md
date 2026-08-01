@@ -1,6 +1,6 @@
 # OneKeyMiner 1.21.7 API Reference
 
-This document describes the public API shipped by OneKeyMiner `1.6.6` for
+This document describes the public API shipped by OneKeyMiner `1.6.7` for
 Minecraft `1.21.7`.
 
 ## Supported environment
@@ -21,9 +21,9 @@ against the platform JAR that it will run with.
 
 Copy one production JAR into your add-on project's `libs/` directory:
 
-- `onekeyminer-fabric-1.6.6-1.21.7.jar`
-- `onekeyminer-forge-1.6.6-1.21.7.jar`
-- `onekeyminer-neoforge-1.6.6-1.21.7.jar`
+- `onekeyminer-fabric-1.6.7-1.21.7.jar`
+- `onekeyminer-forge-1.6.7-1.21.7.jar`
+- `onekeyminer-neoforge-1.6.7-1.21.7.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
 contain Minecraft types whose runtime mappings differ by loader, so add-ons
@@ -36,7 +36,7 @@ Fabric Loom:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/onekeyminer-fabric-1.6.6-1.21.7.jar")
+    modCompileOnly files("libs/onekeyminer-fabric-1.6.7-1.21.7.jar")
 }
 ```
 
@@ -44,7 +44,7 @@ ForgeGradle:
 
 ```groovy
 dependencies {
-    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-1.21.7.jar"))
+    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-1.21.7.jar"))
 }
 ```
 
@@ -52,7 +52,7 @@ NeoGradle or ModDevGradle:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/onekeyminer-neoforge-1.6.6-1.21.7.jar")
+    compileOnly files("libs/onekeyminer-neoforge-1.6.7-1.21.7.jar")
 }
 ```
 
@@ -495,6 +495,12 @@ Remote-client config screens must persist only those preferences through
 selected shape and two teleport requests while preserving every
 server-authoritative gameplay and policy field.
 
+The built-in receivers accept a bounded four-packet burst per player per server
+tick and sample invalid-input warnings. Clients retry one immutable snapshot
+until the server acknowledges its sequence, use 20-tick transport retries and
+100-tick acknowledgement retries, then refresh policy every 600 ticks. Add-ons
+should update preferences through the API instead of emitting protocol packets.
+
 For an atomic update, use:
 
 ```java
@@ -538,10 +544,15 @@ should use the explicit policy and per-player effective-value methods above.
 are authoritative gates; a client request is effective only when its gate is
 enabled.
 
+On a physical client,
+`OneKeyMinerAPI.getAcknowledgedServerPreferences()` returns the latest applied
+shape, preview bounds, teleport results, and capability mask. It returns empty
+before acknowledgement, after disconnect, and on a dedicated server.
+
 ## Compatibility notes
 
 - API examples in this document target only Minecraft 1.21.7 / OneKeyMiner
-  1.6.6. Other branches must be compiled against their own platform JAR.
+  1.6.7. Other branches must be compiled against their own platform JAR.
 - A production add-on must declare its supported OneKeyMiner and Minecraft
   versions in loader metadata.
 - Do not depend on `org.xiyu.onekeyminer.platform.*` implementations. They are

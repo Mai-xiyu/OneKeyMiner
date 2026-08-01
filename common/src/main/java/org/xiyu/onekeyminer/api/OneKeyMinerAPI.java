@@ -22,6 +22,8 @@ import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.registry.TagResolver;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
@@ -43,7 +45,7 @@ import java.util.function.Supplier;
  * </ul>
  * 
  * <h2>使用示例</h2>
- * <pre>
+ * <pre>{@code
  * // 注册自定义矿石到白名单
  * OneKeyMinerAPI.registerBlock("mymod:custom_ore");
  * 
@@ -55,8 +57,9 @@ import java.util.function.Supplier;
  *     if (event.getActionType() == ChainActionType.MINING) {
  *         int count = event.getTotalCount();
  *         // 处理挖矿统计...
+ *     }
  * });
- * </pre>
+ * }</pre>
  * 
  * @author OneKeyMiner Team
  * @version 2.0.0
@@ -1586,7 +1589,8 @@ public final class OneKeyMinerAPI {
      * @return whether the server honors a client's drop-teleport request
      */
     public static boolean isClientDropTeleportAllowed() {
-        return ConfigManager.getConfig().allowClientTeleportDrops;
+        return ConfigManager.getServerTeleportPolicySnapshot()
+                .allowClientTeleportDrops();
     }
 
     /**
@@ -1607,7 +1611,8 @@ public final class OneKeyMinerAPI {
      * @return whether the server honors a client's experience-teleport request
      */
     public static boolean isClientExperienceTeleportAllowed() {
-        return ConfigManager.getConfig().allowClientTeleportExp;
+        return ConfigManager.getServerTeleportPolicySnapshot()
+                .allowClientTeleportExp();
     }
 
     /**
@@ -1630,9 +1635,8 @@ public final class OneKeyMinerAPI {
      */
     public static boolean isDropTeleportEffective(ServerPlayer player) {
         Objects.requireNonNull(player, "player");
-        return ConfigManager.getConfig().isDropTeleportEnabled(
-                MiningStateManager.isTeleportDrops(player)
-        );
+        return ConfigManager.getServerTeleportPolicySnapshot()
+                .isDropTeleportEffective(MiningStateManager.isTeleportDrops(player));
     }
 
     /**
@@ -1643,9 +1647,18 @@ public final class OneKeyMinerAPI {
      */
     public static boolean isExperienceTeleportEffective(ServerPlayer player) {
         Objects.requireNonNull(player, "player");
-        return ConfigManager.getConfig().isExperienceTeleportEnabled(
-                MiningStateManager.isTeleportExp(player)
-        );
+        return ConfigManager.getServerTeleportPolicySnapshot()
+                .isExperienceTeleportEffective(MiningStateManager.isTeleportExp(player));
+    }
+
+    /**
+     * Returns the latest server-authoritative preference acknowledgement on a
+     * physical client. Dedicated servers and disconnected clients return empty.
+     *
+     * @return acknowledgement, or empty before negotiation/disconnect
+     */
+    public static Optional<ClientPreferenceAck> getAcknowledgedServerPreferences() {
+        return ClientPreferenceSession.lastAck();
     }
     
     /**

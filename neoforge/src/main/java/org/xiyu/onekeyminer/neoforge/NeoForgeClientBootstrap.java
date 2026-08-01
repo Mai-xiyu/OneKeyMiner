@@ -20,6 +20,7 @@ public final class NeoForgeClientBootstrap {
         modEventBus.addListener(NeoForgeClientBootstrap::onClientSetup);
         modEventBus.addListener(NeoForgeKeyBindings::registerKeyMappings);
         modEventBus.addListener(NeoForgeKeyBindings::registerGuiLayer);
+        modEventBus.addListener(NeoForgeClientNetworking::registerPayloadHandlers);
         NeoForgeConfigScreen.register(modContainer);
     }
 

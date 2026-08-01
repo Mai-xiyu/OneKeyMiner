@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
   <a href="LICENSE_EN.md"><img src="https://img.shields.io/badge/license-Custom%20v1.2-red?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.6-blue?style=flat-square" alt="OneKeyMiner Version">
+  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.7-blue?style=flat-square" alt="OneKeyMiner Version">
   <img src="https://img.shields.io/badge/Minecraft-1.21.7-green?style=flat-square" alt="Minecraft Version">
   <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square" alt="Java Version">
 </p>
@@ -42,21 +42,21 @@
 | Component | Version |
 |-----------|---------|
 | Minecraft | 1.21.7 |
-| OneKeyMiner | 1.6.6 |
+| OneKeyMiner | 1.6.7 |
 | Java | 21 |
 | Fabric Loader | 0.18.4 |
 | Fabric API | 0.129.0+1.21.7 |
 | NeoForge | 21.7.25-beta |
-| Forge | 57.0.0+ (built against 57.0.3) |
+| Forge | 57.0.3 |
 
 ### Download
 
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-1.6.6-1.21.7.jar` for Fabric
-- `onekeyminer-neoforge-1.6.6-1.21.7.jar` for NeoForge
-- `onekeyminer-forge-1.6.6-1.21.7.jar` for Forge
+- `onekeyminer-fabric-1.6.7-1.21.7.jar` for Fabric
+- `onekeyminer-neoforge-1.6.7-1.21.7.jar` for NeoForge
+- `onekeyminer-forge-1.6.7-1.21.7.jar` for Forge
 
 Use the matching platform JAR on both the client and server. A universal JAR
 is not published because loader-specific Minecraft mappings cannot provide a
@@ -145,13 +145,13 @@ compile-only dependency.
 
 ```groovy
 // Fabric Loom
-modCompileOnly files("libs/onekeyminer-fabric-1.6.6-1.21.7.jar")
+modCompileOnly files("libs/onekeyminer-fabric-1.6.7-1.21.7.jar")
 
 // ForgeGradle
-compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-1.21.7.jar"))
+compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-1.21.7.jar"))
 
 // NeoGradle or ModDevGradle
-compileOnly files("libs/onekeyminer-neoforge-1.6.6-1.21.7.jar")
+compileOnly files("libs/onekeyminer-neoforge-1.6.7-1.21.7.jar")
 ```
 
 Install OneKeyMiner separately at runtime and declare it in the add-on's loader
@@ -190,6 +190,13 @@ authorize unrelated neighboring work.
 `ConfigManager.editConfig(key, editor)` for atomic changes. The deprecated
 `skipPermissionCheck` context option is ignored.
 
+While connected to a remote server, the in-game config screen exposes only the
+selected shape and drop/experience teleport requests. Mining limits, action
+rules, consumption, sounds, and teleport-policy gates remain server-owned.
+The client retries one immutable preference snapshot until the server
+acknowledges its matching sequence number, then periodically refreshes the
+authoritative limits used by the preview and HUD.
+
 See [API Documentation](api-reference.md) for the complete 1.21.7 reference,
 including the current event, shape, context, and tool-rule signatures. Shape IDs
 are limited to 128 characters.
@@ -225,7 +232,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.7`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.7-1.6.6`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.21.7-1.6.7`).
 
 
 ## 🐛 Issues & Contributions
