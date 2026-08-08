@@ -194,7 +194,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.1`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.1-1.6.7`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.21.1-1.6.8`).
 
 
 ## 🐛 Issues & Contributions
