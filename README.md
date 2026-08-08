@@ -56,7 +56,7 @@ Choose the correct version for your platform:
 - `onekeyminer-forge-x.x.x-1.20.4.jar` for Forge
 
 Install the matching loader artifact and the same OneKeyMiner version on both
-the dedicated server and every connecting client. Version 1.6.7 uses one
+the dedicated server and every connecting client. Version 1.6.8 uses one
 versioned preference snapshot plus a server acknowledgement. Forge and NeoForge
 reject incompatible wire versions; Fabric sends only when the versioned channel
 is advertised. Clients retry an unacknowledged snapshot instead of silently
@@ -141,10 +141,10 @@ OneKeyMiner provides a comprehensive API for mod developers.
 
 ```groovy
 // Fabric
-modImplementation "org.xiyu:onekeyminer-fabric:1.6.7"
+modImplementation "org.xiyu:onekeyminer-fabric:1.6.8"
 
 // NeoForge/Forge
-implementation "org.xiyu:onekeyminer-neoforge:1.6.7"
+implementation "org.xiyu:onekeyminer-neoforge:1.6.8"
 ```
 
 ### Basic API Usage
@@ -199,7 +199,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.20.4`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.20.4-1.6.7`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.20.4-1.6.8`).
 
 
 ## 🐛 Issues & Contributions
