@@ -6,6 +6,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.event.TickEvent;
@@ -20,6 +21,7 @@ import org.xiyu.onekeyminer.chain.ChainActionContext;
 import org.xiyu.onekeyminer.chain.ChainActionLogic;
 import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
+import org.xiyu.onekeyminer.chain.OriginalToolGuard;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.platform.PlatformServices;
@@ -89,7 +91,14 @@ public class NeoForgeEventHandler {
         // BreakEvent runs before vanilla removes the block. MinecraftServer#execute
         // may run inline on the server thread, so a tick-end queue is required.
         if (!event.isCanceled() && PENDING_BREAKS.size() < MAX_PENDING_BREAKS) {
-            PENDING_BREAKS.add(new PendingBreak(player, level, pos.immutable(), state));
+            PENDING_BREAKS.add(new PendingBreak(
+                    player,
+                    level,
+                    pos.immutable(),
+                    state,
+                    player.getInventory().selected,
+                    player.getMainHandItem().copy()
+            ));
         }
     }
 
@@ -111,6 +120,11 @@ public class NeoForgeEventHandler {
         if (player.isRemoved()
                 || player.level() != level
                 || !level.hasChunkAt(pos)
+                || player.getInventory().selected != pending.selectedSlot()
+                || !OriginalToolGuard.matchesAfterBreak(
+                        pending.originalTool(),
+                        player.getMainHandItem()
+                )
                 || level.getBlockState(pos).getBlock() == pending.state().getBlock()) {
             return;
         }
@@ -120,7 +134,8 @@ public class NeoForgeEventHandler {
                     player,
                     level,
                     pos,
-                    pending.state()
+                    pending.state(),
+                    pending.originalTool()
             );
             if (!result.isSuccess() || result.totalCount() <= 0) {
                 return;
@@ -257,7 +272,9 @@ public class NeoForgeEventHandler {
             ServerPlayer player,
             Level level,
             BlockPos pos,
-            BlockState state
+            BlockState state,
+            int selectedSlot,
+            ItemStack originalTool
     ) {
     }
 }
