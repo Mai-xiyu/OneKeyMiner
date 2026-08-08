@@ -162,7 +162,11 @@ public class FabricEventHandler {
         );
         if (toolSnapshot == null
                 || serverPlayer.getInventory().selected
-                        != toolSnapshot.selectedSlot()) {
+                        != toolSnapshot.selectedSlot()
+                || !FabricBreakToolSnapshots.matchesAfterBreak(
+                        toolSnapshot.tool(),
+                        serverPlayer.getMainHandItem()
+                )) {
             return;
         }
 

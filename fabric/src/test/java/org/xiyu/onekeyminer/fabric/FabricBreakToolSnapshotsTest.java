@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,5 +58,18 @@ final class FabricBreakToolSnapshotsTest {
 
         snapshots.clearPlayer(playerId);
         assertNull(snapshots.consume(playerId, secondLevel, BlockPos.ZERO));
+    }
+
+    @Test
+    void acceptsDurabilityChangeButRejectsAConsumedTool() {
+        ItemStack original = new ItemStack(Items.IRON_PICKAXE);
+        ItemStack damaged = original.copy();
+        damaged.setDamageValue(1);
+
+        assertTrue(FabricBreakToolSnapshots.matchesAfterBreak(original, damaged));
+        assertFalse(FabricBreakToolSnapshots.matchesAfterBreak(
+                original,
+                ItemStack.EMPTY
+        ));
     }
 }
