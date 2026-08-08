@@ -21,7 +21,7 @@ import java.nio.file.Path;
  * 各平台需要在入口点初始化时调用 {@link #setInstance(PlatformServices)} 注册实现。</p>
  * 
  * @author OneKeyMiner Team
- * @version 1.6.7
+ * @version 1.6.8
  * @since Minecraft 1.20.4
  */
 public interface PlatformServices {
