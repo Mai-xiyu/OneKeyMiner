@@ -163,7 +163,11 @@ public class FabricEventHandler {
         );
         if (toolSnapshot == null
                 || serverPlayer.getInventory().getSelectedSlot()
-                        != toolSnapshot.selectedSlot()) {
+                        != toolSnapshot.selectedSlot()
+                || !FabricBreakToolSnapshots.matchesAfterBreak(
+                        toolSnapshot.tool(),
+                        serverPlayer.getMainHandItem()
+                )) {
             return;
         }
         
