@@ -20,6 +20,7 @@ import org.xiyu.onekeyminer.chain.ChainActionContext;
 import org.xiyu.onekeyminer.chain.ChainActionLogic;
 import org.xiyu.onekeyminer.chain.ChainActionResult;
 import org.xiyu.onekeyminer.chain.ChainActionType;
+import org.xiyu.onekeyminer.chain.OriginalToolGuard;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
@@ -154,7 +155,11 @@ public class FabricEventHandler {
         );
         if (toolSnapshot == null
                 || serverPlayer.getInventory().selected
-                        != toolSnapshot.selectedSlot()) {
+                        != toolSnapshot.selectedSlot()
+                || !OriginalToolGuard.matchesAfterBreak(
+                        toolSnapshot.tool(),
+                        serverPlayer.getMainHandItem()
+                )) {
             return;
         }
         
