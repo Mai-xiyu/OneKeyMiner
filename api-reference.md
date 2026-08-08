@@ -1,6 +1,6 @@
 # OneKeyMiner 26.2 API Reference
 
-This document describes the public API shipped by OneKeyMiner `1.6.7` for
+This document describes the public API shipped by OneKeyMiner `1.6.8` for
 Minecraft `26.2`.
 
 ## Supported environment
@@ -21,9 +21,9 @@ against the platform JAR that it will run with.
 
 Copy one production JAR into your add-on project's `libs/` directory:
 
-- `onekeyminer-fabric-1.6.7-26.2.jar`
-- `onekeyminer-forge-1.6.7-26.2.jar`
-- `onekeyminer-neoforge-1.6.7-26.2.jar`
+- `onekeyminer-fabric-1.6.8-26.2.jar`
+- `onekeyminer-forge-1.6.8-26.2.jar`
+- `onekeyminer-neoforge-1.6.8-26.2.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
 contain Minecraft types whose runtime mappings differ by loader, so add-ons
@@ -36,7 +36,7 @@ Fabric Loom:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/onekeyminer-fabric-1.6.7-26.2.jar")
+    modCompileOnly files("libs/onekeyminer-fabric-1.6.8-26.2.jar")
 }
 ```
 
@@ -44,7 +44,7 @@ ForgeGradle:
 
 ```groovy
 dependencies {
-    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-26.2.jar"))
+    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.8-26.2.jar"))
 }
 ```
 
@@ -52,7 +52,7 @@ NeoGradle or ModDevGradle:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/onekeyminer-neoforge-1.6.7-26.2.jar")
+    compileOnly files("libs/onekeyminer-neoforge-1.6.8-26.2.jar")
 }
 ```
 
@@ -552,7 +552,7 @@ excessive packets are rejected server-side.
 ## Compatibility notes
 
 - API examples in this document target only Minecraft 26.2 / OneKeyMiner
-  1.6.7. Other branches must be compiled against their own platform JAR.
+  1.6.8. Other branches must be compiled against their own platform JAR.
 - A production add-on must declare its supported OneKeyMiner and Minecraft
   versions in loader metadata.
 - Do not depend on `org.xiyu.onekeyminer.platform.*` implementations. They are
