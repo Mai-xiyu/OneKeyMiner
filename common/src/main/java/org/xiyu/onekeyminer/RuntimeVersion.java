@@ -7,7 +7,7 @@ final class RuntimeVersion {
 
     static String resolve(String implementationVersion) {
         return implementationVersion == null || implementationVersion.isBlank()
-                ? "1.6.7"
+                ? "1.6.8"
                 : implementationVersion;
     }
 }
