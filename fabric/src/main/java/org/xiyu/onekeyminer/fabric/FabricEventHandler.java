@@ -44,12 +44,16 @@ public class FabricEventHandler {
     /** 防止重入的标记 */
     private static final ThreadLocal<Boolean> IS_CHAIN_BREAKING = ThreadLocal.withInitial(() -> false);
     private static final ThreadLocal<Boolean> IS_CHAIN_INTERACTING = ThreadLocal.withInitial(() -> false);
+    private static final FabricBreakToolSnapshots BREAK_TOOL_SNAPSHOTS =
+            new FabricBreakToolSnapshots();
     
     /**
      * 注册所有事件监听器
      */
     public static void register() {
         // 注册方块破坏事件（连锁挖掘）
+        PlayerBlockBreakEvents.BEFORE.register(FabricEventHandler::beforeBlockBreak);
+        PlayerBlockBreakEvents.CANCELED.register(FabricEventHandler::onBlockBreakCanceled);
         PlayerBlockBreakEvents.AFTER.register(FabricEventHandler::onBlockBreak);
         
         // 注册右键方块事件（连锁交互/种植）
@@ -57,12 +61,14 @@ public class FabricEventHandler {
 
         // 注册玩家断开连接事件（清理状态）
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
-            FabricPlatformServices.cleanupPlayer(handler.getPlayer().getUUID());
+            var playerId = handler.getPlayer().getUUID();
+            BREAK_TOOL_SNAPSHOTS.clearPlayer(playerId);
+            FabricPlatformServices.cleanupPlayer(playerId);
         });
         
         // 注册服务器停止事件（清理所有状态）
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            // 清理所有玩家状态
+            BREAK_TOOL_SNAPSHOTS.clearAll();
             MiningStateManager.clearAll();
         });
         
@@ -78,6 +84,47 @@ public class FabricEventHandler {
      * @param state 方块状态（破坏前）
      * @param blockEntity 方块实体（如果有）
      */
+    private static boolean beforeBlockBreak(
+            Level level,
+            Player player,
+            BlockPos pos,
+            BlockState state,
+            BlockEntity blockEntity
+    ) {
+        if (IS_CHAIN_BREAKING.get() || IS_CHAIN_INTERACTING.get()) {
+            return true;
+        }
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return true;
+        }
+        MinerConfig config = ConfigManager.getConfig();
+        if (!config.enabled
+                || !PlatformServices.getInstance().isChainModeActive(serverPlayer)) {
+            return true;
+        }
+
+        BREAK_TOOL_SNAPSHOTS.capture(
+                serverPlayer.getUUID(),
+                level,
+                pos,
+                serverPlayer.getInventory().selected,
+                serverPlayer.getMainHandItem()
+        );
+        return true;
+    }
+
+    private static void onBlockBreakCanceled(
+            Level level,
+            Player player,
+            BlockPos pos,
+            BlockState state,
+            BlockEntity blockEntity
+    ) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            BREAK_TOOL_SNAPSHOTS.discard(serverPlayer.getUUID(), level, pos);
+        }
+    }
+
     private static void onBlockBreak(
             Level level,
             Player player,
@@ -99,6 +146,17 @@ public class FabricEventHandler {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return;
         }
+
+        var toolSnapshot = BREAK_TOOL_SNAPSHOTS.consume(
+                serverPlayer.getUUID(),
+                level,
+                pos
+        );
+        if (toolSnapshot == null
+                || serverPlayer.getInventory().selected
+                        != toolSnapshot.selectedSlot()) {
+            return;
+        }
         
         // 检查配置
         MinerConfig config = ConfigManager.getConfig();
@@ -115,7 +173,13 @@ public class FabricEventHandler {
             IS_CHAIN_BREAKING.set(true);
             
             // 执行连锁挖掘
-            ChainActionResult result = ChainActionLogic.onVerifiedBlockBreak(serverPlayer, level, pos, state);
+            ChainActionResult result = ChainActionLogic.onVerifiedBlockBreak(
+                    serverPlayer,
+                    level,
+                    pos,
+                    state,
+                    toolSnapshot.tool()
+            );
             
             if (result.isSuccess() && result.totalCount() > 0) {
                 // 发送操作完成消息

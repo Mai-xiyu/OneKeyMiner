@@ -177,7 +177,19 @@ public final class ChainActionLogic {
             BlockPos pos,
             BlockState state
     ) {
-        return execute(ChainActionContext.forVerifiedMining(player, level, pos, state));
+        return onVerifiedBlockBreak(player, level, pos, state, player.getMainHandItem());
+    }
+
+    public static ChainActionResult onVerifiedBlockBreak(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            ItemStack originalTool
+    ) {
+        return execute(ChainActionContext.forVerifiedMining(
+                player, level, pos, state, originalTool
+        ));
     }
 
     /**
