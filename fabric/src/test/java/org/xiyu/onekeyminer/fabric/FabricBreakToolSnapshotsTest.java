@@ -7,10 +7,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.xiyu.onekeyminer.chain.OriginalToolGuard;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,5 +59,15 @@ final class FabricBreakToolSnapshotsTest {
 
         snapshots.clearPlayer(playerId);
         assertNull(snapshots.consume(playerId, secondLevel, BlockPos.ZERO));
+    }
+
+    @Test
+    void allowsDurabilityChangeButRejectsAConsumedTool() {
+        ItemStack original = new ItemStack(Items.IRON_PICKAXE);
+        ItemStack damaged = original.copy();
+        damaged.setDamageValue(1);
+
+        assertTrue(OriginalToolGuard.matchesAfterBreak(original, damaged));
+        assertFalse(OriginalToolGuard.matchesAfterBreak(original, ItemStack.EMPTY));
     }
 }
