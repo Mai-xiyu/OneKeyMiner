@@ -51,7 +51,7 @@ description: 模组开发接口文档
 
 ## 简介
 
-OneKeyMiner 1.6.7（Minecraft 1.20.1）支持 Fabric 和 Forge。本文档面向希望与 OneKeyMiner 集成或扩展其功能的模组开发者。
+OneKeyMiner 1.6.8（Minecraft 1.20.1）支持 Fabric 和 Forge。本文档面向希望与 OneKeyMiner 集成或扩展其功能的模组开发者。
 
 ### 主要特性
 
@@ -1257,7 +1257,7 @@ A: 是的，API 保持向后兼容。次版本更新不会破坏现有集成。
 
 ---
 
-*文档版本: 1.6.7 | 最后更新: 2026年8月*
+*文档版本: 1.6.8 | 最后更新: 2026年8月*
 
 ---
 

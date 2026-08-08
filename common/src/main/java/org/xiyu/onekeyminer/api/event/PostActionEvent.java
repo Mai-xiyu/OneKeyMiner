@@ -35,7 +35,7 @@ import java.util.List;
  * }</pre>
  * 
  * @author OneKeyMiner Team
- * @version 1.6.7
+ * @version 1.6.8
  * @since Minecraft 1.20.1
  * @see ChainEvents
  * @see PreActionEvent

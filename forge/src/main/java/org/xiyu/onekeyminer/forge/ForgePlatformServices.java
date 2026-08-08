@@ -25,7 +25,7 @@ import java.util.UUID;
  * <p>实现 {@link PlatformServices} 接口，提供 Forge 平台特定的功能实现。</p>
  * 
  * @author OneKeyMiner Team
- * @version 1.6.7
+ * @version 1.6.8
  * @since Minecraft 1.20.1
  */
 public class ForgePlatformServices implements PlatformServices {

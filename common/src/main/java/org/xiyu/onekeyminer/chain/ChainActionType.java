@@ -11,7 +11,7 @@ package org.xiyu.onekeyminer.chain;
  * </ul>
  * 
  * @author OneKeyMiner Team
- * @version 1.6.7
+ * @version 1.6.8
  * @since Minecraft 1.20.1
  */
 public enum ChainActionType {
