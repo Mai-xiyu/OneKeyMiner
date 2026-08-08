@@ -23,10 +23,25 @@ public final class ClientPreferenceSyncTracker {
         }
     }
 
+    /** Invalidates an obsolete local snapshot so its late ACK cannot win a race. */
+    public synchronized void invalidatePendingAttempt() {
+        pendingSequence = 0;
+        synchronizedWithServer = false;
+    }
+
+    /** Returns the in-flight sequence, or {@code 0} when no attempt exists. */
+    public synchronized int pendingSequence() {
+        return pendingSequence;
+    }
+
+    public synchronized boolean hasPendingAttempt() {
+        return pendingSequence > 0;
+    }
+
     public synchronized boolean confirm(ClientPreferenceAck ack) {
         if (ack == null
                 || ack.wireVersion() != ClientPreferenceProtocol.WIRE_VERSION
-                || ack.sequence() <= 0
+                || pendingSequence == 0
                 || ack.sequence() != pendingSequence) {
             return false;
         }

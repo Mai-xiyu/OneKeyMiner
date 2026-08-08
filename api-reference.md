@@ -1,6 +1,6 @@
 # OneKeyMiner 1.21.11 API Reference
 
-This document describes the public API shipped by OneKeyMiner `1.6.6` for
+This document describes the public API shipped by OneKeyMiner `1.6.7` for
 Minecraft `1.21.11`.
 
 ## Supported environment
@@ -21,9 +21,9 @@ against the platform JAR that it will run with.
 
 Copy one production JAR into your add-on project's `libs/` directory:
 
-- `onekeyminer-fabric-1.6.6-1.21.11.jar`
-- `onekeyminer-forge-1.6.6-1.21.11.jar`
-- `onekeyminer-neoforge-1.6.6-1.21.11.jar`
+- `onekeyminer-fabric-1.6.7-1.21.11.jar`
+- `onekeyminer-forge-1.6.7-1.21.11.jar`
+- `onekeyminer-neoforge-1.6.7-1.21.11.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
 contain Minecraft types whose runtime mappings differ by loader, so add-ons
@@ -36,7 +36,7 @@ Fabric Loom:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/onekeyminer-fabric-1.6.6-1.21.11.jar")
+    modCompileOnly files("libs/onekeyminer-fabric-1.6.7-1.21.11.jar")
 }
 ```
 
@@ -44,7 +44,7 @@ ForgeGradle:
 
 ```groovy
 dependencies {
-    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-1.21.11.jar"))
+    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-1.21.11.jar"))
 }
 ```
 
@@ -52,7 +52,7 @@ NeoGradle or ModDevGradle:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/onekeyminer-neoforge-1.6.6-1.21.11.jar")
+    compileOnly files("libs/onekeyminer-neoforge-1.6.7-1.21.11.jar")
 }
 ```
 
@@ -488,21 +488,40 @@ event.
 On a remote dedicated server, only `selectedShape`, `teleportDrops`, and
 `teleportExp` are client preferences. Global limits and feature switches are
 server-authoritative and must be changed in the server's configuration file.
-The v3 loader-specific wire adapters send one coherent preference snapshot with
+The v4 loader-specific wire adapters send one coherent preference snapshot with
 a sequence number. The server validates the shape, applies teleport policy, and
 returns a versioned acknowledgement containing the applied shape, applied
-teleport flags, and capability bitmask. A client considers synchronization
-complete only after the acknowledgement for its latest sequence arrives.
+preview bounds, diagonal policy, teleport flags, and capability bitmask. A
+client considers synchronization complete only after the acknowledgement for
+its latest sequence arrives. Version 4 intentionally rejects the incompatible
+1.6.6 v3 acknowledgement layout instead of mis-decoding it.
 
-The server accepts at most one preference snapshot per player per server tick.
-Rejected snapshots are not acknowledged, so the client retries its latest
-state. Invalid-packet warnings are sampled per player.
+Forge and NeoForge declare this channel optional, so a OneKeyMiner installation
+does not by itself require the peer to install the mod. When both peers expose
+the channel, protocol matching remains exact. Fabric uses versioned payload IDs
+and checks channel availability before sending. Every loader codec requires the
+entire framed payload to be consumed; trailing data is rejected.
+
+The server accepts a bounded four-packet burst per player per server tick.
+Rejected snapshots are not acknowledged, so the client retries one immutable
+latest snapshot: 20 ticks after transport failure, 100 ticks while waiting for
+an ACK, and every 600 ticks after success to refresh authoritative policy.
+The server returns the original ACK for an identical retry, rejects reuse of a
+sequence with different contents, and rejects stale sequences across the
+positive wrapping sequence space. Invalid-packet warnings are sampled per
+player, and all replay/rate state is removed on logout or server shutdown.
 
 `ConfigManager.updateClientPreferences(config)` persists only those three
 client-owned fields and is the safe update path for a remote-server screen.
 
 `ConfigManager#getConfig()` and `getConfigSnapshot()` return defensive copies.
 Changing fields on those objects does not change active configuration.
+
+Hot-path networking code should use the immutable constant-size views instead:
+`getClientPreferencesSnapshot()` returns the selected shape and two local
+teleport requests, while `getServerPreferenceSnapshot()` returns the enabled
+flag, survival/creative block limits, distance, diagonal rule, and teleport
+policy gates. Both are `O(1)` time and space and avoid copying configured lists.
 
 For an atomic update, use:
 
@@ -537,6 +556,9 @@ OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
 // Effective value for one connected player:
 boolean drops = OneKeyMinerAPI.isDropTeleportEffective(serverPlayer);
 boolean experience = OneKeyMinerAPI.isExperienceTeleportEffective(serverPlayer);
+
+// Latest applied server snapshot on a physical client:
+var acknowledged = OneKeyMinerAPI.getAcknowledgedServerPreferences();
 ```
 
 The legacy `is/setTeleportDropsEnabled` and `is/setTeleportExpEnabled` methods
@@ -544,10 +566,14 @@ remain binary/source compatible but are deprecated because they expose only a
 local request, not the effective dedicated-server behavior. Server integrations
 should use the explicit policy and per-player effective-value methods above.
 
+`getAcknowledgedServerPreferences()` returns empty before the first matching
+ACK, after disconnect, and on a dedicated server. Its preview values are
+session-only; they never overwrite the local saved configuration.
+
 ## Compatibility notes
 
 - API examples in this document target only Minecraft 1.21.11 / OneKeyMiner
-  1.6.6. Other branches must be compiled against their own platform JAR.
+  1.6.7. Other branches must be compiled against their own platform JAR.
 - A production add-on must declare its supported OneKeyMiner and Minecraft
   versions in loader metadata.
 - Do not depend on `org.xiyu.onekeyminer.platform.*` implementations. They are

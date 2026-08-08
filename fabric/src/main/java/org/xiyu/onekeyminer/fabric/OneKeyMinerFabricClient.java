@@ -25,7 +25,9 @@ public class OneKeyMinerFabricClient implements ClientModInitializer {
         ConfigSyncHelper.registerSyncCallback(KeyBindings::sendCurrentPreferences);
         ClientPlayNetworking.registerGlobalReceiver(
                 FabricPayloads.ServerPreferencesAckPayload.TYPE,
-                (payload, context) -> KeyBindings.handlePreferencesAck(payload)
+                (payload, context) -> context.client().execute(
+                        () -> KeyBindings.handlePreferencesAck(payload.toCommon())
+                )
         );
 
         KeyBindings.register();

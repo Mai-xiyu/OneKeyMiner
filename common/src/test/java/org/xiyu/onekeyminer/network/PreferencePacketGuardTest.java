@@ -10,11 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 final class PreferencePacketGuardTest {
 
     @Test
-    void acceptsAtMostOnePreferencePacketPerPlayerPerTick() {
-        PreferencePacketGuard guard = new PreferencePacketGuard(200);
+    void acceptsSmallBurstsButBoundsPacketsPerPlayerPerTick() {
+        PreferencePacketGuard guard = new PreferencePacketGuard(600, 4);
         UUID firstPlayer = UUID.randomUUID();
         UUID secondPlayer = UUID.randomUUID();
 
+        assertTrue(guard.tryAcquire(firstPlayer, 10));
+        assertTrue(guard.tryAcquire(firstPlayer, 10));
+        assertTrue(guard.tryAcquire(firstPlayer, 10));
         assertTrue(guard.tryAcquire(firstPlayer, 10));
         assertFalse(guard.tryAcquire(firstPlayer, 10));
         assertTrue(guard.tryAcquire(firstPlayer, 11));
@@ -22,18 +25,18 @@ final class PreferencePacketGuardTest {
     }
 
     @Test
-    void samplesInvalidPacketLogsPerPlayer() {
-        PreferencePacketGuard guard = new PreferencePacketGuard(200);
+    void samplesInvalidPacketLogsEverySixHundredTicksPerPlayer() {
+        PreferencePacketGuard guard = new PreferencePacketGuard(600);
         UUID player = UUID.randomUUID();
 
         assertTrue(guard.shouldLogInvalid(player, 100));
-        assertFalse(guard.shouldLogInvalid(player, 299));
-        assertTrue(guard.shouldLogInvalid(player, 300));
+        assertFalse(guard.shouldLogInvalid(player, 699));
+        assertTrue(guard.shouldLogInvalid(player, 700));
     }
 
     @Test
     void clearRemovesRateAndLogHistory() {
-        PreferencePacketGuard guard = new PreferencePacketGuard(200);
+        PreferencePacketGuard guard = new PreferencePacketGuard(600);
         UUID player = UUID.randomUUID();
         guard.tryAcquire(player, 10);
         guard.shouldLogInvalid(player, 10);

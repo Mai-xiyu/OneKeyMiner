@@ -11,15 +11,17 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.network.ClientPreferenceAck;
 import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.PreferenceCodecGuard;
 
 /**
  * Server-safe NeoForge payload declaration and handler.
  */
 public final class NeoForgeNetworking {
-    public static final String PROTOCOL_VERSION = "3";
+    public static final String PROTOCOL_VERSION =
+            Integer.toString(ClientPreferenceProtocol.WIRE_VERSION);
     public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
-    public static final int MAX_SHAPE_ID_LENGTH = ShapeRegistry.MAX_SHAPE_ID_LENGTH;
+    public static final int MAX_SHAPE_ID_LENGTH =
+            ClientPreferenceProtocol.MAX_SHAPE_ID_LENGTH;
 
     private NeoForgeNetworking() {
     }
@@ -51,15 +53,25 @@ public final class NeoForgeNetworking {
                             buf.writeBoolean(payload.teleportDrops);
                             buf.writeBoolean(payload.teleportExp);
                         },
-                        buf -> new ClientPreferencesPayload(
-                                buf.readVarInt(),
-                                buf.readVarInt(),
-                                buf.readBoolean(),
-                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
-                                buf.readBoolean(),
-                                buf.readBoolean()
-                        )
+                        ClientPreferencesPayload::decode
                 );
+
+        private static ClientPreferencesPayload decode(FriendlyByteBuf buffer) {
+            ClientPreferencesPayload payload = new ClientPreferencesPayload(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buffer.readBoolean(),
+                    buffer.readBoolean()
+            );
+            PreferenceCodecGuard.requireFullyConsumed(buffer);
+            return payload;
+        }
+
+        public ClientPreferencesPayload {
+            shapeId = shapeId == null ? "" : shapeId;
+        }
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -70,7 +82,11 @@ public final class NeoForgeNetworking {
     public record ServerPreferencesAckPayload(
             int wireVersion,
             int sequence,
+            boolean serverEnabled,
             String appliedShapeId,
+            int maxBlocksApplied,
+            int maxDistanceApplied,
+            boolean allowDiagonalApplied,
             boolean teleportDropsApplied,
             boolean teleportExpApplied,
             int capabilities
@@ -85,26 +101,60 @@ public final class NeoForgeNetworking {
                         (buf, payload) -> {
                             buf.writeVarInt(payload.wireVersion);
                             buf.writeVarInt(payload.sequence);
+                            buf.writeBoolean(payload.serverEnabled);
                             buf.writeUtf(payload.appliedShapeId, MAX_SHAPE_ID_LENGTH);
+                            buf.writeVarInt(payload.maxBlocksApplied);
+                            buf.writeVarInt(payload.maxDistanceApplied);
+                            buf.writeBoolean(payload.allowDiagonalApplied);
                             buf.writeBoolean(payload.teleportDropsApplied);
                             buf.writeBoolean(payload.teleportExpApplied);
                             buf.writeVarInt(payload.capabilities);
                         },
-                        buf -> new ServerPreferencesAckPayload(
-                                buf.readVarInt(),
-                                buf.readVarInt(),
-                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
-                                buf.readBoolean(),
-                                buf.readBoolean(),
-                                buf.readVarInt()
-                        )
+                        ServerPreferencesAckPayload::decode
                 );
+
+        private static ServerPreferencesAckPayload decode(FriendlyByteBuf buffer) {
+            ServerPreferencesAckPayload payload = new ServerPreferencesAckPayload(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readVarInt()
+            );
+            PreferenceCodecGuard.requireFullyConsumed(buffer);
+            return payload;
+        }
+
+        public ServerPreferencesAckPayload {
+            appliedShapeId = appliedShapeId == null ? "" : appliedShapeId;
+            new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    serverEnabled,
+                    appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
+        }
 
         ClientPreferenceAck toCommon() {
             return new ClientPreferenceAck(
                     wireVersion,
                     sequence,
+                    serverEnabled,
                     appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
                     teleportDropsApplied,
                     teleportExpApplied,
                     capabilities
@@ -115,7 +165,11 @@ public final class NeoForgeNetworking {
             return new ServerPreferencesAckPayload(
                     ack.wireVersion(),
                     ack.sequence(),
+                    ack.serverEnabled(),
                     ack.appliedShapeId(),
+                    ack.maxBlocksApplied(),
+                    ack.maxDistanceApplied(),
+                    ack.allowDiagonalApplied(),
                     ack.teleportDropsApplied(),
                     ack.teleportExpApplied(),
                     ack.capabilities()
@@ -129,7 +183,7 @@ public final class NeoForgeNetworking {
     }
 
     public static void registerPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar(PROTOCOL_VERSION);
+        var registrar = event.registrar(PROTOCOL_VERSION).optional();
         registrar.playToServer(
                 ClientPreferencesPayload.TYPE,
                 ClientPreferencesPayload.STREAM_CODEC,

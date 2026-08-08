@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
   <a href="LICENSE_EN.md"><img src="https://img.shields.io/badge/license-Custom%20v1.2-red?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.6-blue?style=flat-square" alt="OneKeyMiner Version">
+  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.7-blue?style=flat-square" alt="OneKeyMiner Version">
   <img src="https://img.shields.io/badge/Minecraft-1.21.11-green?style=flat-square" alt="Minecraft Version">
   <img src="https://img.shields.io/badge/Java-21-orange?style=flat-square" alt="Java Version">
 </p>
@@ -42,7 +42,7 @@
 | Component | Version |
 |-----------|---------|
 | Minecraft | 1.21.11 |
-| OneKeyMiner | 1.6.6 |
+| OneKeyMiner | 1.6.7 |
 | Java | 21 |
 | Fabric Loader | 0.18.4 |
 | Fabric API | 0.141.2+1.21.11 |
@@ -54,9 +54,9 @@
 Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
 
 Choose the correct version for your platform:
-- `onekeyminer-fabric-1.6.6-1.21.11.jar` for Fabric
-- `onekeyminer-neoforge-1.6.6-1.21.11.jar` for NeoForge
-- `onekeyminer-forge-1.6.6-1.21.11.jar` for Forge
+- `onekeyminer-fabric-1.6.7-1.21.11.jar` for Fabric
+- `onekeyminer-neoforge-1.6.7-1.21.11.jar` for NeoForge
+- `onekeyminer-forge-1.6.7-1.21.11.jar` for Forge
 
 Use the matching platform JAR on both the client and server. A universal JAR
 is not published because loader-specific Minecraft mappings cannot provide a
@@ -69,7 +69,9 @@ screens clearly mark those controls read-only and cannot override server policy.
 per-player preferences (selected shape and drop/experience teleport requests) remain editable.
 They are synchronized when joining, when the activation key changes, and after saving the
 configuration screen. The server acknowledges the validated, policy-applied result; until that
-ACK arrives, the client keeps the latest preference snapshot pending and retries it.
+ACK arrives, the client keeps the latest immutable preference snapshot pending and retries it.
+The ACK also supplies the effective server shape and preview limits used by the client preview
+and HUD, without overwriting the client's saved preferences.
 
 ---
 
@@ -141,13 +143,13 @@ compile-only dependency.
 
 ```groovy
 // Fabric Loom
-modCompileOnly files("libs/onekeyminer-fabric-1.6.6-1.21.11.jar")
+modCompileOnly files("libs/onekeyminer-fabric-1.6.7-1.21.11.jar")
 
 // ForgeGradle
-compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.6-1.21.11.jar"))
+compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.7-1.21.11.jar"))
 
 // NeoGradle or ModDevGradle
-compileOnly files("libs/onekeyminer-neoforge-1.6.6-1.21.11.jar")
+compileOnly files("libs/onekeyminer-neoforge-1.6.7-1.21.11.jar")
 ```
 
 Install OneKeyMiner separately at runtime and declare it in the add-on's loader
@@ -186,6 +188,16 @@ authorize unrelated neighboring work.
 `ConfigManager.editConfig(key, editor)` for atomic changes. The deprecated
 `skipPermissionCheck` context option is ignored.
 
+While connected to a remote server, the in-game config screen exposes only the
+selected shape and drop/experience teleport requests. The client uses 20-tick
+transport retries, 100-tick ACK retries, and a 600-tick policy refresh. The
+server accepts a bounded four-packet burst per player per tick, validates every
+snapshot, rejects stale or conflicting sequence reuse, and returns the effective
+values through a versioned ACK. Loader channels are optional when the peer has
+no OneKeyMiner installation, but use exact v4 matching when both peers expose
+the channel. All three decoders reject trailing bytes instead of partially
+accepting malformed payloads.
+
 See [API Documentation](api-reference.md) for the complete 1.21.11 reference,
 including the current event, shape, context, and tool-rule signatures. Shape IDs
 are limited to 128 characters.
@@ -221,7 +233,7 @@ Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
 
 - **Branching**: Each Minecraft version uses its own branch (e.g., `1.21.11`).
 - **Latest**: The latest Minecraft version is maintained on `master`.
-- **Tag format**: `<branch>-<mod_version>` (example: `1.21.11-1.6.6`).
+- **Tag format**: `<branch>-<mod_version>` (example: `1.21.11-1.6.7`).
 
 
 ## 🐛 Issues & Contributions

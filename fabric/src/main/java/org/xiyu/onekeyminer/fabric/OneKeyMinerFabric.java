@@ -43,17 +43,14 @@ public class OneKeyMinerFabric implements ModInitializer {
                             payload.teleportDrops(),
                             payload.teleportExp()
                     );
-                    if (ack != null) {
+                    if (ack != null
+                            && ServerPlayNetworking.canSend(
+                                    context.player(),
+                                    FabricPayloads.ServerPreferencesAckPayload.TYPE
+                            )) {
                         ServerPlayNetworking.send(
                                 context.player(),
-                                new FabricPayloads.ServerPreferencesAckPayload(
-                                        ack.wireVersion(),
-                                        ack.sequence(),
-                                        ack.appliedShapeId(),
-                                        ack.teleportDropsApplied(),
-                                        ack.teleportExpApplied(),
-                                        ack.capabilities()
-                                )
+                                FabricPayloads.ServerPreferencesAckPayload.fromCommon(ack)
                         );
                     }
                 }

@@ -5,15 +5,17 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import org.xiyu.onekeyminer.OneKeyMiner;
+import org.xiyu.onekeyminer.network.ClientPreferenceAck;
 import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.PreferenceCodecGuard;
 
 /**
  * Server-safe Fabric payload declarations.
  */
 public final class FabricPayloads {
     public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
-    public static final int MAX_SHAPE_ID_LENGTH = ShapeRegistry.MAX_SHAPE_ID_LENGTH;
+    public static final int MAX_SHAPE_ID_LENGTH =
+            ClientPreferenceProtocol.MAX_SHAPE_ID_LENGTH;
 
     private FabricPayloads() {
     }
@@ -50,15 +52,25 @@ public final class FabricPayloads {
                             buf.writeBoolean(payload.teleportDrops);
                             buf.writeBoolean(payload.teleportExp);
                         },
-                        buf -> new ClientPreferencesPayload(
-                                buf.readVarInt(),
-                                buf.readVarInt(),
-                                buf.readBoolean(),
-                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
-                                buf.readBoolean(),
-                                buf.readBoolean()
-                        )
+                        ClientPreferencesPayload::decode
                 );
+
+        private static ClientPreferencesPayload decode(FriendlyByteBuf buffer) {
+            ClientPreferencesPayload payload = new ClientPreferencesPayload(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buffer.readBoolean(),
+                    buffer.readBoolean()
+            );
+            PreferenceCodecGuard.requireFullyConsumed(buffer);
+            return payload;
+        }
+
+        public ClientPreferencesPayload {
+            shapeId = shapeId == null ? "" : shapeId;
+        }
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -69,7 +81,11 @@ public final class FabricPayloads {
     public record ServerPreferencesAckPayload(
             int wireVersion,
             int sequence,
+            boolean serverEnabled,
             String appliedShapeId,
+            int maxBlocksApplied,
+            int maxDistanceApplied,
+            boolean allowDiagonalApplied,
             boolean teleportDropsApplied,
             boolean teleportExpApplied,
             int capabilities
@@ -84,20 +100,80 @@ public final class FabricPayloads {
                         (buf, payload) -> {
                             buf.writeVarInt(payload.wireVersion);
                             buf.writeVarInt(payload.sequence);
+                            buf.writeBoolean(payload.serverEnabled);
                             buf.writeUtf(payload.appliedShapeId, MAX_SHAPE_ID_LENGTH);
+                            buf.writeVarInt(payload.maxBlocksApplied);
+                            buf.writeVarInt(payload.maxDistanceApplied);
+                            buf.writeBoolean(payload.allowDiagonalApplied);
                             buf.writeBoolean(payload.teleportDropsApplied);
                             buf.writeBoolean(payload.teleportExpApplied);
                             buf.writeVarInt(payload.capabilities);
                         },
-                        buf -> new ServerPreferencesAckPayload(
-                                buf.readVarInt(),
-                                buf.readVarInt(),
-                                buf.readUtf(MAX_SHAPE_ID_LENGTH),
-                                buf.readBoolean(),
-                                buf.readBoolean(),
-                                buf.readVarInt()
-                        )
+                        ServerPreferencesAckPayload::decode
                 );
+
+        private static ServerPreferencesAckPayload decode(FriendlyByteBuf buffer) {
+            ServerPreferencesAckPayload payload = new ServerPreferencesAckPayload(
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buffer.readVarInt(),
+                    buffer.readVarInt(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readVarInt()
+            );
+            PreferenceCodecGuard.requireFullyConsumed(buffer);
+            return payload;
+        }
+
+        public ServerPreferencesAckPayload {
+            appliedShapeId = appliedShapeId == null ? "" : appliedShapeId;
+            new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    serverEnabled,
+                    appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
+        }
+
+        public static ServerPreferencesAckPayload fromCommon(ClientPreferenceAck ack) {
+            return new ServerPreferencesAckPayload(
+                    ack.wireVersion(),
+                    ack.sequence(),
+                    ack.serverEnabled(),
+                    ack.appliedShapeId(),
+                    ack.maxBlocksApplied(),
+                    ack.maxDistanceApplied(),
+                    ack.allowDiagonalApplied(),
+                    ack.teleportDropsApplied(),
+                    ack.teleportExpApplied(),
+                    ack.capabilities()
+            );
+        }
+
+        public ClientPreferenceAck toCommon() {
+            return new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    serverEnabled,
+                    appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
+        }
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

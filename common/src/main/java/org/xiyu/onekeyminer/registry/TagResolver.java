@@ -43,6 +43,9 @@ public final class TagResolver {
     
     /** 通配符字符 */
     private static final String WILDCARD = "*";
+
+    /** Single-character wildcard. */
+    private static final String SINGLE_WILDCARD = "?";
     
     /** 通配符正则模式缓存 */
     private static final Map<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
@@ -131,7 +134,7 @@ public final class TagResolver {
         }
         
         // 检查是否包含通配符
-        if (entry.contains(WILDCARD)) {
+        if (entry.contains(WILDCARD) || entry.contains(SINGLE_WILDCARD)) {
             Pattern pattern = getOrCreatePattern(entry);
             return pattern.matcher(blockId.toString()).matches();
         }
@@ -225,7 +228,7 @@ public final class TagResolver {
         }
         
         // 检查是否包含通配符
-        if (entry.contains(WILDCARD)) {
+        if (entry.contains(WILDCARD) || entry.contains(SINGLE_WILDCARD)) {
             Pattern pattern = getOrCreatePattern(entry);
             return pattern.matcher(itemId.toString()).matches();
         }
@@ -288,6 +291,13 @@ public final class TagResolver {
         
         // 去除标签前缀后检查
         String checkEntry = entry.startsWith(TAG_PREFIX) ? entry.substring(1) : entry;
+
+        // Tag keys are exact identifiers; wildcard semantics only apply to IDs.
+        if (entry.startsWith(TAG_PREFIX)
+                && (checkEntry.contains(WILDCARD)
+                        || checkEntry.contains(SINGLE_WILDCARD))) {
+            return false;
+        }
         
         // 必须包含命名空间分隔符
         if (!checkEntry.contains(":")) {
@@ -295,7 +305,9 @@ public final class TagResolver {
         }
         
         // 尝试解析为 Identifier
-        return Identifier.tryParse(checkEntry.replace("*", "a")) != null;
+        return Identifier.tryParse(
+                checkEntry.replace(WILDCARD, "a").replace(SINGLE_WILDCARD, "a")
+        ) != null;
     }
     
     /**
