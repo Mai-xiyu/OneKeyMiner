@@ -13,7 +13,7 @@ final class OneKeyMinerVersionTest {
 
     @Test
     void fallsBackForDevelopmentClasspath() {
-        assertEquals("1.6.6", OneKeyMiner.resolveVersion(null));
-        assertEquals("1.6.6", OneKeyMiner.resolveVersion("  "));
+        assertEquals("1.6.7", OneKeyMiner.resolveVersion(null));
+        assertEquals("1.6.7", OneKeyMiner.resolveVersion("  "));
     }
 }

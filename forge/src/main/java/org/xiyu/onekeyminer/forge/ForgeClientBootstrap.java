@@ -1,18 +1,16 @@
 package org.xiyu.onekeyminer.forge;
 
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigSyncHelper;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
 
 /**
  * Registers Forge client-only hooks without exposing client event types to the common entrypoint.
  */
-@OnlyIn(Dist.CLIENT)
 public final class ForgeClientBootstrap {
     private ForgeClientBootstrap() {
     }
@@ -26,6 +24,7 @@ public final class ForgeClientBootstrap {
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
+        ClientPreferenceAckDispatcher.register(ForgeClientNetworking::handlePreferencesAck);
         ConfigSyncHelper.registerSyncCallback(ForgeKeyBindings::sendCurrentPreferences);
         ForgeKeyBindings.register();
         OneKeyMiner.LOGGER.debug("Forge client setup complete");

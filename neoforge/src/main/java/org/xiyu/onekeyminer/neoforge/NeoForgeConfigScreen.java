@@ -12,6 +12,7 @@ import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.config.RemoteConfigPolicy;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -23,7 +24,7 @@ import java.util.function.Supplier;
  * <p>提供分页的图形化配置界面，支持多语言。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
- * @since Minecraft 1.21.7
+ * @since Minecraft 1.21.11
  */
 public class NeoForgeConfigScreen {
 
@@ -227,10 +228,6 @@ public class NeoForgeConfigScreen {
             return Component.translatable(key).append(": " + value);
         }
         
-        private Component getEnumMessage(String key, String enumTranslationKey) {
-            return Component.translatable(key).append(": ").append(Component.translatable(enumTranslationKey).withStyle(ChatFormatting.YELLOW));
-        }
-
         private Component getShapeMessage(String shapeId) {
             ChainShape shape = ShapeRegistry.getShapeOrDefault(shapeId);
             String translationKey = shape != null ? shape.getTranslationKey() : "onekeyminer.shape.amorphous";
@@ -254,6 +251,31 @@ public class NeoForgeConfigScreen {
                         this.width / 2,
                         24,
                         0xFFD54F
+                );
+                Component applied = ClientPreferenceSession.lastAck()
+                        .<Component>map(ack -> Component.translatable(
+                                "config.onekeyminer.remote_server_applied",
+                                ack.appliedShapeId(),
+                                Component.translatable(
+                                        ack.teleportDropsApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                ),
+                                Component.translatable(
+                                        ack.teleportExpApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                )
+                        ))
+                        .orElseGet(() -> Component.translatable(
+                                "config.onekeyminer.remote_server_pending"
+                        ));
+                guiGraphics.drawCenteredString(
+                        this.font,
+                        applied,
+                        this.width / 2,
+                        38,
+                        0xAAAAAA
                 );
             }
             guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);

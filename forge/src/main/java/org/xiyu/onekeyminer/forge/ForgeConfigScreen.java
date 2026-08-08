@@ -7,14 +7,13 @@ import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.fml.ModLoadingContext;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.config.ConfigManager;
 import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.config.RemoteConfigPolicy;
+import org.xiyu.onekeyminer.network.ClientPreferenceSession;
 import org.xiyu.onekeyminer.shape.ChainShape;
 import org.xiyu.onekeyminer.shape.ShapeRegistry;
 
@@ -26,9 +25,8 @@ import java.util.function.Supplier;
  * <p>提供分页的图形化配置界面，使用翻译键支持多语言。</p>
  * @author OneKeyMiner Team
  * @version 1.2.0
- * @since Minecraft 1.21.7
+ * @since Minecraft 1.21.11
  */
-@OnlyIn(Dist.CLIENT)
 public class ForgeConfigScreen {
 
     private static final String DISCORD_URL = "https://discord.com/invite/h88UDxwUHm";
@@ -43,7 +41,7 @@ public class ForgeConfigScreen {
         OneKeyMiner.LOGGER.debug("已注册 Forge 配置界面");
     }
     
-    private static Screen createConfigScreen(Screen parent) {
+    public static Screen createConfigScreen(Screen parent) {
         return new SimpleConfigScreen(parent);
     }
     
@@ -310,12 +308,6 @@ public class ForgeConfigScreen {
             return Component.translatable(key).append(": " + value);
         }
         
-        // 构造枚举显示的 Component： "键名: 枚举翻译"
-        private Component getEnumMessage(String key, String enumTranslationKey) {
-            return Component.translatable(key).append(": ")
-                    .append(Component.translatable(enumTranslationKey).withStyle(ChatFormatting.YELLOW));
-        }
-
         private Component getShapeMessage(String shapeId) {
             ChainShape shape = ShapeRegistry.getShapeOrDefault(shapeId);
             String translationKey = shape != null ? shape.getTranslationKey() : "onekeyminer.shape.amorphous";
@@ -348,6 +340,31 @@ public class ForgeConfigScreen {
                         this.width / 2,
                         24,
                         0xFFD54F
+                );
+                Component applied = ClientPreferenceSession.lastAck()
+                        .<Component>map(ack -> Component.translatable(
+                                "config.onekeyminer.remote_server_applied",
+                                ack.appliedShapeId(),
+                                Component.translatable(
+                                        ack.teleportDropsApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                ),
+                                Component.translatable(
+                                        ack.teleportExpApplied()
+                                                ? "options.on"
+                                                : "options.off"
+                                )
+                        ))
+                        .orElseGet(() -> Component.translatable(
+                                "config.onekeyminer.remote_server_pending"
+                        ));
+                guiGraphics.drawCenteredString(
+                        this.font,
+                        applied,
+                        this.width / 2,
+                        38,
+                        0xAAAAAA
                 );
             }
             guiGraphics.drawCenteredString(this.font, Component.literal((currentPage + 1) + " / " + totalPages), this.width / 2, this.height - 45, 0xAAAAAA);

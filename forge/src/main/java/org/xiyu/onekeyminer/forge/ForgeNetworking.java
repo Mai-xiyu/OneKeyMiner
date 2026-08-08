@@ -11,21 +11,24 @@ import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.SimpleChannel;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.network.ClientPreferenceAck;
+import org.xiyu.onekeyminer.network.ClientPreferenceAckDispatcher;
 import org.xiyu.onekeyminer.network.ClientPreferenceProtocol;
-import org.xiyu.onekeyminer.shape.ShapeRegistry;
+import org.xiyu.onekeyminer.network.PreferenceCodecGuard;
 
 /**
  * Server-safe Forge C2S networking with an exact protocol match.
  */
 public final class ForgeNetworking {
     public static final int WIRE_VERSION = ClientPreferenceProtocol.WIRE_VERSION;
-    public static final int MAX_SHAPE_ID_LENGTH = ShapeRegistry.MAX_SHAPE_ID_LENGTH;
+    public static final int MAX_SHAPE_ID_LENGTH =
+            ClientPreferenceProtocol.MAX_SHAPE_ID_LENGTH;
 
     private static final SimpleChannel CHANNEL = ChannelBuilder
             .named(Identifier.fromNamespaceAndPath(OneKeyMiner.MOD_ID, "main"))
             .networkProtocolVersion(WIRE_VERSION)
             .clientAcceptedVersions(VersionTest.exact(WIRE_VERSION))
             .serverAcceptedVersions(VersionTest.exact(WIRE_VERSION))
+            .optional()
             .simpleChannel();
     private static boolean registered;
 
@@ -45,7 +48,7 @@ public final class ForgeNetworking {
         }
 
         public static ClientPreferencesPacket fromNetwork(FriendlyByteBuf buf) {
-            return new ClientPreferencesPacket(
+            ClientPreferencesPacket packet = new ClientPreferencesPacket(
                     buf.readVarInt(),
                     buf.readVarInt(),
                     buf.readBoolean(),
@@ -53,6 +56,8 @@ public final class ForgeNetworking {
                     buf.readBoolean(),
                     buf.readBoolean()
             );
+            PreferenceCodecGuard.requireFullyConsumed(buf);
+            return packet;
         }
 
         public void write(FriendlyByteBuf buf) {
@@ -93,20 +98,40 @@ public final class ForgeNetworking {
     public record ServerPreferencesAckPacket(
             int wireVersion,
             int sequence,
+            boolean serverEnabled,
             String appliedShapeId,
+            int maxBlocksApplied,
+            int maxDistanceApplied,
+            boolean allowDiagonalApplied,
             boolean teleportDropsApplied,
             boolean teleportExpApplied,
             int capabilities
     ) {
         public ServerPreferencesAckPacket {
             appliedShapeId = appliedShapeId != null ? appliedShapeId : "";
+            new ClientPreferenceAck(
+                    wireVersion,
+                    sequence,
+                    serverEnabled,
+                    appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
+                    teleportDropsApplied,
+                    teleportExpApplied,
+                    capabilities
+            );
         }
 
         static ServerPreferencesAckPacket fromCommon(ClientPreferenceAck ack) {
             return new ServerPreferencesAckPacket(
                     ack.wireVersion(),
                     ack.sequence(),
+                    ack.serverEnabled(),
                     ack.appliedShapeId(),
+                    ack.maxBlocksApplied(),
+                    ack.maxDistanceApplied(),
+                    ack.allowDiagonalApplied(),
                     ack.teleportDropsApplied(),
                     ack.teleportExpApplied(),
                     ack.capabilities()
@@ -117,7 +142,11 @@ public final class ForgeNetworking {
             return new ClientPreferenceAck(
                     wireVersion,
                     sequence,
+                    serverEnabled,
                     appliedShapeId,
+                    maxBlocksApplied,
+                    maxDistanceApplied,
+                    allowDiagonalApplied,
                     teleportDropsApplied,
                     teleportExpApplied,
                     capabilities
@@ -125,20 +154,30 @@ public final class ForgeNetworking {
         }
 
         static ServerPreferencesAckPacket fromNetwork(FriendlyByteBuf buf) {
-            return new ServerPreferencesAckPacket(
+            ServerPreferencesAckPacket packet = new ServerPreferencesAckPacket(
                     buf.readVarInt(),
                     buf.readVarInt(),
+                    buf.readBoolean(),
                     buf.readUtf(MAX_SHAPE_ID_LENGTH),
+                    buf.readVarInt(),
+                    buf.readVarInt(),
+                    buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readVarInt()
             );
+            PreferenceCodecGuard.requireFullyConsumed(buf);
+            return packet;
         }
 
         void write(FriendlyByteBuf buf) {
             buf.writeVarInt(wireVersion);
             buf.writeVarInt(sequence);
+            buf.writeBoolean(serverEnabled);
             buf.writeUtf(appliedShapeId, MAX_SHAPE_ID_LENGTH);
+            buf.writeVarInt(maxBlocksApplied);
+            buf.writeVarInt(maxDistanceApplied);
+            buf.writeBoolean(allowDiagonalApplied);
             buf.writeBoolean(teleportDropsApplied);
             buf.writeBoolean(teleportExpApplied);
             buf.writeVarInt(capabilities);
@@ -148,7 +187,7 @@ public final class ForgeNetworking {
                 ServerPreferencesAckPacket packet,
                 CustomPayloadEvent.Context context
         ) {
-            ForgeClientNetworking.handlePreferencesAck(packet.toCommon());
+            ClientPreferenceAckDispatcher.dispatch(packet.toCommon());
             context.setPacketHandled(true);
         }
     }

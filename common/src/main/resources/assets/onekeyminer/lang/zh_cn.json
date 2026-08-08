@@ -1,4 +1,6 @@
 {
+  "config.onekeyminer.remote_server_pending": "正在等待服务端确认……",
+  "config.onekeyminer.remote_server_applied": "服务端已应用：%s；掉落物 %s；经验 %s",
   "config.onekeyminer.title": "OneKeyMiner 配置",
   "config.onekeyminer.remote_server_notice": "远程服务器：仅客户端偏好可编辑，其余设置由服务器控制",
   "config.onekeyminer.info": "编辑配置文件以修改设置",

@@ -71,7 +71,7 @@ public class OneKeyMiner {
 
     static String resolveVersion(String implementationVersion) {
         return implementationVersion == null || implementationVersion.isBlank()
-                ? "1.6.6"
+                ? "1.6.7"
                 : implementationVersion;
     }
 }

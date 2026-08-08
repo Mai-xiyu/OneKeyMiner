@@ -2,7 +2,6 @@ package org.xiyu.onekeyminer.neoforge;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
@@ -32,7 +31,6 @@ import org.xiyu.onekeyminer.config.MinerConfig;
 import org.xiyu.onekeyminer.mining.MiningStateManager;
 import org.xiyu.onekeyminer.platform.PlatformServices;
 
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -137,8 +135,7 @@ public class NeoForgeEventHandler {
         if (player == null || player.level() != level || !level.hasChunkAt(pos)) {
             return;
         }
-        if (player.getInventory().getSelectedSlot() != selectedSlot
-                || !matchesOriginalTool(originalTool, player.getMainHandItem())) {
+        if (player.getInventory().getSelectedSlot() != selectedSlot) {
             return;
         }
         if (level.getBlockState(pos).getBlock() == originalState.getBlock()) {
@@ -185,39 +182,6 @@ public class NeoForgeEventHandler {
         }
     }
 
-    private static boolean matchesOriginalTool(ItemStack before, ItemStack current) {
-        if (before.isEmpty() || current.isEmpty()) {
-            return before.isEmpty() && current.isEmpty();
-        }
-        if (before.getCount() != current.getCount()
-                || !ItemStack.isSameItem(before, current)) {
-            return false;
-        }
-
-        return Objects.equals(
-                before.get(DataComponents.ENCHANTMENTS),
-                current.get(DataComponents.ENCHANTMENTS)
-        ) && Objects.equals(
-                before.get(DataComponents.STORED_ENCHANTMENTS),
-                current.get(DataComponents.STORED_ENCHANTMENTS)
-        ) && Objects.equals(
-                before.get(DataComponents.TOOL),
-                current.get(DataComponents.TOOL)
-        ) && Objects.equals(
-                before.get(DataComponents.UNBREAKABLE),
-                current.get(DataComponents.UNBREAKABLE)
-        ) && Objects.equals(
-                before.get(DataComponents.CAN_BREAK),
-                current.get(DataComponents.CAN_BREAK)
-        ) && Objects.equals(
-                before.get(DataComponents.ATTRIBUTE_MODIFIERS),
-                current.get(DataComponents.ATTRIBUTE_MODIFIERS)
-        ) && Objects.equals(
-                before.get(DataComponents.MAX_DAMAGE),
-                current.get(DataComponents.MAX_DAMAGE)
-        );
-    }
-    
     /**
      * 处理右键方块事件 - 触发连锁交互或种植
      * 

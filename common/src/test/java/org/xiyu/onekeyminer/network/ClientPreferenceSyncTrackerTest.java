@@ -2,7 +2,9 @@ package org.xiyu.onekeyminer.network;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class ClientPreferenceSyncTrackerTest {
@@ -17,16 +19,44 @@ final class ClientPreferenceSyncTrackerTest {
         assertTrue(tracker.isPending());
         assertTrue(tracker.confirm(ack(second)));
         assertFalse(tracker.isPending());
+        assertEquals(second, tracker.lastAck().sequence());
     }
 
     @Test
-    void cancelledAttemptCannotBeConfirmed() {
+    void cancelledAndPreviousConnectionAttemptsCannotBeConfirmed() {
+        ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
+        int cancelled = tracker.beginAttempt();
+        tracker.cancelAttempt(cancelled);
+
+        assertFalse(tracker.confirm(ack(cancelled)));
+        assertNull(tracker.lastAck());
+
+        int previousConnection = tracker.beginAttempt();
+        tracker.reset();
+
+        assertFalse(tracker.confirm(ack(previousConnection)));
+        assertTrue(tracker.isPending());
+        assertNull(tracker.lastAck());
+    }
+
+    @Test
+    void rejectsAcknowledgementsFromAnotherWireVersion() {
         ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
         int sequence = tracker.beginAttempt();
+        ClientPreferenceAck wrongVersion = new ClientPreferenceAck(
+                ClientPreferenceProtocol.WIRE_VERSION - 1,
+                sequence,
+                true,
+                "onekeyminer:amorphous",
+                64,
+                16,
+                true,
+                false,
+                false,
+                0
+        );
 
-        tracker.cancelAttempt(sequence);
-
-        assertFalse(tracker.confirm(ack(sequence)));
+        assertFalse(tracker.confirm(wrongVersion));
         assertTrue(tracker.isPending());
     }
 
@@ -43,21 +73,56 @@ final class ClientPreferenceSyncTrackerTest {
     }
 
     @Test
-    void resetInvalidatesAcknowledgementsFromPreviousConnection() {
+    void oneSequenceCanBeRetriedUntilItsAcknowledgementArrives() {
         ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
         int sequence = tracker.beginAttempt();
 
-        tracker.reset();
+        assertTrue(tracker.hasPendingAttempt());
+        assertEquals(sequence, tracker.pendingSequence());
+        assertTrue(tracker.confirm(ack(sequence)));
+        assertFalse(tracker.hasPendingAttempt());
+        assertEquals(0, tracker.pendingSequence());
+    }
 
-        assertFalse(tracker.confirm(ack(sequence)));
+    @Test
+    void invalidatingDirtySnapshotRejectsItsLateAcknowledgement() {
+        ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
+        int staleSequence = tracker.beginAttempt();
+
+        tracker.invalidatePendingAttempt();
+
+        assertFalse(tracker.confirm(ack(staleSequence)));
         assertTrue(tracker.isPending());
+        assertFalse(tracker.hasPendingAttempt());
+    }
+
+    @Test
+    void dirtySnapshotCannotReplacePriorAckAndNextAttemptCanConfirm() {
+        ClientPreferenceSyncTracker tracker = new ClientPreferenceSyncTracker();
+        int confirmedSequence = tracker.beginAttempt();
+        assertTrue(tracker.confirm(ack(confirmedSequence)));
+
+        int staleSequence = tracker.beginAttempt();
+        tracker.invalidatePendingAttempt();
+
+        assertFalse(tracker.confirm(ack(staleSequence)));
+        assertTrue(tracker.isPending());
+        assertEquals(confirmedSequence, tracker.lastAck().sequence());
+
+        int latestSequence = tracker.beginAttempt();
+        assertTrue(tracker.confirm(ack(latestSequence)));
+        assertEquals(latestSequence, tracker.lastAck().sequence());
     }
 
     private static ClientPreferenceAck ack(int sequence) {
         return new ClientPreferenceAck(
                 ClientPreferenceProtocol.WIRE_VERSION,
                 sequence,
+                true,
                 "onekeyminer:amorphous",
+                64,
+                16,
+                true,
                 false,
                 false,
                 ClientPreferenceProtocol.SUPPORTED_CAPABILITIES

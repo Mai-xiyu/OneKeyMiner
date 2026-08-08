@@ -196,6 +196,7 @@ public class ConfigManager {
         }
         MinerConfig newConfig = CONFIG.get().copy();
         notifyListeners(oldConfig, newConfig);
+        ConfigSyncHelper.triggerSync();
     }
 
     public static MinerConfig getConfig() {
@@ -223,6 +224,34 @@ public class ConfigManager {
                 config.selectedShape,
                 config.teleportDrops,
                 config.teleportExp
+        );
+    }
+
+    /** O(1) immutable server policy used while applying one client snapshot. */
+    public record ServerPreferenceSnapshot(
+            boolean enabled,
+            int maxBlocks,
+            int maxBlocksCreative,
+            int maxDistance,
+            boolean allowDiagonal,
+            boolean allowClientTeleportDrops,
+            boolean allowClientTeleportExp
+    ) {
+        public int maxBlocksFor(boolean creative) {
+            return creative ? maxBlocksCreative : maxBlocks;
+        }
+    }
+
+    public static ServerPreferenceSnapshot getServerPreferenceSnapshot() {
+        MinerConfig config = CONFIG.get();
+        return new ServerPreferenceSnapshot(
+                config.enabled,
+                config.maxBlocks,
+                config.maxBlocksCreative,
+                config.maxDistance,
+                config.allowDiagonal,
+                config.allowClientTeleportDrops,
+                config.allowClientTeleportExp
         );
     }
 
