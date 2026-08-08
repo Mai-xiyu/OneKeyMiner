@@ -13,7 +13,7 @@ final class OneKeyMinerVersionTest {
 
     @Test
     void usesDevelopmentFallbackWhenManifestVersionIsUnavailable() {
-        assertEquals("1.6.7", RuntimeVersion.resolve(null));
-        assertEquals("1.6.7", RuntimeVersion.resolve("  "));
+        assertEquals("1.6.8", RuntimeVersion.resolve(null));
+        assertEquals("1.6.8", RuntimeVersion.resolve("  "));
     }
 }
