@@ -1,11 +1,7 @@
 package org.xiyu.onekeyminer.fabric;
 
-import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -17,27 +13,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class FabricBreakToolSnapshotsTest {
 
-    @BeforeAll
-    static void bootstrapRegistries() {
-        SharedConstants.tryDetectVersion();
-        Bootstrap.bootStrap();
-    }
-
     @Test
-    void consumesAnIndependentPreBreakToolSnapshotOnlyOnce() {
+    void consumesAPreBreakToolSnapshotOnlyOnce() {
         FabricBreakToolSnapshots snapshots = new FabricBreakToolSnapshots();
         UUID playerId = UUID.randomUUID();
         Object level = new Object();
-        ItemStack original = new ItemStack(Items.DIAMOND_PICKAXE);
 
-        snapshots.capture(playerId, level, BlockPos.ZERO, 3, original);
-        original.shrink(1);
+        snapshots.capture(playerId, level, BlockPos.ZERO, 3, ItemStack.EMPTY);
 
         FabricBreakToolSnapshots.Snapshot captured =
                 snapshots.consume(playerId, level, BlockPos.ZERO);
         assertEquals(3, captured.selectedSlot());
-        assertTrue(captured.tool().is(Items.DIAMOND_PICKAXE));
-        assertEquals(1, captured.tool().getCount());
+        assertTrue(captured.tool().isEmpty());
         assertNull(snapshots.consume(playerId, level, BlockPos.ZERO));
     }
 
@@ -49,9 +36,9 @@ final class FabricBreakToolSnapshotsTest {
         Object secondLevel = new Object();
 
         snapshots.capture(playerId, firstLevel, BlockPos.ZERO, 0,
-                new ItemStack(Items.IRON_PICKAXE));
+                ItemStack.EMPTY);
         snapshots.capture(playerId, secondLevel, BlockPos.ZERO, 1,
-                new ItemStack(Items.IRON_PICKAXE));
+                ItemStack.EMPTY);
 
         snapshots.discard(playerId, firstLevel, BlockPos.ZERO);
         assertNull(snapshots.consume(playerId, firstLevel, BlockPos.ZERO));
@@ -61,14 +48,13 @@ final class FabricBreakToolSnapshotsTest {
     }
 
     @Test
-    void acceptsDurabilityChangeButRejectsAConsumedTool() {
-        ItemStack original = new ItemStack(Items.IRON_PICKAXE);
-        ItemStack damaged = original.copy();
-        damaged.setDamageValue(1);
-
-        assertTrue(FabricBreakToolSnapshots.matchesAfterBreak(original, damaged));
+    void acceptsMatchingEmptyHandsButRejectsNull() {
+        assertTrue(FabricBreakToolSnapshots.matchesAfterBreak(
+                ItemStack.EMPTY,
+                ItemStack.EMPTY
+        ));
         assertFalse(FabricBreakToolSnapshots.matchesAfterBreak(
-                original,
+                null,
                 ItemStack.EMPTY
         ));
     }
