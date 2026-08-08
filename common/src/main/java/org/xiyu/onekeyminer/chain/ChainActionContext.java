@@ -212,13 +212,23 @@ public final class ChainActionContext {
             BlockPos pos,
             BlockState state
     ) {
+        return forVerifiedMining(player, level, pos, state, player.getMainHandItem());
+    }
+
+    public static ChainActionContext forVerifiedMining(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            ItemStack originalTool
+    ) {
         return builder()
                 .player(player)
                 .level(level)
                 .originPos(pos)
                 .originState(state)
                 .actionType(ChainActionType.MINING)
-                .heldItem(player.getMainHandItem())
+                .heldItem(originalTool)
                 .hand(InteractionHand.MAIN_HAND)
                 .activationVerified(true)
                 .originAlreadyHandled(true)
