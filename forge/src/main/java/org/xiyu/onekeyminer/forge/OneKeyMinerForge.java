@@ -13,11 +13,11 @@ import org.xiyu.onekeyminer.platform.PlatformServices;
 @Mod(OneKeyMiner.MOD_ID)
 public final class OneKeyMinerForge {
 
-    public OneKeyMinerForge(FMLJavaModLoadingContext context) {
+    public OneKeyMinerForge() {
         PlatformServices.setInstance(new ForgePlatformServices());
         OneKeyMiner.init();
 
-        context.getModEventBus().addListener(this::onCommonSetup);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onCommonSetup);
 
         // A plain runtime if is not enough: the JVM may resolve client method
         // references while loading this class on a dedicated server.
