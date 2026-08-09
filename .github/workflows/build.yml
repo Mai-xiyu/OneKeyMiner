@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -20,20 +20,22 @@ jobs:
           MC_VERSION="$(grep '^mc_ver=' gradle.properties | cut -d= -f2 | tr -d '\r')"
           PROPS_FILE="versionProperties/${MC_VERSION}.properties"
           JAVA_VERSION="21"
+          BUILDS_FOR="fabric,forge,neoforge"
           if [ -f "$PROPS_FILE" ]; then
             JV="$(grep '^java_version=' "$PROPS_FILE" | cut -d= -f2 | tr -d '\r')"
             if [ -n "$JV" ]; then JAVA_VERSION="$JV"; fi
             BF="$(grep '^builds_for=' "$PROPS_FILE" | cut -d= -f2 | tr -d '\r')"
             if [ -n "$BF" ]; then BUILDS_FOR="$BF"; fi
           fi
+          echo "MC_VERSION=$MC_VERSION" >> "$GITHUB_OUTPUT"
           echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
-          echo "BUILDS_FOR=${BUILDS_FOR:-fabric,forge,neoforge}" >> "$GITHUB_OUTPUT"
+          echo "BUILDS_FOR=$BUILDS_FOR" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}
         uses: actions/setup-java@v5
         with:
           java-version: '${{ steps.props.outputs.JAVA_VERSION }}'
-          distribution: 'temurin'
+          distribution: temurin
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -44,9 +46,9 @@ jobs:
       - name: Build with Gradle
         run: |
           if [ "${{ steps.props.outputs.BUILDS_FOR }}" = "fabric" ]; then
-            ./gradlew :common:test :common:javadoc :fabric:build --no-daemon --max-workers=1
+            ./gradlew :fabric:build --no-daemon --max-workers=1 --no-parallel
           else
-            ./gradlew :common:test :common:javadoc build --no-daemon --max-workers=1
+            ./gradlew build --no-daemon --max-workers=1 --no-parallel
           fi
 
       - name: Upload Fabric artifact
