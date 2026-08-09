@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag name to release (e.g. 1.20.1-1.6.8)'
+        description: 'Tag name to release (for example, 1.21.9-1.6.9)'
         required: true
         type: string
 
@@ -70,7 +70,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           java-version: '${{ steps.props.outputs.JAVA_VERSION }}'
-          distribution: 'temurin'
+          distribution: temurin
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -83,12 +83,13 @@ jobs:
           RELEASE_MOD_VERSION: ${{ steps.props.outputs.MOD_VERSION }}
         run: |
           if [ "${{ steps.props.outputs.BUILDS_FOR }}" = "fabric" ]; then
-            ./gradlew :common:test :fabric:build "-Pmod_version=${RELEASE_MOD_VERSION}" --no-daemon --max-workers=1
+            ./gradlew :fabric:build "-Pmod_version=${RELEASE_MOD_VERSION}" --no-daemon --max-workers=1 --no-parallel
           else
-            ./gradlew :common:test build "-Pmod_version=${RELEASE_MOD_VERSION}" --no-daemon --max-workers=1
+            ./gradlew build "-Pmod_version=${RELEASE_MOD_VERSION}" --no-daemon --max-workers=1 --no-parallel
           fi
 
-      - name: Create Release
+      - name: Create GitHub Release
+        id: release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.props.outputs.TAG_NAME }}
@@ -97,15 +98,17 @@ jobs:
             ## OneKeyMiner ${{ steps.props.outputs.TAG_NAME }}
 
             - Minecraft: ${{ steps.props.outputs.MC_VERSION }}
-            - Mod Version: ${{ steps.props.outputs.MOD_VERSION }}
+            - Mod version: ${{ steps.props.outputs.MOD_VERSION }}
 
             ### Downloads
 
-            | Platform | File |
-            |----------|------|
+            | Loader | File |
+            |--------|------|
             | Fabric | `onekeyminer-fabric-*.jar` |
             | Forge | `onekeyminer-forge-*.jar` |
             ${{ steps.props.outputs.HAS_NEOFORGE == 'true' && '| NeoForge | `onekeyminer-neoforge-*.jar` |' || '' }}
+
+            Use the JAR matching your loader. Modrinth and CurseForge receive separate loader-specific files.
 
             ### Requirements
 
@@ -124,3 +127,97 @@ jobs:
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Fabric to Modrinth and CurseForge
+        id: publish_fabric
+        if: contains(steps.props.outputs.BUILDS_FOR, 'fabric')
+        continue-on-error: true
+        uses: Kira-NT/mc-publish@v3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-unfeature-mode: none
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: fabric/build/libs/!(*-@(dev|sources|javadoc)).jar
+          name: OneKeyMiner ${{ steps.props.outputs.TAG_NAME }} (Fabric)
+          version: ${{ steps.props.outputs.TAG_NAME }}-fabric
+          version-type: release
+          changelog: |
+            See the GitHub release for changes:
+            https://github.com/${{ github.repository }}/releases/tag/${{ steps.props.outputs.TAG_NAME }}
+          loaders: fabric
+          game-versions: ${{ steps.props.outputs.MC_VERSION }}
+          game-version-filter: none
+          environment: client | server
+          retry-attempts: 3
+
+      - name: Publish Forge to Modrinth and CurseForge
+        id: publish_forge
+        if: contains(steps.props.outputs.BUILDS_FOR, 'forge')
+        continue-on-error: true
+        uses: Kira-NT/mc-publish@v3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-unfeature-mode: none
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: forge/build/libs/!(*-@(dev|sources|javadoc)).jar
+          name: OneKeyMiner ${{ steps.props.outputs.TAG_NAME }} (Forge)
+          version: ${{ steps.props.outputs.TAG_NAME }}-forge
+          version-type: release
+          changelog: |
+            See the GitHub release for changes:
+            https://github.com/${{ github.repository }}/releases/tag/${{ steps.props.outputs.TAG_NAME }}
+          loaders: forge
+          game-versions: ${{ steps.props.outputs.MC_VERSION }}
+          game-version-filter: none
+          environment: client | server
+          retry-attempts: 3
+
+      - name: Publish NeoForge to Modrinth and CurseForge
+        id: publish_neoforge
+        if: contains(steps.props.outputs.BUILDS_FOR, 'neoforge')
+        continue-on-error: true
+        uses: Kira-NT/mc-publish@v3
+        with:
+          modrinth-id: LZu4H9cp
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+          modrinth-unfeature-mode: none
+          curseforge-id: 1078620
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: neoforge/build/libs/!(*-@(dev|sources|javadoc)).jar
+          name: OneKeyMiner ${{ steps.props.outputs.TAG_NAME }} (NeoForge)
+          version: ${{ steps.props.outputs.TAG_NAME }}-neoforge
+          version-type: release
+          changelog: |
+            See the GitHub release for changes:
+            https://github.com/${{ github.repository }}/releases/tag/${{ steps.props.outputs.TAG_NAME }}
+          loaders: neoforge
+          game-versions: ${{ steps.props.outputs.MC_VERSION }}
+          game-version-filter: none
+          environment: client | server
+          retry-attempts: 3
+
+      - name: Verify external publishing
+        if: always() && steps.release.outcome == 'success'
+        env:
+          BUILDS_FOR: ${{ steps.props.outputs.BUILDS_FOR }}
+          FABRIC_OUTCOME: ${{ steps.publish_fabric.outcome }}
+          FORGE_OUTCOME: ${{ steps.publish_forge.outcome }}
+          NEOFORGE_OUTCOME: ${{ steps.publish_neoforge.outcome }}
+        run: |
+          failed=0
+          check_publish() {
+            loader="$1"
+            outcome="$2"
+            if [[ ",$BUILDS_FOR," == *",$loader,"* ]] && [ "$outcome" != "success" ]; then
+              echo "::error::External publishing failed for $loader (outcome: ${outcome:-missing})"
+              failed=1
+            fi
+          }
+          check_publish fabric "$FABRIC_OUTCOME"
+          check_publish forge "$FORGE_OUTCOME"
+          check_publish neoforge "$NEOFORGE_OUTCOME"
+          exit "$failed"
