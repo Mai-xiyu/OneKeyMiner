@@ -15,7 +15,7 @@ public class OneKeyMiner {
     public static final String MOD_NAME = "OneKeyMiner";
     public static final String VERSION = RuntimeVersion.resolve(
             OneKeyMiner.class,
-            "1.6.8-dev"
+            "1.6.9-dev"
     );
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
 
