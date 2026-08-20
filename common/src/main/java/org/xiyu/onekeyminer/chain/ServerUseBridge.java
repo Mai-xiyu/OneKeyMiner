@@ -52,7 +52,8 @@ public final class ServerUseBridge {
 
     public static InteractionResult useOn(
             ItemStack item,
-            UseOnContext context
+            UseOnContext context,
+            Supplier<InteractionResult> originalUse
     ) {
         Player player = context.getPlayer();
         BlockHitResult hitResult = new BlockHitResult(
@@ -62,7 +63,7 @@ public final class ServerUseBridge {
                 context.isInside()
         );
         if (!(player instanceof ServerPlayer serverPlayer)) {
-            return item.useOn(context);
+            return originalUse.get();
         }
         return runBlockUse(
                 serverPlayer,
@@ -70,7 +71,7 @@ public final class ServerUseBridge {
                 item,
                 context.getHand(),
                 hitResult,
-                () -> item.useOn(context)
+                originalUse
         );
     }
 
@@ -80,10 +81,11 @@ public final class ServerUseBridge {
             Level level,
             Player player,
             InteractionHand hand,
-            BlockHitResult hitResult
+            BlockHitResult hitResult,
+            Supplier<InteractionResult> originalUse
     ) {
         if (!(player instanceof ServerPlayer serverPlayer)) {
-            return state.useItemOn(item, level, player, hand, hitResult);
+            return originalUse.get();
         }
         return runBlockUse(
                 serverPlayer,
@@ -91,13 +93,7 @@ public final class ServerUseBridge {
                 item,
                 hand,
                 hitResult,
-                () -> state.useItemOn(
-                        item,
-                        level,
-                        player,
-                        hand,
-                        hitResult
-                )
+                originalUse
         );
     }
 
@@ -128,14 +124,15 @@ public final class ServerUseBridge {
             Player player,
             Entity target,
             InteractionHand hand,
-            Vec3 location
+            Vec3 location,
+            Supplier<InteractionResult> originalUse
     ) {
         return runEntityUse(
                 player,
                 target,
                 hand,
                 player.getItemInHand(hand),
-                () -> target.interact(player, hand, location)
+                originalUse
         );
     }
 
@@ -143,14 +140,15 @@ public final class ServerUseBridge {
             ItemStack item,
             Player player,
             LivingEntity target,
-            InteractionHand hand
+            InteractionHand hand,
+            Supplier<InteractionResult> originalUse
     ) {
         return runEntityUse(
                 player,
                 target,
                 hand,
                 item,
-                () -> item.interactLivingEntity(player, target, hand)
+                originalUse
         );
     }
 
