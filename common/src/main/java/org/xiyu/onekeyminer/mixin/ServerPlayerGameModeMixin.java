@@ -1,5 +1,7 @@
 package org.xiyu.onekeyminer.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionHand;
@@ -11,13 +13,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.xiyu.onekeyminer.chain.ServerUseBridge;
 
 @Mixin(ServerPlayerGameMode.class)
 abstract class ServerPlayerGameModeMixin {
 
-    @Redirect(
+    @WrapOperation(
             method = "useItemOn(Lnet/minecraft/server/level/ServerPlayer;"
                     + "Lnet/minecraft/world/level/Level;"
                     + "Lnet/minecraft/world/item/ItemStack;"
@@ -42,7 +43,8 @@ abstract class ServerPlayerGameModeMixin {
             Level level,
             Player player,
             InteractionHand hand,
-            BlockHitResult hitResult
+            BlockHitResult hitResult,
+            Operation<InteractionResult> original
     ) {
         return ServerUseBridge.useItemOnBlock(
                 state,
@@ -50,11 +52,12 @@ abstract class ServerPlayerGameModeMixin {
                 level,
                 player,
                 hand,
-                hitResult
+                hitResult,
+                () -> original.call(state, item, level, player, hand, hitResult)
         );
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "useItemOn(Lnet/minecraft/server/level/ServerPlayer;"
                     + "Lnet/minecraft/world/level/Level;"
                     + "Lnet/minecraft/world/item/ItemStack;"
@@ -71,8 +74,13 @@ abstract class ServerPlayerGameModeMixin {
     )
     private InteractionResult onekeyminer$useOn(
             ItemStack item,
-            UseOnContext context
+            UseOnContext context,
+            Operation<InteractionResult> original
     ) {
-        return ServerUseBridge.useOn(item, context);
+        return ServerUseBridge.useOn(
+                item,
+                context,
+                () -> original.call(item, context)
+        );
     }
 }

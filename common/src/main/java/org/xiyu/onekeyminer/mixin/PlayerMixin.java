@@ -1,5 +1,7 @@
 package org.xiyu.onekeyminer.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
@@ -9,13 +11,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.xiyu.onekeyminer.chain.ServerUseBridge;
 
 @Mixin(Player.class)
 abstract class PlayerMixin {
 
-    @Redirect(
+    @WrapOperation(
             method = "interactOn(Lnet/minecraft/world/entity/Entity;"
                     + "Lnet/minecraft/world/InteractionHand;"
                     + "Lnet/minecraft/world/phys/Vec3;)"
@@ -33,17 +34,19 @@ abstract class PlayerMixin {
             Entity target,
             Player player,
             InteractionHand hand,
-            Vec3 location
+            Vec3 location,
+            Operation<InteractionResult> original
     ) {
         return ServerUseBridge.interact(
                 player,
                 target,
                 hand,
-                location
+                location,
+                () -> original.call(target, player, hand, location)
         );
     }
 
-    @Redirect(
+    @WrapOperation(
             method = "interactOn(Lnet/minecraft/world/entity/Entity;"
                     + "Lnet/minecraft/world/InteractionHand;"
                     + "Lnet/minecraft/world/phys/Vec3;)"
@@ -62,13 +65,15 @@ abstract class PlayerMixin {
             ItemStack item,
             Player player,
             LivingEntity target,
-            InteractionHand hand
+            InteractionHand hand,
+            Operation<InteractionResult> original
     ) {
         return ServerUseBridge.interactLivingEntity(
                 item,
                 player,
                 target,
-                hand
+                hand,
+                () -> original.call(item, player, target, hand)
         );
     }
 }

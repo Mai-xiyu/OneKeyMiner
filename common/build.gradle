@@ -26,11 +26,12 @@ if (gradle.ext.minecraft_version == "1.21.11") {
 }
 
 repositories {
-
+    mavenCentral()
 }
 
 dependencies {
     compileOnly "org.spongepowered:mixin:0.8.7"
+    compileOnly "io.github.llamalad7:mixinextras-common:0.5.4"
     testImplementation "org.junit.jupiter:junit-jupiter:5.12.2"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:1.12.2"
 }
