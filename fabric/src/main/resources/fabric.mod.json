@@ -18,6 +18,9 @@
     ],
     "client": [
       "org.xiyu.onekeyminer.fabric.OneKeyMinerFabricClient"
+    ],
+    "modmenu": [
+      "org.xiyu.onekeyminer.fabric.ModMenuIntegration"
     ]
   },
   "mixins": [

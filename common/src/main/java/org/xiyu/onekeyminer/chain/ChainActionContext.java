@@ -257,9 +257,10 @@ public final class ChainActionContext {
             BlockHitResult hitResult
     ) {
         if (actionType != ChainActionType.INTERACTION
-                && actionType != ChainActionType.PLANTING) {
+                && actionType != ChainActionType.PLANTING
+                && actionType != ChainActionType.BONEMEAL) {
             throw new IllegalArgumentException(
-                    "completed block use must be interaction or planting"
+                    "completed block use must be interaction, planting, or bonemeal"
             );
         }
         Builder builder = builder()
@@ -274,6 +275,34 @@ public final class ChainActionContext {
                 .blockHitResult(hitResult);
         builder.activationVerified = true;
         builder.originAlreadyHandled = true;
+        builder.matchedToolActionRule = matchedToolActionRule;
+        return builder.build();
+    }
+
+    static ChainActionContext forUncompletedBlockUse(
+            ServerPlayer player,
+            Level level,
+            BlockPos originPos,
+            BlockState originState,
+            ChainActionType actionType,
+            ItemStack originalItem,
+            InteractionHand hand,
+            InteractionOverride interactionOverride,
+            OneKeyMinerAPI.ToolActionRule matchedToolActionRule,
+            BlockHitResult hitResult
+    ) {
+        Builder builder = builder()
+                .player(player)
+                .level(level)
+                .originPos(originPos)
+                .originState(originState)
+                .actionType(actionType)
+                .heldItem(originalItem)
+                .hand(hand)
+                .interactionOverride(interactionOverride)
+                .blockHitResult(hitResult);
+        builder.activationVerified = true;
+        builder.originAlreadyHandled = false;
         builder.matchedToolActionRule = matchedToolActionRule;
         return builder.build();
     }
@@ -373,6 +402,26 @@ public final class ChainActionContext {
                 .originPos(pos)
                 .originState(level.getBlockState(pos))
                 .actionType(ChainActionType.HARVESTING)
+                .heldItem(player.getItemInHand(hand))
+                .hand(hand)
+                .build();
+    }
+
+    /**
+     * 连锁催熟上下文快捷创建
+     */
+    public static ChainActionContext forBonemeal(
+            ServerPlayer player,
+            Level level,
+            BlockPos pos,
+            InteractionHand hand
+    ) {
+        return builder()
+                .player(player)
+                .level(level)
+                .originPos(pos)
+                .originState(level.getBlockState(pos))
+                .actionType(ChainActionType.BONEMEAL)
                 .heldItem(player.getItemInHand(hand))
                 .hand(hand)
                 .build();

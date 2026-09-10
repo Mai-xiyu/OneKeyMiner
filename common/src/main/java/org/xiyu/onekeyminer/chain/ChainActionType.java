@@ -59,7 +59,12 @@ public enum ChainActionType {
     /**
      * 连锁收割 - 批量收割成熟作物并自动补种
      */
-    HARVESTING("harvesting", "连锁收割");
+    HARVESTING("harvesting", "连锁收割"),
+
+    /**
+     * 连锁催熟 - 批量对作物施加骨粉
+     */
+    BONEMEAL("bonemeal", "连锁催熟");
     
     /** 操作类型的内部标识符 */
     private final String id;

@@ -153,6 +153,7 @@ public final class ChainActionLogic {
                 case INTERACTION -> executeInteraction(context);
                 case PLANTING -> executePlanting(context);
                 case HARVESTING -> executeHarvesting(context);
+                case BONEMEAL -> executeBonemeal(context);
             };
 
         } catch (Exception e) {
@@ -409,21 +410,34 @@ public final class ChainActionLogic {
         }
 
         ServerPlayer player = context.getPlayer();
+        BlockState originState = context.getOriginState();
+        boolean cropFinalStageHarvest = config.selectiveCropHarvest
+                && isCropBlock(originState)
+                && isFinalStageCrop(originState);
+
         ShapeContext.Builder builder = new ShapeContext.Builder()
                 .level(context.getLevel())
                 .originPos(context.getOriginPos())
-                .originState(context.getOriginState())
+                .originState(originState)
                 .maxBlocks(maxBlocks)
                 .maxDistance(maxDistance)
                 .allowDiagonal(allowDiagonal)
-                .blockMatcher((origin, target) ->
-                        isMatchingMiningBlock(origin, target, config)
+                .blockMatcher((origin, target) -> {
+                    if (cropFinalStageHarvest) {
+                        return isMatchingMiningCropField(origin, target, config)
                                 && matchesActiveBlockRule(
                                         activeMiningRule,
                                         context.getHeldItem(),
                                         target
-                                )
-                );
+                                );
+                    }
+                    return isMatchingMiningBlock(origin, target, config)
+                            && matchesActiveBlockRule(
+                                    activeMiningRule,
+                                    context.getHeldItem(),
+                                    target
+                            );
+                });
 
         if (player != null) {
             builder.playerFacing(player.getDirection());
@@ -435,7 +449,14 @@ public final class ChainActionLogic {
             }
         }
 
-        return shape.collectBlocks(builder.build());
+        List<BlockPos> collected = shape.collectBlocks(builder.build());
+        if (cropFinalStageHarvest) {
+            Level level = context.getLevel();
+            return collected.stream()
+                    .filter(pos -> isFinalStageCrop(level.getBlockState(pos)))
+                    .toList();
+        }
+        return collected;
     }
 
     /**
@@ -850,9 +871,67 @@ public final class ChainActionLogic {
     }
 
     /**
-     * 检查两个方块状态是否匹配（用于挖掘）
+     * 检查方块是否为农作物
      */
-    private static boolean isMatchingMiningBlock(BlockState origin, BlockState target, MinerConfig config) {
+    public static boolean isCropBlock(BlockState state) {
+        if (state == null) {
+            return false;
+        }
+        Block block = state.getBlock();
+        if (block instanceof CropBlock
+                || block instanceof NetherWartBlock
+                || block instanceof CocoaBlock
+                || block instanceof SweetBerryBushBlock) {
+            return true;
+        }
+        String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
+        if (TagResolver.matchesBlock(block, "#" + prefix + ":crops")
+                || TagResolver.matchesBlock(block, "#c:crops")
+                || TagResolver.matchesBlock(block, "#minecraft:crops")) {
+            return true;
+        }
+        for (net.minecraft.world.level.block.state.properties.Property<?> prop : state.getProperties()) {
+            if ("age".equalsIgnoreCase(prop.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 检查作物方块是否处于最终生长阶段（成熟/完全长成）
+     */
+    public static boolean isFinalStageCrop(BlockState state) {
+        if (state == null) {
+            return false;
+        }
+        Block block = state.getBlock();
+        if (block instanceof CropBlock cropBlock) {
+            return cropBlock.isMaxAge(state);
+        }
+        if (block instanceof NetherWartBlock) {
+            return state.getValue(NetherWartBlock.AGE) >= 3;
+        }
+        if (block instanceof CocoaBlock) {
+            return state.getValue(CocoaBlock.AGE) >= 2;
+        }
+        if (block instanceof SweetBerryBushBlock) {
+            return state.getValue(SweetBerryBushBlock.AGE) >= 3;
+        }
+        for (net.minecraft.world.level.block.state.properties.Property<?> prop : state.getProperties()) {
+            if ("age".equalsIgnoreCase(prop.getName())
+                    && prop instanceof net.minecraft.world.level.block.state.properties.IntegerProperty intProp) {
+                int max = Collections.max(intProp.getPossibleValues());
+                return state.getValue(intProp) >= max;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 检查两个方块状态是否属于同种挖掘目标（不考虑作物生长阶段）
+     */
+    public static boolean isMatchingMiningCropField(BlockState origin, BlockState target, MinerConfig config) {
         if (target.isAir()) {
             return false;
         }
@@ -878,6 +957,26 @@ public final class ChainActionLogic {
         // API groups are checked first; the API method then falls back to
         // configured whitelist tags for the legacy loose-matching behavior.
         return OneKeyMinerAPI.areBlocksInSameGroup(originBlock, targetBlock);
+    }
+
+    /**
+     * 检查两个方块状态是否匹配（用于挖掘）
+     */
+    public static boolean isMatchingMiningBlock(BlockState origin, BlockState target, MinerConfig config) {
+        if (!isMatchingMiningCropField(origin, target, config)) {
+            return false;
+        }
+
+        // 当挖掘作物时：
+        // 如果开启了仅连锁成熟作物选项，且起始作物处于最终阶段（成熟/完全长成），仅连锁处于最终阶段的同类作物；
+        // 如果起始作物未处于最终阶段，则保持当前行为（连锁破坏该作物的所有生长阶段）。
+        if (config.selectiveCropHarvest && isCropBlock(origin)) {
+            if (isFinalStageCrop(origin)) {
+                return isFinalStageCrop(target);
+            }
+        }
+
+        return true;
     }
 
     // ==================== 连锁交互逻辑 ====================
@@ -2022,9 +2121,29 @@ public final class ChainActionLogic {
 
         // 检查物品标签（作为后备）
         String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
-        return TagResolver.matchesItem(item, "#" + prefix + ":seeds") ||
-               TagResolver.matchesItem(item, "#minecraft:saplings") ||
-               OneKeyMinerAPI.isPlantableItemAllowed(stack);
+        if (TagResolver.matchesItem(item, "#" + prefix + ":seeds") ||
+            TagResolver.matchesItem(item, "#c:seeds") ||
+            TagResolver.matchesItem(item, "#c:crops") ||
+            TagResolver.matchesItem(item, "#fabric:seeds") ||
+            TagResolver.matchesItem(item, "#forge:seeds") ||
+            TagResolver.matchesItem(item, "#neoforge:seeds") ||
+            TagResolver.matchesItem(item, "#minecraft:villager_plantable_seeds") ||
+            TagResolver.matchesItem(item, "#minecraft:saplings") ||
+            OneKeyMinerAPI.isPlantableItemAllowed(stack)) {
+            return true;
+        }
+
+        // 启发式注册名检查（兼容未打标的模组种子）
+        var key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item);
+        if (key != null) {
+            String path = key.getPath();
+            if (path.endsWith("_seeds") || path.endsWith("_seed") || path.endsWith("_sapling")
+                    || path.contains("seed") || path.contains("sapling")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2035,10 +2154,6 @@ public final class ChainActionLogic {
             MinerConfig config,
             OneKeyMinerAPI.ToolActionRule activePlantingRule
     ) {
-        List<BlockPos> result = new ArrayList<>();
-        Set<BlockPos> visited = new HashSet<>();
-        Queue<BlockPos> queue = new LinkedList<>();
-
         ServerPlayer player = context.getPlayer();
         Level level = context.getLevel();
         BlockPos originPos = context.getOriginPos();
@@ -2046,6 +2161,7 @@ public final class ChainActionLogic {
 
         int maxBlocks = getMaxTargetCount(context, config);
         int maxDistance = getMaxTargetDistance(context, config);
+        boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
 
         // 计算可用种子数量
         int availableSeeds = context.isCreativeMode()
@@ -2056,51 +2172,44 @@ public final class ChainActionLogic {
             availableSeeds++;
         }
 
-        queue.add(originPos);
-        visited.add(originPos);
+        Identifier shapeId = MiningStateManager.getPlayerShape(player);
+        ChainShape shape = shapeId != null
+                ? ShapeRegistry.getShapeOrDefault(shapeId)
+                : ShapeRegistry.getShapeOrDefault(config.selectedShape);
 
-        long startTime = System.currentTimeMillis();
-        int iterations = 0;
-        int iterationBudget = Math.min(MAX_ITERATIONS, Math.max(256, maxBlocks * 8));
+        BlockPos originSoil = originPos.below();
+        BlockState originSoilState = level.getBlockState(originSoil);
 
-        while (!queue.isEmpty() && result.size() < maxBlocks &&
-               result.size() < availableSeeds && iterations < iterationBudget) {
-
-            if (System.currentTimeMillis() - startTime > OPERATION_TIMEOUT_MS) {
-                break;
-            }
-
-            iterations++;
-            BlockPos current = queue.poll();
-
-            if (current.distManhattan(originPos) > maxDistance) {
-                continue;
-            }
-            if (!level.hasChunkAt(current)) {
-                continue;
-            }
-
-            boolean completedOrigin = context.isOriginAlreadyHandled()
-                    && current.equals(originPos);
-
-            // The original seed was placed by vanilla before the chain runs.
-            if (completedOrigin
-                    || canPlantAt(level, current, seedItem, config)
-                            && matchesActiveBlockRule(
-                                    activePlantingRule,
-                                    seedItem,
-                                    level.getBlockState(current.below())
-                            )) {
-                result.add(current);
-
-                // Keep planting traversal on the connected plantable surface.
-                for (Direction dir : Direction.Plane.HORIZONTAL) {
-                    BlockPos neighbor = current.relative(dir);
-                    if (!visited.contains(neighbor) && level.hasChunkAt(neighbor)) {
-                        visited.add(neighbor);
-                        queue.add(neighbor);
+        ShapeContext.Builder builder = new ShapeContext.Builder()
+                .level(level)
+                .originPos(originSoil)
+                .originState(originSoilState)
+                .maxBlocks(Math.min(maxBlocks, availableSeeds))
+                .maxDistance(maxDistance)
+                .allowDiagonal(allowDiagonal)
+                .positionMatcher((soilPos, soilState) -> {
+                    BlockPos plantPos = soilPos.above();
+                    if (plantPos.equals(originPos) && context.isOriginAlreadyHandled()) {
+                        return true;
                     }
-                }
+                    return canPlantAt(level, plantPos, seedItem, config)
+                            && matchesActiveBlockRule(activePlantingRule, seedItem, soilState);
+                });
+
+        if (player != null) {
+            builder.playerFacing(player.getDirection());
+            builder.playerLookingVertical(Direction.DOWN);
+        }
+
+        List<BlockPos> soilPositions = shape != null ? shape.collectBlocks(builder.build()) : Collections.emptyList();
+        List<BlockPos> result = new ArrayList<>();
+        if (context.isOriginAlreadyHandled() || canPlantAt(level, originPos, seedItem, config)) {
+            result.add(originPos);
+        }
+        for (BlockPos sPos : soilPositions) {
+            BlockPos plantPos = sPos.above();
+            if (!result.contains(plantPos) && result.size() < maxBlocks && result.size() < availableSeeds) {
+                result.add(plantPos);
             }
         }
 
@@ -2252,6 +2361,288 @@ public final class ChainActionLogic {
         ChainEvents.firePostActionEvent(postEvent);
 
         return result;
+    }
+
+    // ==================== 连锁催熟逻辑 ====================
+
+    /**
+     * 执行连锁催熟
+     */
+    private static ChainActionResult executeBonemeal(ChainActionContext context) {
+        MinerConfig config = ConfigManager.getConfig();
+
+        if (!config.enabled || !config.enableBonemeal) {
+            return ChainActionResult.cancelled(ChainActionType.BONEMEAL, StopReason.EVENT_CANCELLED);
+        }
+
+        ItemStack heldItem = context.getHeldItem();
+        if (!isBonemealItem(heldItem)) {
+            return ChainActionResult.cancelled(ChainActionType.BONEMEAL, StopReason.EVENT_CANCELLED);
+        }
+
+        if (!checkActivationConditions(context, config)) {
+            return ChainActionResult.cancelled(ChainActionType.BONEMEAL, StopReason.EVENT_CANCELLED);
+        }
+
+        List<BlockPos> bonemealPositions = sanitizeTargets(
+                context,
+                collectBonemealPositions(context, config),
+                config
+        );
+
+        if (bonemealPositions.isEmpty()) {
+            return ChainActionResult.cancelled(ChainActionType.BONEMEAL, StopReason.COMPLETED);
+        }
+
+        PreActionEvent preEvent = new PreActionEvent(
+                context.getPlayer(),
+                context.getLevel(),
+                context.getOriginPos(),
+                bonemealPositions,
+                heldItem,
+                ChainActionType.BONEMEAL
+        );
+        ChainEvents.firePreActionEvent(preEvent);
+
+        if (preEvent.isCancelled()) {
+            return ChainActionResult.cancelled(ChainActionType.BONEMEAL, StopReason.EVENT_CANCELLED);
+        }
+
+        boolean strictMatch = config.strictBlockMatching || config.requireExactMatch;
+        BlockState originState = context.getOriginState() != null
+                ? context.getOriginState()
+                : context.getLevel().getBlockState(context.getOriginPos());
+
+        List<BlockPos> finalTargets = requireOriginFirst(
+                context,
+                sanitizeTargets(
+                        context,
+                        preEvent.getTargetPositions(),
+                        getMaxTargetCount(context, config),
+                        getMaxTargetDistance(context, config),
+                        pos -> {
+                            if (pos.equals(context.getOriginPos()) && context.isOriginAlreadyHandled()) {
+                                return true;
+                            }
+                            return isMatchingBonemealTarget(
+                                    context.getLevel(), pos, null, originState, strictMatch
+                            );
+                        }
+                )
+        );
+
+        return performBonemeal(context, finalTargets);
+    }
+
+    /**
+     * 收集可催熟的目标作物位置
+     */
+    private static List<BlockPos> collectBonemealPositions(
+            ChainActionContext context,
+            MinerConfig config
+    ) {
+        ServerPlayer player = context.getPlayer();
+        Level level = context.getLevel();
+        BlockPos originPos = context.getOriginPos();
+
+        int maxBlocks = getMaxTargetCount(context, config);
+        int maxDistance = getMaxTargetDistance(context, config);
+        boolean allowDiagonal = context.isAllowDiagonal() && config.allowDiagonal;
+        boolean strictMatch = config.strictBlockMatching || config.requireExactMatch;
+
+        int availableBonemeal = context.isCreativeMode()
+                ? Integer.MAX_VALUE
+                : player.getItemInHand(context.getHand()).getCount();
+        if (context.isOriginAlreadyHandled() && availableBonemeal < Integer.MAX_VALUE) {
+            availableBonemeal++;
+        }
+
+        Identifier shapeId = MiningStateManager.getPlayerShape(player);
+        ChainShape shape = shapeId != null
+                ? ShapeRegistry.getShapeOrDefault(shapeId)
+                : ShapeRegistry.getShapeOrDefault(config.selectedShape);
+
+        BlockState originState = context.getOriginState() != null
+                ? context.getOriginState()
+                : level.getBlockState(originPos);
+
+        ShapeContext.Builder builder = new ShapeContext.Builder()
+                .level(level)
+                .originPos(originPos)
+                .originState(originState)
+                .maxBlocks(Math.min(maxBlocks, availableBonemeal))
+                .maxDistance(maxDistance)
+                .allowDiagonal(allowDiagonal)
+                .positionMatcher((pos, state) -> isPotentialBonemealTraversal(
+                        level, pos, state, originState, strictMatch
+                ));
+
+        if (player != null) {
+            builder.playerFacing(player.getDirection());
+            builder.playerLookingVertical(Direction.DOWN);
+        }
+
+        List<BlockPos> targets = shape != null ? shape.collectBlocks(builder.build()) : Collections.emptyList();
+        List<BlockPos> result = new ArrayList<>();
+        if (context.isOriginAlreadyHandled()
+                || isMatchingBonemealTarget(level, originPos, null, originState, strictMatch)) {
+            result.add(originPos);
+        }
+        for (BlockPos pos : targets) {
+            if (!result.contains(pos)
+                    && isMatchingBonemealTarget(level, pos, null, originState, strictMatch)
+                    && result.size() < maxBlocks && result.size() < availableBonemeal) {
+                result.add(pos);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 执行催熟操作
+     */
+    private static ChainActionResult performBonemeal(
+            ChainActionContext context,
+            List<BlockPos> positions
+    ) {
+        ServerPlayer player = context.getPlayer();
+        Level level = context.getLevel();
+        InteractionHand hand = context.getHand();
+
+        List<BlockPos> appliedPositions = new ArrayList<>();
+        if (context.isOriginAlreadyHandled()) {
+            appliedPositions.add(context.getOriginPos());
+        }
+        StopReason stopReason = StopReason.COMPLETED;
+
+        for (BlockPos pos : positions) {
+            ItemStack currentBonemeal = player.getItemInHand(hand);
+            if (!context.isCreativeMode()
+                    && (currentBonemeal.isEmpty()
+                    || !isBonemealItem(currentBonemeal)
+                    || !ItemStack.isSameItem(context.getHeldItem(), currentBonemeal))) {
+                stopReason = StopReason.ITEMS_EXHAUSTED;
+                break;
+            }
+
+            BlockState state = level.getBlockState(pos);
+            if (state.getBlock() instanceof BonemealableBlock bonemealable
+                    && bonemealable.isValidBonemealTarget(level, pos, state)) {
+                if (level instanceof ServerLevel serverLevel) {
+                    if (bonemealable.isBonemealSuccess(level, level.getRandom(), pos, state)) {
+                        bonemealable.performBonemeal(serverLevel, level.getRandom(), pos, state);
+                    }
+                    serverLevel.levelEvent(1505, pos, 15);
+                }
+                if (!context.isCreativeMode()) {
+                    currentBonemeal.shrink(1);
+                    if (currentBonemeal.isEmpty()) {
+                        player.setItemInHand(hand, ItemStack.EMPTY);
+                    }
+                }
+                appliedPositions.add(pos);
+            }
+        }
+
+        ChainActionResult result = ChainActionResult.success(
+                ChainActionType.BONEMEAL,
+                appliedPositions,
+                0,
+                0f,
+                stopReason,
+                Collections.emptyList(),
+                0
+        );
+
+        PostActionEvent postEvent = new PostActionEvent(
+                player,
+                level,
+                context.getOriginPos(),
+                result
+        );
+        ChainEvents.firePostActionEvent(postEvent);
+
+        return result;
+    }
+
+    /**
+     * 检查方块是否允许作为骨粉链式搜索的遍历节点
+     */
+    public static boolean isPotentialBonemealTraversal(
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            BlockState originState,
+            boolean strictMatch
+    ) {
+        if (level == null || pos == null) {
+            return false;
+        }
+        if (state == null) {
+            state = level.getBlockState(pos);
+        }
+        Block block = state.getBlock();
+        Block originBlock = originState != null ? originState.getBlock() : null;
+
+        if (originBlock instanceof GrassBlock) {
+            return block instanceof GrassBlock;
+        }
+        if (block instanceof GrassBlock) {
+            return false;
+        }
+        if (strictMatch && originBlock != null) {
+            return block == originBlock;
+        }
+        return block instanceof BonemealableBlock || block instanceof CropBlock;
+    }
+
+    /**
+     * 检查方块是否是匹配的有效催熟目标
+     */
+    public static boolean isMatchingBonemealTarget(
+            Level level,
+            BlockPos pos,
+            BlockState state,
+            BlockState originState,
+            boolean strictMatch
+    ) {
+        if (!isPotentialBonemealTraversal(level, pos, state, originState, strictMatch)) {
+            return false;
+        }
+        return isBonemealableTarget(level, pos, state);
+    }
+
+    /**
+     * 检查物品是否为骨粉或具有催熟效果的肥料
+     */
+    public static boolean isBonemealItem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        Item item = stack.getItem();
+        if (item instanceof BoneMealItem || stack.is(Items.BONE_MEAL)) {
+            return true;
+        }
+        String prefix = PlatformServices.getInstance().getConventionalTagPrefix();
+        return TagResolver.matchesItem(item, "#" + prefix + ":fertilizers")
+                || TagResolver.matchesItem(item, "#c:fertilizers")
+                || TagResolver.matchesItem(item, "#forge:fertilizers");
+    }
+
+    /**
+     * 检查目标方块是否是可催熟的植物
+     */
+    public static boolean isBonemealableTarget(Level level, BlockPos pos, BlockState state) {
+        if (level == null || pos == null) {
+            return false;
+        }
+        if (state == null) {
+            state = level.getBlockState(pos);
+        }
+        if (state.getBlock() instanceof BonemealableBlock bonemealable) {
+            return bonemealable.isValidBonemealTarget(level, pos, state);
+        }
+        return false;
     }
 
     // ==================== 连锁收割逻辑 ====================

@@ -57,8 +57,9 @@ public class FabricConfigScreen extends Screen {
         } else {
             switch (currentPage) {
                 case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
-                case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 1: initPageFarming(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 2: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 3: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
             }
         }
 
@@ -160,10 +161,33 @@ public class FabricConfigScreen extends Screen {
     }
 
     private int totalPages() {
-        return serverSettingsEditable ? 3 : 1;
+        return serverSettingsEditable ? 4 : 1;
     }
 
-    // === 第二页：消耗设置 ===
+    // === 第二页：农牧与交互设置 ===
+    private void initPageFarming(int x, int y, int w, int h, int s) {
+        int i = 0;
+
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction",
+            () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
+
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting",
+            () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
+
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_bonemeal",
+            () -> configCopy.enableBonemeal, v -> configCopy.enableBonemeal = v);
+
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting",
+            () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
+
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant",
+            () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
+
+        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.selective_crop_harvest",
+            () -> configCopy.selectiveCropHarvest, v -> configCopy.selectiveCropHarvest = v);
+    }
+
+    // === 第三页：消耗设置 ===
     private void initPageConsumption(int x, int y, int w, int h, int s) {
         int i = 0;
 
@@ -201,21 +225,9 @@ public class FabricConfigScreen extends Screen {
             () -> configCopy.allowBareHand, v -> configCopy.allowBareHand = v);
     }
 
-    // === 第三页：高级设置 ===
+    // === 第四页：高级与其他设置 ===
     private void initPageAdvanced(int x, int y, int w, int h, int s) {
         int i = 0;
-
-        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_interaction",
-            () -> configCopy.enableInteraction, v -> configCopy.enableInteraction = v);
-
-        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_planting",
-            () -> configCopy.enablePlanting, v -> configCopy.enablePlanting = v);
-
-        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.enable_harvesting",
-            () -> configCopy.enableHarvesting, v -> configCopy.enableHarvesting = v);
-
-        addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.harvest_replant",
-            () -> configCopy.harvestReplant, v -> configCopy.harvestReplant = v);
 
         addBoolButton(x, y + s * i++, w, h, "config.onekeyminer.option.teleport_drops",
             () -> configCopy.teleportDrops, v -> configCopy.teleportDrops = v);

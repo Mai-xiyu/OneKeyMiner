@@ -40,7 +40,8 @@ public final class ServerUseBridge {
 
     private static final Set<ChainActionType> RIGHT_CLICK_ACTION_TYPES = Set.of(
             ChainActionType.INTERACTION,
-            ChainActionType.PLANTING
+            ChainActionType.PLANTING,
+            ChainActionType.BONEMEAL
     );
     private static final UseDispatchObserver BLOCK_USE_OBSERVER =
             new UseDispatchObserver();
@@ -71,7 +72,8 @@ public final class ServerUseBridge {
                 item,
                 context.getHand(),
                 hitResult,
-                originalUse
+                originalUse,
+                true
         );
     }
 
@@ -93,7 +95,8 @@ public final class ServerUseBridge {
                 item,
                 hand,
                 hitResult,
-                originalUse
+                originalUse,
+                false
         );
     }
 
@@ -105,6 +108,18 @@ public final class ServerUseBridge {
             BlockHitResult hitResult,
             Supplier<InteractionResult> originalUse
     ) {
+        return runBlockUse(player, level, item, hand, hitResult, originalUse, true);
+    }
+
+    public static InteractionResult runBlockUse(
+            ServerPlayer player,
+            Level level,
+            ItemStack item,
+            InteractionHand hand,
+            BlockHitResult hitResult,
+            Supplier<InteractionResult> originalUse,
+            boolean isItemUseOn
+    ) {
         PendingBlockUse pending = captureBlockUse(
                 player,
                 level,
@@ -114,8 +129,17 @@ public final class ServerUseBridge {
         );
         BLOCK_USE_OBSERVER.markDispatched();
         InteractionResult result = originalUse.get();
-        if (pending != null && result != null && result.consumesAction()) {
-            completeBlockUse(pending);
+        if (pending != null) {
+            if (result != null && result.consumesAction()) {
+                completeBlockUse(pending);
+            } else if (isItemUseOn
+                    && pending.actionType() == ChainActionType.BONEMEAL
+                    && !pending.originPos().equals(hitResult.getBlockPos())) {
+                ChainActionResult chainResult = executeUncompletedBlockUse(pending);
+                if (chainResult != null && chainResult.isSuccess()) {
+                    return InteractionResult.SUCCESS;
+                }
+            }
         }
         return result;
     }
@@ -251,7 +275,7 @@ public final class ServerUseBridge {
                 }
             }
         } else {
-            actionType = detectNativeBlockAction(item, clickedState);
+            actionType = detectNativeBlockAction(item, level, clickedPos, clickedState);
         }
 
         if (actionType == ChainActionType.INTERACTION
@@ -262,10 +286,15 @@ public final class ServerUseBridge {
                 && !config.enablePlanting) {
             return null;
         }
+        if (actionType == ChainActionType.BONEMEAL
+                && !config.enableBonemeal) {
+            return null;
+        }
         // Harvesting remains a pre-event operation because vanilla right-click
         // on most mature crops returns PASS and performs no original action.
         if (actionType != ChainActionType.INTERACTION
-                && actionType != ChainActionType.PLANTING) {
+                && actionType != ChainActionType.PLANTING
+                && actionType != ChainActionType.BONEMEAL) {
             return null;
         }
 
@@ -277,6 +306,12 @@ public final class ServerUseBridge {
             }
             originPos = clickedPos.above();
             originState = level.getBlockState(originPos);
+        } else if (actionType == ChainActionType.BONEMEAL) {
+            if (!ChainActionLogic.isBonemealableTarget(level, clickedPos, clickedState)
+                    && ChainActionLogic.isBonemealableTarget(level, clickedPos.above(), null)) {
+                originPos = clickedPos.above();
+                originState = level.getBlockState(originPos);
+            }
         }
 
         return new PendingBlockUse(
@@ -364,12 +399,20 @@ public final class ServerUseBridge {
 
     private static ChainActionType detectNativeBlockAction(
             ItemStack item,
+            Level level,
+            BlockPos clickedPos,
             BlockState clickedState
     ) {
         if (item.isEmpty()) {
             return ChainActionLogic.isMatureCrop(clickedState)
                     ? ChainActionType.HARVESTING
                     : null;
+        }
+        if (ChainActionLogic.isBonemealItem(item)) {
+            if (ChainActionLogic.isBonemealableTarget(level, clickedPos, clickedState)
+                    || ChainActionLogic.isBonemealableTarget(level, clickedPos.above(), null)) {
+                return ChainActionType.BONEMEAL;
+            }
         }
         if (ChainActionLogic.isPlantableItem(item)) {
             return ChainActionType.PLANTING;
@@ -434,6 +477,38 @@ public final class ServerUseBridge {
                     "Failed to dispatch derived block interaction",
                     exception
             );
+        }
+    }
+
+    private static ChainActionResult executeUncompletedBlockUse(PendingBlockUse pending) {
+        if (pending.player().level() != pending.level()
+                || !isSameUsableItem(pending)) {
+            return null;
+        }
+
+        try {
+            ChainActionResult result = ChainActionLogic.execute(
+                    ChainActionContext.forUncompletedBlockUse(
+                            pending.player(),
+                            pending.level(),
+                            pending.originPos(),
+                            pending.originState(),
+                            pending.actionType(),
+                            pending.originalItem(),
+                            pending.hand(),
+                            pending.interactionOverride(),
+                            pending.matchedToolActionRule(),
+                            pending.hitResult()
+                    )
+            );
+            reportResult(pending.player(), pending.level(), result);
+            return result;
+        } catch (RuntimeException exception) {
+            OneKeyMiner.LOGGER.error(
+                    "Failed to dispatch uncompleted block interaction",
+                    exception
+            );
+            return null;
         }
     }
 

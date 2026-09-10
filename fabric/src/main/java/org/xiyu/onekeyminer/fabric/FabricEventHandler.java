@@ -53,6 +53,7 @@ public class FabricEventHandler {
     private static final Set<ChainActionType> RIGHT_CLICK_ACTION_TYPES = Set.of(
             ChainActionType.INTERACTION,
             ChainActionType.PLANTING,
+            ChainActionType.BONEMEAL,
             ChainActionType.HARVESTING
     );
     
@@ -297,6 +298,9 @@ public class FabricEventHandler {
         if (actionType == ChainActionType.PLANTING && !config.enablePlanting) {
             return InteractionResult.PASS;
         }
+        if (actionType == ChainActionType.BONEMEAL && !config.enableBonemeal) {
+            return InteractionResult.PASS;
+        }
         if (actionType == ChainActionType.HARVESTING && !config.enableHarvesting) {
             return InteractionResult.PASS;
         }
@@ -385,6 +389,11 @@ public class FabricEventHandler {
                 return ChainActionType.HARVESTING;
             }
             return null;
+        }
+
+        // 检查是否是骨粉催熟操作
+        if (ChainActionLogic.isBonemealItem(heldItem)) {
+            return ChainActionType.BONEMEAL;
         }
         
         // 检查是否是种植操作 - 使用统一的可种植物品检查

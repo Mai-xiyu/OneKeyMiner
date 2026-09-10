@@ -20,6 +20,7 @@ public class ShapeContext {
     private final int maxDistance;
     private final boolean allowDiagonal;
     private final BiPredicate<BlockState, BlockState> blockMatcher;
+    private final BiPredicate<BlockPos, BlockState> positionMatcher;
 
     private ShapeContext(Builder builder) {
         this.level = builder.level;
@@ -31,6 +32,7 @@ public class ShapeContext {
         this.maxDistance = Math.max(1, Math.min(builder.maxDistance, 128));
         this.allowDiagonal = builder.allowDiagonal;
         this.blockMatcher = builder.blockMatcher;
+        this.positionMatcher = builder.positionMatcher;
     }
 
     public Level getLevel() {
@@ -75,6 +77,16 @@ public class ShapeContext {
         return !target.isAir() && target.getBlock() == originState.getBlock();
     }
 
+    public boolean isMatchingBlock(BlockPos pos, BlockState target) {
+        if (target == null) {
+            return false;
+        }
+        if (positionMatcher != null) {
+            return positionMatcher.test(pos, target);
+        }
+        return isMatchingBlock(target);
+    }
+
     public Direction getTunnelDirection() {
         if (playerLookingVertical != null) {
             return playerLookingVertical;
@@ -92,6 +104,7 @@ public class ShapeContext {
         private int maxDistance = 16;
         private boolean allowDiagonal = true;
         private BiPredicate<BlockState, BlockState> blockMatcher;
+        private BiPredicate<BlockPos, BlockState> positionMatcher;
 
         public Builder level(Level level) {
             this.level = level;
@@ -135,6 +148,11 @@ public class ShapeContext {
 
         public Builder blockMatcher(BiPredicate<BlockState, BlockState> matcher) {
             this.blockMatcher = matcher;
+            return this;
+        }
+
+        public Builder positionMatcher(BiPredicate<BlockPos, BlockState> matcher) {
+            this.positionMatcher = matcher;
             return this;
         }
 

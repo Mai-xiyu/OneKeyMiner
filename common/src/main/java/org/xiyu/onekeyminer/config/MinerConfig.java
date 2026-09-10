@@ -39,12 +39,14 @@ public class MinerConfig {
     public List<String> interactiveItemBlacklist = new ArrayList<>();
 
     public boolean enablePlanting = true;
+    public boolean enableBonemeal = true;
     public List<String> seedWhitelist = new ArrayList<>();
     public List<String> seedBlacklist = new ArrayList<>();
     public List<String> farmlandWhitelist = new ArrayList<>();
 
     public boolean enableHarvesting = true;
     public boolean harvestReplant = true;
+    public boolean selectiveCropHarvest = true;
 
     public int maxBlocksCreative = 256;
     public boolean strictBlockMatching = false;
@@ -102,11 +104,13 @@ public class MinerConfig {
         copy.interactiveItemWhitelist = copyList(this.interactiveItemWhitelist);
         copy.interactiveItemBlacklist = copyList(this.interactiveItemBlacklist);
         copy.enablePlanting = this.enablePlanting;
+        copy.enableBonemeal = this.enableBonemeal;
         copy.seedWhitelist = copyList(this.seedWhitelist);
         copy.seedBlacklist = copyList(this.seedBlacklist);
         copy.farmlandWhitelist = copyList(this.farmlandWhitelist);
         copy.enableHarvesting = this.enableHarvesting;
         copy.harvestReplant = this.harvestReplant;
+        copy.selectiveCropHarvest = this.selectiveCropHarvest;
         copy.maxBlocksCreative = this.maxBlocksCreative;
         copy.strictBlockMatching = this.strictBlockMatching;
         copy.mineAllBlocks = this.mineAllBlocks;

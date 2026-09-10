@@ -68,7 +68,7 @@ public class CubeShape implements ChainShape {
                             continue;
                         }
                         BlockState state = level.getBlockState(pos);
-                        if (context.isMatchingBlock(state)) {
+                        if (context.isMatchingBlock(pos, state)) {
                             result.add(pos.immutable());
                         }
                     }

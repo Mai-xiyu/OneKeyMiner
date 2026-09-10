@@ -143,8 +143,10 @@ public class ConfigManager {
         merged.consumeHunger = diskConfig.consumeHunger;
         merged.enableInteraction = diskConfig.enableInteraction;
         merged.enablePlanting = diskConfig.enablePlanting;
+        merged.enableBonemeal = diskConfig.enableBonemeal;
         merged.enableHarvesting = diskConfig.enableHarvesting;
         merged.harvestReplant = diskConfig.harvestReplant;
+        merged.selectiveCropHarvest = diskConfig.selectiveCropHarvest;
         merged.strictBlockMatching = diskConfig.strictBlockMatching;
         merged.mineAllBlocks = diskConfig.mineAllBlocks;
         merged.allowBareHand = diskConfig.allowBareHand;

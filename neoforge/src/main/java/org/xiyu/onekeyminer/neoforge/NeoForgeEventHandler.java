@@ -58,6 +58,7 @@ public class NeoForgeEventHandler {
     private static final Set<ChainActionType> RIGHT_CLICK_ACTION_TYPES = Set.of(
             ChainActionType.INTERACTION,
             ChainActionType.PLANTING,
+            ChainActionType.BONEMEAL,
             ChainActionType.HARVESTING
     );
 
