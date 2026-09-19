@@ -4,17 +4,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Shearable;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.AxeItem;
-import net.minecraft.world.item.HoeItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShearsItem;
-import net.minecraft.world.item.ShovelItem;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -386,9 +384,9 @@ public final class ServerUseBridge {
                     ItemStack item,
                     OneKeyMinerAPI.ToolActionRule customRule
             ) {
-        boolean statefulNativeTool = item.getItem() instanceof HoeItem
-                || item.getItem() instanceof AxeItem
-                || item.getItem() instanceof ShovelItem;
+        boolean statefulNativeTool = item.is(ItemTags.HOES)
+                || item.is(ItemTags.AXES)
+                || item.is(ItemTags.SHOVELS);
         return OriginalUseCompletionPolicy.selectBlockRequirement(
                 actionType == ChainActionType.PLANTING,
                 customRule != null,

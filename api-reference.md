@@ -1,17 +1,17 @@
-# OneKeyMiner 26.2 API Reference
+# OneKeyMiner 26.3 API Reference
 
-This document describes the public API shipped by OneKeyMiner `1.6.8` for
-Minecraft `26.2`.
+This document describes the public API shipped by OneKeyMiner `1.6.9` for
+Minecraft `26.3`.
 
 ## Supported environment
 
 | Component | Version |
 |---|---|
 | Java | 25 |
-| Fabric Loader | 0.19.2 |
-| Fabric API | 0.148.3+26.2 |
-| Forge | 65.0.1 |
-| NeoForge | 26.2.0.0-beta |
+| Fabric Loader | 0.19.5 |
+| Fabric API | 0.161.0+26.3 |
+| NeoForge | 26.3.0.6-beta |
+| Forge | Not yet available for Minecraft 26.3 |
 
 OneKeyMiner does not currently publish a documented Maven repository or stable
 Maven coordinate. Do not copy coordinates from old examples. Compile an add-on
@@ -21,9 +21,8 @@ against the platform JAR that it will run with.
 
 Copy one production JAR into your add-on project's `libs/` directory:
 
-- `onekeyminer-fabric-1.6.8-26.2.jar`
-- `onekeyminer-forge-1.6.8-26.2.jar`
-- `onekeyminer-neoforge-1.6.8-26.2.jar`
+- `onekeyminer-fabric-1.6.9-26.3.jar`
+- `onekeyminer-neoforge-1.6.9-26.3.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
 contain Minecraft types whose runtime mappings differ by loader, so add-ons
@@ -36,15 +35,7 @@ Fabric Loom:
 
 ```groovy
 dependencies {
-    modCompileOnly files("libs/onekeyminer-fabric-1.6.8-26.2.jar")
-}
-```
-
-ForgeGradle:
-
-```groovy
-dependencies {
-    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.8-26.2.jar"))
+    modCompileOnly files("libs/onekeyminer-fabric-1.6.9-26.3.jar")
 }
 ```
 
@@ -52,7 +43,7 @@ NeoGradle or ModDevGradle:
 
 ```groovy
 dependencies {
-    compileOnly files("libs/onekeyminer-neoforge-1.6.8-26.2.jar")
+    compileOnly files("libs/onekeyminer-neoforge-1.6.9-26.3.jar")
 }
 ```
 
@@ -551,8 +542,8 @@ excessive packets are rejected server-side.
 
 ## Compatibility notes
 
-- API examples in this document target only Minecraft 26.2 / OneKeyMiner
-  1.6.8. Other branches must be compiled against their own platform JAR.
+- API examples in this document target only Minecraft 26.3 / OneKeyMiner
+  1.6.9. Other branches must be compiled against their own platform JAR.
 - A production add-on must declare its supported OneKeyMiner and Minecraft
   versions in loader metadata.
 - Do not depend on `org.xiyu.onekeyminer.platform.*` implementations. They are

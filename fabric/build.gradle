@@ -11,7 +11,7 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${gradle.ext.fabric_api_version}"
 
     // ModMenu and Cloth Config remain optional compile-time integrations.
-    // Re-enable them only after matching 26.2 artifacts are configured.
+    // Re-enable them only after matching 26.3 artifacts are configured.
 
     // compileOnly("com.terraformersmc:modmenu:${gradle.ext.modmenu_version}") {
     //     transitive = false

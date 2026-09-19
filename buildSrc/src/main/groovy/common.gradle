@@ -68,9 +68,24 @@ tasks.withType(Jar).configureEach {
 
 processResources {
     def compatible_forgemc_versions = "${gradle.ext.compatible_mc_versions}".replaceAll("\"", "")
-    def forgeMajor = (gradle.ext.forge_loader as String).tokenize('.')[0] as int
+    // Version properties may intentionally omit loaders that have no release
+    // for the selected Minecraft version. Only included loader projects consume
+    // their metadata, so use inert expansion values for absent loaders.
+    def forgeLoader = gradle.ext.has('forge_loader')
+            ? gradle.ext.forge_loader as String
+            : '0'
+    def neoforgeLoader = gradle.ext.has('neoforge_loader')
+            ? gradle.ext.neoforge_loader as String
+            : '0'
+    def fabricLoader = gradle.ext.has('fabric_loader')
+            ? gradle.ext.fabric_loader as String
+            : '0'
+    def fabricApiVersion = gradle.ext.has('fabric_api_version')
+            ? gradle.ext.fabric_api_version as String
+            : '0'
+    def forgeMajor = forgeLoader.tokenize('.')[0] as int
     def forgeLoaderRange = "[${forgeMajor},${forgeMajor + 1})"
-    def forgeVersionRange = "[${gradle.ext.forge_loader},${forgeMajor + 1})"
+    def forgeVersionRange = "[${forgeLoader},${forgeMajor + 1})"
     def minecraftVersion = gradle.ext.minecraft_version as String
     def neoPrefix = minecraftVersion.startsWith("1.")
             ? minecraftVersion.substring(2)
@@ -80,8 +95,8 @@ processResources {
     neoUpperParts[neoUpperParts.size() - 1] =
             ((neoUpperParts.last() as int) + 1).toString()
     def neoFullVersion = minecraftVersion.startsWith("1.")
-            ? "${neoPrefix}.${gradle.ext.neoforge_loader}"
-            : "${minecraftVersion}.0.${gradle.ext.neoforge_loader}"
+            ? "${neoPrefix}.${neoforgeLoader}"
+            : "${minecraftVersion}.0.${neoforgeLoader}"
     def neoVersionRange = "[${neoFullVersion},${neoUpperParts.join('.')})"
 
     var expandProps = ['version'                     : mod_version,
@@ -95,11 +110,11 @@ processResources {
                        'mod_id'                      : mod_id,
                        'license'                     : license,
                        'description'                 : project.description,
-                       'fabric_loader'               : gradle.ext.fabric_loader,
-                       'fabric_api_version'          : gradle.ext.fabric_api_version,
-                       'neoforge_loader'             : gradle.ext.neoforge_loader,
+                       'fabric_loader'               : fabricLoader,
+                       'fabric_api_version'          : fabricApiVersion,
+                       'neoforge_loader'             : neoforgeLoader,
                        'neoforge_version_range'      : neoVersionRange,
-                       'forge_loader'                : gradle.ext.forge_loader,
+                       'forge_loader'                : forgeLoader,
                        'forge_loader_range'          : forgeLoaderRange,
                        'forge_version_range'         : forgeVersionRange,
                        'credits'                     : credits,

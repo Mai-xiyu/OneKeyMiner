@@ -13,7 +13,6 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.network.ClientPreferenceAck;
 import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
@@ -46,14 +45,14 @@ public class NeoForgeKeyBindings {
 
         CHAIN_MINING_KEY = new KeyMapping(
                 "key.onekeyminer.hold",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_GRAVE_ACCENT,
+                InputConstants.Type.KEYBOARD,
+                InputConstants.KEY_GRAVE,
                 KeyMapping.Category.GAMEPLAY
         );
         OPEN_CONFIG = new KeyMapping(
                 "key.onekeyminer.config",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                InputConstants.Type.KEYBOARD,
+                InputConstants.UNKNOWN.getValue(),
                 KeyMapping.Category.GAMEPLAY
         );
 

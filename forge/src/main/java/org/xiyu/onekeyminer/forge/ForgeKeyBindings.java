@@ -13,7 +13,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.event.TickEvent;
-import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.network.ClientPreferenceAck;
 import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
@@ -27,15 +26,15 @@ import java.lang.reflect.Method;
 public final class ForgeKeyBindings {
     public static final KeyMapping CHAIN_MINING_KEY = new KeyMapping(
             "key.onekeyminer.hold",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_GRAVE_ACCENT,
+            InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_GRAVE,
             KeyMapping.Category.GAMEPLAY
     );
 
     public static final KeyMapping OPEN_CONFIG = new KeyMapping(
             "key.onekeyminer.config",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_UNKNOWN,
+            InputConstants.Type.KEYBOARD,
+            InputConstants.UNKNOWN.getValue(),
             KeyMapping.Category.GAMEPLAY
     );
 

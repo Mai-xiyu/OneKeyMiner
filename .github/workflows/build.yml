@@ -30,6 +30,15 @@ jobs:
           echo "MC_VERSION=$MC_VERSION" >> "$GITHUB_OUTPUT"
           echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
           echo "BUILDS_FOR=$BUILDS_FOR" >> "$GITHUB_OUTPUT"
+          has_loader() {
+            case ",$BUILDS_FOR," in
+              *,"$1",*) echo true ;;
+              *) echo false ;;
+            esac
+          }
+          echo "HAS_FABRIC=$(has_loader fabric)" >> "$GITHUB_OUTPUT"
+          echo "HAS_FORGE=$(has_loader forge)" >> "$GITHUB_OUTPUT"
+          echo "HAS_NEOFORGE=$(has_loader neoforge)" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}
         uses: actions/setup-java@v5
@@ -52,7 +61,7 @@ jobs:
           fi
 
       - name: Upload Fabric artifact
-        if: contains(steps.props.outputs.BUILDS_FOR, 'fabric')
+        if: steps.props.outputs.HAS_FABRIC == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: onekeyminer-fabric
@@ -63,7 +72,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Forge artifact
-        if: contains(steps.props.outputs.BUILDS_FOR, 'forge')
+        if: steps.props.outputs.HAS_FORGE == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: onekeyminer-forge
@@ -74,7 +83,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload NeoForge artifact
-        if: contains(steps.props.outputs.BUILDS_FOR, 'neoforge')
+        if: steps.props.outputs.HAS_NEOFORGE == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: onekeyminer-neoforge

@@ -7,7 +7,6 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
 import org.xiyu.onekeyminer.OneKeyMiner;
 import org.xiyu.onekeyminer.network.ClientPreferenceAck;
 import org.xiyu.onekeyminer.network.ClientPreferenceRequest;
@@ -42,16 +41,16 @@ public final class KeyBindings {
         // 连锁挖矿激活按键（按住模式）
         CHAIN_MINING_KEY = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.onekeyminer.hold",             // 翻译键
-                InputConstants.Type.KEYSYM,         // 输入类型
-                GLFW.GLFW_KEY_GRAVE_ACCENT,        // 默认按键（`键）
+                InputConstants.Type.KEYBOARD,       // 输入类型
+                InputConstants.KEY_GRAVE,           // 默认按键（`键）
                 KeyMapping.Category.GAMEPLAY       // 使用游戏玩法分类
         ));
         
         // 打开配置界面（默认未绑定）
         OPEN_CONFIG = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.onekeyminer.config",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_UNKNOWN,
+                InputConstants.Type.KEYBOARD,
+                InputConstants.UNKNOWN.getValue(),
                 KeyMapping.Category.GAMEPLAY
         ));
 

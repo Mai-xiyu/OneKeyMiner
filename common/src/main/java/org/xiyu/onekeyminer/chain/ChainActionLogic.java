@@ -5,6 +5,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.util.Prediction;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.InteractionHand;
@@ -998,16 +1000,15 @@ public final class ChainActionLogic {
             return false;
         }
 
-        Item item = stack.getItem();
-
-        // 使用物品类型继承检查，而非硬编码
-        // 这样可以自动支持所有继承自这些基类的模组工具
-        return item instanceof HoeItem ||        // 锄头类（耕地）
-               item instanceof AxeItem ||        // 斧头类（剥皮）
-               item instanceof ShovelItem ||     // 铲子类（土径）
-               item instanceof ShearsItem ||     // 剪刀类（剪羊毛）
-             OneKeyMinerAPI.isInteractionToolAllowed(stack) || // API 注册的工具
-             OneKeyMinerAPI.isInteractiveItemAllowed(stack); // API 注册的交互物品
+        // Minecraft 26.3 represents axe/hoe/shovel behavior through item data
+        // rather than dedicated Item subclasses. Standard tool tags preserve
+        // support for vanilla and correctly tagged modded tools.
+        return stack.is(ItemTags.HOES) ||
+               stack.is(ItemTags.AXES) ||
+               stack.is(ItemTags.SHOVELS) ||
+               stack.getItem() instanceof ShearsItem ||
+              OneKeyMinerAPI.isInteractionToolAllowed(stack) || // API 注册的工具
+              OneKeyMinerAPI.isInteractiveItemAllowed(stack); // API 注册的交互物品
     }
 
     /**
@@ -1020,10 +1021,9 @@ public final class ChainActionLogic {
             return false;
         }
 
-        Item item = stack.getItem();
-        return item instanceof HoeItem ||
-                item instanceof AxeItem ||
-                item instanceof ShovelItem ||
+        return stack.is(ItemTags.HOES) ||
+                stack.is(ItemTags.AXES) ||
+                stack.is(ItemTags.SHOVELS) ||
                 OneKeyMinerAPI.isInteractionToolAllowed(stack) ||
                 OneKeyMinerAPI.isInteractiveItemAllowed(stack);
     }
@@ -1045,15 +1045,13 @@ public final class ChainActionLogic {
      * 根据工具类型确定交互类型
      */
     private static InteractionType determineInteractionType(ItemStack stack) {
-        Item item = stack.getItem();
-
-        if (item instanceof ShearsItem) {
+        if (stack.getItem() instanceof ShearsItem) {
             return InteractionType.SHEARING;
-        } else if (item instanceof HoeItem) {
+        } else if (stack.is(ItemTags.HOES)) {
             return InteractionType.TILLING;
-        } else if (item instanceof AxeItem) {
+        } else if (stack.is(ItemTags.AXES)) {
             return InteractionType.STRIPPING;
-        } else if (item instanceof ShovelItem) {
+        } else if (stack.is(ItemTags.SHOVELS)) {
             return InteractionType.PATH_MAKING;
         } else if (OneKeyMinerAPI.isInteractiveItemAllowed(stack)) {
             return InteractionType.ITEM_USE;
@@ -2704,10 +2702,9 @@ public final class ChainActionLogic {
     }
 
     private static boolean isNativeTransformTool(ItemStack stack) {
-        Item item = stack.getItem();
-        return item instanceof HoeItem
-                || item instanceof AxeItem
-                || item instanceof ShovelItem;
+        return stack.is(ItemTags.HOES)
+                || stack.is(ItemTags.AXES)
+                || stack.is(ItemTags.SHOVELS);
     }
 
     private static boolean hasReadyShearableAt(
@@ -2827,7 +2824,10 @@ public final class ChainActionLogic {
                 && !creative
                 && plantingStack.is(seedItem)
                 && !plantingStack.isEmpty()) {
-            player.getInventory().placeItemBackInInventory(new ItemStack(seedItem));
+            player.getInventory().placeItemBackInInventory(
+                    new ItemStack(seedItem),
+                    Prediction.SERVER_ONLY
+            );
         }
     }
 

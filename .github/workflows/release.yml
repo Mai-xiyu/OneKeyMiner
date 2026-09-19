@@ -64,7 +64,15 @@ jobs:
           echo "MOD_VERSION=$MOD_VERSION" >> "$GITHUB_OUTPUT"
           echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
           echo "BUILDS_FOR=$BUILDS_FOR" >> "$GITHUB_OUTPUT"
-          echo "HAS_NEOFORGE=$( [[ "$BUILDS_FOR" == *neoforge* ]] && echo true || echo false )" >> "$GITHUB_OUTPUT"
+          has_loader() {
+            case ",$BUILDS_FOR," in
+              *,"$1",*) echo true ;;
+              *) echo false ;;
+            esac
+          }
+          echo "HAS_FABRIC=$(has_loader fabric)" >> "$GITHUB_OUTPUT"
+          echo "HAS_FORGE=$(has_loader forge)" >> "$GITHUB_OUTPUT"
+          echo "HAS_NEOFORGE=$(has_loader neoforge)" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}
         uses: actions/setup-java@v5
@@ -104,8 +112,8 @@ jobs:
 
             | Loader | File |
             |--------|------|
-            | Fabric | `onekeyminer-fabric-*.jar` |
-            | Forge | `onekeyminer-forge-*.jar` |
+            ${{ steps.props.outputs.HAS_FABRIC == 'true' && '| Fabric | `onekeyminer-fabric-*.jar` |' || '' }}
+            ${{ steps.props.outputs.HAS_FORGE == 'true' && '| Forge | `onekeyminer-forge-*.jar` |' || '' }}
             ${{ steps.props.outputs.HAS_NEOFORGE == 'true' && '| NeoForge | `onekeyminer-neoforge-*.jar` |' || '' }}
 
             Use the JAR matching your loader. Modrinth and CurseForge receive separate loader-specific files.
@@ -130,7 +138,7 @@ jobs:
 
       - name: Publish Fabric to Modrinth and CurseForge
         id: publish_fabric
-        if: contains(steps.props.outputs.BUILDS_FOR, 'fabric')
+        if: steps.props.outputs.HAS_FABRIC == 'true'
         continue-on-error: true
         uses: Kira-NT/mc-publish@v3
         with:
@@ -154,7 +162,7 @@ jobs:
 
       - name: Publish Forge to Modrinth and CurseForge
         id: publish_forge
-        if: contains(steps.props.outputs.BUILDS_FOR, 'forge')
+        if: steps.props.outputs.HAS_FORGE == 'true'
         continue-on-error: true
         uses: Kira-NT/mc-publish@v3
         with:
@@ -178,7 +186,7 @@ jobs:
 
       - name: Publish NeoForge to Modrinth and CurseForge
         id: publish_neoforge
-        if: contains(steps.props.outputs.BUILDS_FOR, 'neoforge')
+        if: steps.props.outputs.HAS_NEOFORGE == 'true'
         continue-on-error: true
         uses: Kira-NT/mc-publish@v3
         with:
