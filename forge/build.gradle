@@ -7,7 +7,13 @@ repositories {
 }
 
 dependencies {
-
+    // MixinExtras annotations live in the common artifact; compileOnly dependencies
+    // from the :common project are intentionally not transitive across platforms.
+    compileOnly "io.github.llamalad7:mixinextras-common:0.5.4"
+    // The common mixins use MixinExtras. Forge does not expose its annotation
+    // classes through the transformed Minecraft classpath, so declare the
+    // Forge adapter explicitly for compilation and runtime packaging.
+    compileOnly "io.github.llamalad7:mixinextras-forge:0.5.4"
 }
 
 processResources {

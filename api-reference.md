@@ -10,8 +10,8 @@ Minecraft `26.3`.
 | Java | 25 |
 | Fabric Loader | 0.19.5 |
 | Fabric API | 0.161.0+26.3 |
+| Forge | 66.0.0 |
 | NeoForge | 26.3.0.6-beta |
-| Forge | Not yet available for Minecraft 26.3 |
 
 OneKeyMiner does not currently publish a documented Maven repository or stable
 Maven coordinate. Do not copy coordinates from old examples. Compile an add-on
@@ -22,6 +22,7 @@ against the platform JAR that it will run with.
 Copy one production JAR into your add-on project's `libs/` directory:
 
 - `onekeyminer-fabric-1.6.9-26.3.jar`
+- `onekeyminer-forge-1.6.9-26.3.jar`
 - `onekeyminer-neoforge-1.6.9-26.3.jar`
 
 There is intentionally no Forgix/universal API artifact. Public signatures
@@ -36,6 +37,14 @@ Fabric Loom:
 ```groovy
 dependencies {
     modCompileOnly files("libs/onekeyminer-fabric-1.6.9-26.3.jar")
+}
+```
+
+ForgeGradle:
+
+```groovy
+dependencies {
+    compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.9-26.3.jar"))
 }
 ```
 

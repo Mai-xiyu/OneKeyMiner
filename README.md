@@ -27,7 +27,7 @@
 - ⛏️ **Chain Mining** - Break connected blocks of the same type at once
 - ✂️ **Chain Interaction** - Batch shearing, hoeing, stripping, path making
 - 🌱 **Chain Planting** - Auto-plant crops on adjacent farmland
-- 🎮 **Multi-Platform** - Supports Fabric and NeoForge on Minecraft 26.3
+- 🎮 **Multi-Platform** - Supports Fabric, Forge, and NeoForge on Minecraft 26.3
 - ⚙️ **Highly Configurable** - Customize max blocks, distance, activation mode
 - 🏷️ **Tag Support** - Use tags like `#minecraft:logs`, `#c:ores`
 - 🛡️ **Protection** - Auto-stop when tool durability or hunger is low
@@ -47,7 +47,7 @@
 | Fabric Loader | 0.19.5 |
 | Fabric API | 0.161.0+26.3 |
 | NeoForge | 26.3.0.6-beta |
-| Forge | Not yet available for Minecraft 26.3 |
+| Forge | 66.0.0 |
 
 ### Download
 
@@ -55,6 +55,7 @@ Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/O
 
 Choose the correct version for your platform:
 - `onekeyminer-fabric-1.6.9-26.3.jar` for Fabric
+- `onekeyminer-forge-1.6.9-26.3.jar` for Forge
 - `onekeyminer-neoforge-1.6.9-26.3.jar` for NeoForge
 
 Use the matching platform JAR on both the client and server. A universal JAR
@@ -143,6 +144,9 @@ compile-only dependency.
 // Fabric Loom
 modCompileOnly files("libs/onekeyminer-fabric-1.6.9-26.3.jar")
 
+// ForgeGradle
+compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.9-26.3.jar"))
+
 // NeoGradle or ModDevGradle
 compileOnly files("libs/onekeyminer-neoforge-1.6.9-26.3.jar")
 ```
@@ -217,8 +221,8 @@ Want to build addon mods or integrations? You can use our API to register blocks
 
 ### Supported Mod Loaders
 - ✅ Fabric (with Fabric API)
+- ✅ Forge
 - ✅ NeoForge
-- ⏳ Forge (waiting for an official Minecraft 26.3 loader release)
 
 ### Tested Mods
 - Mod Menu (Fabric)
