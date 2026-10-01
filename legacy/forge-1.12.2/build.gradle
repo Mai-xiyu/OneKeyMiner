@@ -1,0 +1,112 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:3.+'
+    }
+}
+
+// 应用必要插件（与示例结构一致）
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'eclipse'
+apply plugin: 'maven-publish'
+
+// 引用 gradle.properties 中的变量（与你的模组信息同步）
+version = mod_version  // 直接使用 properties 中的 mod_version（如 1.5.8）
+group = mod_group_id   // 引用包名（org.xiyu.yee）
+archivesBaseName = mod_id  // 引用模组ID（onekeyminer）
+
+// 强制使用 Java 8（1.12.2 必需）
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
+
+// Keep the legacy Java sources deterministic on Windows locales.
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+sourceSets.main.java.srcDir file('../shared/src/main/java')
+
+// ForgeGradle 3's 1.12.2 MCP merge artifact contains a marker Side enum
+// with a third BUKKIT value. Forge's NetworkRegistry only initializes
+// CLIENT/SERVER channels, so the marker must be shadowed during dev runs.
+// Keep this source set out of the published mod JAR; it is only a run-time
+// compatibility shim for the legacy development environment.
+sourceSets {
+    forgeRuntimeFix {
+        java.srcDir file('src/forgeRuntimeFix/java')
+    }
+}
+
+minecraft {
+    // 映射配置（与你的 properties 同步）
+    mappings channel: 'snapshot', version: '20171003-1.12'
+
+    // 运行配置（客户端/服务器测试环境，与示例一致）
+    runs {
+        client {
+            sources sourceSets.forgeRuntimeFix, sourceSets.main
+            workingDirectory project.file('run')  // 游戏数据存放目录
+            // 日志配置（方便调试）
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+
+        server {
+            sources sourceSets.forgeRuntimeFix, sourceSets.main
+            workingDirectory project.file('run/server')  // 服务器数据目录
+            property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
+            property 'forge.logging.console.level', 'debug'
+        }
+    }
+}
+repositories {
+    // 1. 网易 Maven 镜像（优先，同步 Minecraft 依赖）
+    maven { url 'https://mirrors.163.com/maven/repository/maven-public/' }
+    // 2. 华为 Maven 镜像（备用）
+    maven { url 'https://mirrors.huaweicloud.com/repository/maven/' }
+    // 3. 阿里云镜像（已有的保留，增强覆盖）
+    maven { url 'https://maven.aliyun.com/repository/public' }
+    maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    // 4. 保留原有仓库（作为最后的 fallback）
+    mavenCentral()
+    maven { url 'https://maven.minecraftforge.net/' }
+    maven { url 'https://files.minecraftforge.net/maven' }
+}
+dependencies {
+    // 核心依赖：Minecraft + Forge（版本与你的 properties 同步）
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"  // 1.12.2-14.23.5.2860
+}
+
+// 打包配置（生成的模组 Jar 元数据）
+jar {
+    manifest {
+        attributes([
+                "Specification-Title": mod_name,  // 模组名称
+                "Specification-Vendor": mod_authors,  // 作者
+                "Specification-Version": mod_version,  // 版本
+                "Implementation-Title": project.name,
+                "Implementation-Version": "${version}",
+                "Implementation-Vendor": mod_authors,
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+// 确保打包前先混淆（适配游戏环境）
+jar.finalizedBy('reobfJar')
+
+// 发布配置（本地 Maven 仓库，可选）
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file:///${project.projectDir}/mcmodsrepo"  // 本地发布路径
+        }
+    }
+}
