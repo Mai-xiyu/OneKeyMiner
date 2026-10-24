@@ -48,7 +48,7 @@ public class ForgeConfigScreen {
         private final Screen parent;
         private final MinerConfig configCopy;
         private int currentPage = 0;
-        private final int totalPages = 3;
+        private final int totalPages = 4;
         
         protected SimpleConfigScreen(Screen parent) {
             super(Component.translatable("config.onekeyminer.title"));
@@ -69,18 +69,17 @@ public class ForgeConfigScreen {
 
             boolean remoteServer = isRemoteServer();
             if (remoteServer) {
-                initRemotePreferences(
-                        centerX,
-                        startY + spacing,
-                        buttonWidth,
-                        buttonHeight,
-                        spacing
-                );
+                if (currentPage == 0) {
+                initRemotePreferences(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+            } else {
+                initPagePreviewHud(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+            }
             } else {
                 switch (currentPage) {
                     case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                     case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                     case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 3: initPagePreviewHud(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 }
             }
             
@@ -94,17 +93,17 @@ public class ForgeConfigScreen {
                     this.init();
                 }
             }).bounds(centerX - 155, bottomY, 20, buttonHeight).build();
-            prevBtn.active = !remoteServer && currentPage > 0;
+            prevBtn.active = currentPage > 0;
             this.addRenderableWidget(prevBtn);
             
             // 下一页
             Button nextBtn = Button.builder(Component.literal(">"), b -> {
-                if (currentPage < totalPages - 1) {
+                if (currentPage < (isRemoteServer() ? 2 : totalPages) - 1) {
                     currentPage++;
                     this.init();
                 }
             }).bounds(centerX + 135, bottomY, 20, buttonHeight).build();
-            nextBtn.active = !remoteServer && currentPage < totalPages - 1;
+            nextBtn.active = currentPage < (remoteServer ? 2 : totalPages) - 1;
             this.addRenderableWidget(nextBtn);
             
             // 保存 (使用 gui.done 或自定义保存键)
@@ -298,6 +297,11 @@ public class ForgeConfigScreen {
          * @param getter 获取当前值的 Supplier
          * @param setter 设置新值的 Consumer
          */
+        private void initPagePreviewHud(int x, int y, int w, int h, int s) {
+            org.xiyu.onekeyminer.preview.PreviewHudControls.addWidgets(
+                    configCopy, this.width, y, this::addRenderableWidget, this::init);
+        }
+
         private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
             this.addRenderableWidget(Button.builder(
                 getBoolMessage(key, getter.get()),
@@ -387,7 +391,7 @@ public class ForgeConfigScreen {
                 );
             }
             int page = isRemoteServer() ? 1 : currentPage + 1;
-            int pages = isRemoteServer() ? 1 : totalPages;
+            int pages = isRemoteServer() ? 2 : totalPages;
             guiGraphics.drawCenteredString(this.font, Component.literal(page + " / " + pages), this.width / 2, this.height - 45, 0xAAAAAA);
         }
     }

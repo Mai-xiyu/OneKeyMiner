@@ -563,3 +563,36 @@ before acknowledgement, after disconnect, and on a dedicated server.
 - Algorithms in custom shapes should be bounded by `maxBlocks`, `maxDistance`
   and loaded chunks. A breadth-first shape is normally `O(V + E)` time and
   `O(V)` memory for visited candidates.
+
+
+## Preview HUD customization
+
+The HUD page offers a visibility switch, GUI pixel position, 50–200% scale,
+background alpha (0–255), shape/count/limit toggles, and reset. GUI positions
+use presets; arbitrary nonnegative X/Y coordinates can be set in
+`config/onekeyminer.json` or through the API. Save with Done; Cancel discards
+the screen's draft. Preferences remain editable on remote servers.
+
+```java
+OneKeyMinerAPI.setPreviewHudSettings(new OneKeyMinerAPI.PreviewHudSettings(
+    true, 6, 6, 1.0f, 128, true, true, true));
+OneKeyMinerAPI.PreviewHudSettings hud = OneKeyMinerAPI.getPreviewHudSettings();
+OneKeyMinerAPI.resetPreviewHudSettings();
+```
+
+The settings snapshot is immutable. X/Y are clamped to nonnegative values;
+scale is clamped to 0.5–2.0 (nonfinite values become 1.0), and alpha to 0–255.
+Zero alpha hides the background; disabling all three lines hides the panel.
+Rendering clamps the scaled panel to the viewport. Settings affect only the
+local client; they do not alter server mining rules or another player's HUD.
+Use `ConfigSyncHelper.addConfigChangeListener` with key `previewHud` to observe
+API changes. The render work is O(1) per frame (at most four text lines).
+
+### Preview count semantics
+
+`OneKeyMinerAPI.getPreviewBlocks()` and preview listeners receive unique positions
+including the crosshair/origin block. A valid isolated block therefore counts as 1.
+Shape collection still returns derived targets for the server; the configured
+`maxBlocks` bounds these additional targets, so the HUD total limit is `maxBlocks + 1`.
+Custom shapes that already return the origin do not count it twice. Clearing the
+preview (no target, key released, or disabled) still produces an empty list.
