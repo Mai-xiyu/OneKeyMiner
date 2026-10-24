@@ -28,6 +28,30 @@ tasks.withType(JavaCompile) {
 
 sourceSets.main.java.srcDir file('../shared/src/main/java')
 
+def buildInfoDirectory = file("$buildDir/generated/sources/buildInfo")
+task generateBuildInfo {
+    inputs.property 'modVersion', project.version.toString()
+    outputs.dir buildInfoDirectory
+    doLast {
+        def source = new File(buildInfoDirectory, 'org/xiyu/yee/onekeyminer/BuildInfo.java')
+        source.parentFile.mkdirs()
+        source.setText('package org.xiyu.yee.onekeyminer;\n' +
+                'public final class BuildInfo {\n' +
+                '    private BuildInfo() {}\n' +
+                '    public static final String VERSION = ' +
+                groovy.json.JsonOutput.toJson(project.version.toString()) + ';\n}\n', 'UTF-8')
+    }
+}
+sourceSets.main.java.srcDir buildInfoDirectory
+compileJava.dependsOn generateBuildInfo
+processResources {
+    inputs.property 'modVersion', project.version.toString()
+    filesMatching('mcmod.info') {
+        filter { line -> line.replace('@VERSION@',
+                groovy.json.JsonOutput.toJson(project.version.toString())[1..-2]) }
+    }
+}
+
 // ForgeGradle 3's 1.12.2 MCP merge artifact contains a marker Side enum
 // with a third BUKKIT value. Forge's NetworkRegistry only initializes
 // CLIENT/SERVER channels, so the marker must be shadowed during dev runs.
