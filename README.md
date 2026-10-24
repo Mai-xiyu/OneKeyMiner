@@ -1,274 +1,66 @@
-# OneKeyMiner
+# OneKeyMiner — Minecraft 1.16.5
 
-<p align="center">
-  <img src="img/logo.png" alt="OneKeyMiner Logo" width="720" height="393">
-</p>
+本分支默认构建 Minecraft **1.16.5**。旧版与现代版使用同一套根目录命令：
+`mc_ver` 选择游戏版本，`build` 编译对应加载器，也可以单独指定加载器。
 
-<p align="center">
-  <strong>Chain Mining, Interaction & Planting - All in One!</strong>
-</p>
+| Minecraft | 加载器 | 运行 Java |
+| --- | --- | --- |
+| 1.12.2 | Forge | 8 |
+| 1.16.5 | Fabric、Forge | 8 |
+| 1.18.1 | Fabric、Forge | 17 |
+| 1.18.2 | Fabric、Forge | 17 |
 
-<p align="center">
-  <a href="https://github.com/Mai-xiyu/OneKeyMiner/releases"><img src="https://img.shields.io/github/v/release/Mai-xiyu/OneKeyMiner?style=flat-square" alt="Release"></a>
-  <a href="LICENSE_EN.md"><img src="https://img.shields.io/badge/license-Custom%20v1.2-red?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/OneKeyMiner-1.6.9-blue?style=flat-square" alt="OneKeyMiner Version">
-  <img src="https://img.shields.io/badge/Minecraft-26.3-green?style=flat-square" alt="Minecraft Version">
-  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square" alt="Java Version">
-</p>
+## 构建
 
-<p align="center">
-  <a href="api-reference.md">🔧 API Documentation</a>
-</p>
+根 Gradle 使用 JDK 21；安装 JDK 17 和 JDK 8 供旧版子构建使用。
+Gradle 自动查找已安装的工具链；路径覆盖和 CI 配置见
+[旧版构建文档](legacy/README.md)。无需切换到单独工程目录。
 
----
-
-## ✨ Features
-
-- ⛏️ **Chain Mining** - Break connected blocks of the same type at once
-- ✂️ **Chain Interaction** - Batch shearing, hoeing, stripping, path making
-- 🌱 **Chain Planting** - Auto-plant crops on adjacent farmland
-- 🎮 **Multi-Platform** - Supports Fabric, Forge, and NeoForge on Minecraft 26.3
-- ⚙️ **Highly Configurable** - Customize max blocks, distance, activation mode
-- 🏷️ **Tag Support** - Use tags like `#minecraft:logs`, `#c:ores`
-- 🛡️ **Protection** - Auto-stop when tool durability or hunger is low
-- 🔌 **API Available** - Easy integration for other mods
-
----
-
-## 📥 Installation
-
-### Requirements
-
-| Component | Version |
-|-----------|---------|
-| Minecraft | 26.3 |
-| OneKeyMiner | 1.6.9 |
-| Java | 25 |
-| Fabric Loader | 0.19.5 |
-| Fabric API | 0.161.0+26.3 |
-| NeoForge | 26.3.0.6-beta |
-| Forge | 66.0.0 |
-
-### Download
-
-Download the latest release from [GitHub Releases](https://github.com/Mai-xiyu/OneKeyMiner/releases).
-
-Choose the correct version for your platform:
-- `onekeyminer-fabric-1.6.9-26.3.jar` for Fabric
-- `onekeyminer-forge-1.6.9-26.3.jar` for Forge
-- `onekeyminer-neoforge-1.6.9-26.3.jar` for NeoForge
-
-Use the matching platform JAR on both the client and server. A universal JAR
-is not published because loader-specific Minecraft mappings cannot provide a
-single binary-compatible public API to add-on mods.
-
-### Multiplayer configuration
-
-On dedicated servers, global limits and feature switches are server-authoritative. While
-connected to a remote server, the config screen exposes and saves only the selected shape
-and drop/experience teleport preferences. It does not present local copies of server
-settings as if they controlled the server. Those preferences are synchronized when joining,
-when the activation key changes, and after saving the screen. Synchronization is considered
-complete only after a versioned server acknowledgement reports the applied shape, effective
-teleport policy result, and supported preference capabilities.
-
----
-
-## 🎮 Quick Start
-
-### Chain Mining
-1. Hold a pickaxe or axe
-2. **Hold the activation key** (default: `` ` `` backtick)
-3. Break an ore or log
-4. Watch connected blocks break automatically!
-
-### Chain Interaction  
-1. Hold a hoe, axe, shovel, or shears
-2. **Hold the activation key**
-3. Right-click to interact with blocks
-4. Adjacent interactable blocks are also processed!
-
-### Chain Planting
-1. Hold seeds or crops
-2. **Hold the activation key**
-3. Right-click on farmland
-4. Adjacent empty farmland is planted automatically!
-
----
-
-## ⚙️ Configuration
-
-Configuration file location: `config/onekeyminer.json`
-
-### Key Settings
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `true` | Enable/disable the mod |
-| `maxBlocks` | `64` | Maximum blocks per chain operation |
-| `maxDistance` | `16` | Maximum search distance |
-| `allowDiagonal` | `true` | Allow diagonal block connections |
-| `consumeDurability` | `true` | Consume tool durability |
-| `preserveDurability` | `1` | Stop when durability reaches this value |
-| `consumeHunger` | `true` | Consume hunger for each block |
-| `minHungerLevel` | `1` | Stop when hunger reaches this value |
-| `allowBareHand` | `true` | Allow chain mining without tools |
-| `teleportDrops` | `false` | Teleport drops to player inventory |
-| `teleportExp` | `false` | Teleport experience to player |
-| `allowClientTeleportDrops` | `true` | Server policy gate for client-requested drop teleport |
-| `allowClientTeleportExp` | `true` | Server policy gate for client-requested experience teleport |
-
-### Block/Tool Lists
-
-```json
-{
-  "customWhitelist": ["mymod:custom_ore"],
-  "blacklist": ["minecraft:bedrock"],
-  "toolWhitelist": [],
-  "toolBlacklist": ["minecraft:wooden_pickaxe"]
-}
+```powershell
+# 本分支默认版本及其全部加载器
+.\gradlew.bat build
+# 选择版本及加载器
+.\gradlew.bat '-Pmc_ver=1.18.2' build
+.\gradlew.bat '-Pmc_ver=1.16.5' :fabric:build
+.\gradlew.bat '-Pmc_ver=1.18.1' :forge:build
 ```
 
----
+生产 JAR 输出到 `fabric/build/libs`、`forge/build/libs`，文件名为
+`onekeyminer-<loader>-<mod_version>-<mc_ver>.jar`。
+`-Pmod_version=...` 同时传递给两个加载器及模组元数据。
+1.12.2 仅支持 Forge；上述 Fabric 目标不适用于 1.12.2。
 
-## 🔧 For Developers
+旧版插件依赖的 Gradle/JDK 版本不同，因此根任务通过各自固定的工具链执行，
+共享算法位于 `legacy/shared`，版本适配器源码位于 `legacy/`。
+构建和发布工作流均使用根入口。仓库保留的 26.3 源码可用
+`-Pmc_ver=26.3`（JDK 25）显式选择，不是本分支默认构建目标。
 
-OneKeyMiner provides an API for mod developers. It does not currently publish a
-documented Maven repository or stable Maven coordinate. Copy the production JAR
-for the target platform into your add-on project's `libs/` directory and use a
-compile-only dependency.
+## 功能与预览 HUD
 
-### Adding Dependency
+支持连锁挖掘、工具方块交互、播种和预览。按住连锁键激活；K 打开 HUD 设置。
+可配置显示、位置、缩放、背景透明度及形状/数量/上限信息行。
+完成时保存，取消或 Escape 放弃修改；HUD 设置仅在本地生效。
+预览数量包含准心方块；旧版搜索结果已经包含起点，使用结果数量即可。
 
-```groovy
-// Fabric Loom
-modCompileOnly files("libs/onekeyminer-fabric-1.6.9-26.3.jar")
+旧版 Fabric 支持基础连锁挖掘、斧/锄/锹/剪刀方块交互和播种；
+完整适配范围及依赖见 [Fabric 文档](legacy/fabric-shared/README.md)。
 
-// ForgeGradle
-compileOnly fg.deobf(files("libs/onekeyminer-forge-1.6.9-26.3.jar"))
+## API
 
-// NeoGradle or ModDevGradle
-compileOnly files("libs/onekeyminer-neoforge-1.6.9-26.3.jar")
-```
+- Forge：既有 `org.xiyu.yee.onekeyminer.api.ChainAPI` 和 `ChainPositionStore`，
+  新增 HUD 设置的读取、更新、重置接口。
+- Fabric：`org.xiyu.onekeyminer.api.OneKeyMinerAPI` 提供不可变 HUD 设置快照、
+  预览列表及监听器注册/移除。
 
-Install OneKeyMiner separately at runtime and declare it in the add-on's loader
-metadata as an optional or required dependency.
+用法见 [旧版 API 文档](legacy/README.md)；请依赖对应版本和加载器的生产 JAR。
+现代扩展 API 参考保留在 [api-reference.md](api-reference.md)，其注册接口并非
+旧版 Fabric 的二进制兼容承诺。
 
-### Basic API Usage
+编译及自动化测试不能替代实际游戏验证；客户端 HUD、多人行为和第三方领地
+保护模组兼容性尚需游戏内验证。现有运行检查范围见
+[兼容性矩阵](legacy/compatibility-matrix.md)。
 
-```java
-import org.xiyu.onekeyminer.api.OneKeyMinerAPI;
-import org.xiyu.onekeyminer.api.event.ChainEvents;
+## 许可
 
-// Register custom blocks
-OneKeyMinerAPI.registerBlock("mymod:custom_ore");
-OneKeyMinerAPI.registerBlockTag("#mymod:ores");
-
-// Register custom tools
-OneKeyMinerAPI.whitelistTool("mymod:super_pickaxe");
-
-// Client-local requests (the server may reject teleport requests by policy)
-OneKeyMinerAPI.setLocalDropTeleportRequested(true);
-OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
-
-// Server policy; call on the authoritative server
-OneKeyMinerAPI.setClientDropTeleportAllowed(false);
-OneKeyMinerAPI.setClientExperienceTeleportAllowed(false);
-
-OneKeyMinerAPI.getAcknowledgedServerPreferences().ifPresent(ack -> {
-    // Current connection only; this does not overwrite local preferences.
-    System.out.println("Server shape: " + ack.appliedShapeId());
-});
-
-// Listen to events
-ChainEvents.registerPreActionListener(event -> {
-    // Custom logic before chain operation
-});
-```
-
-The server remains authoritative: API listeners and client preferences cannot
-bypass target, protection, distance, durability, hunger, or server-policy
-checks. Original right-click interactions complete through the loader/vanilla
-path once; only then are validated derived targets dispatched. A throwing
-`PreActionEvent` listener fail-closes all chain work that has not already
-completed; it cannot roll back an original interaction that already succeeded.
-Native actions must also produce their expected block/entity transition, so a
-button, container, composter, or protection-mod cancellation result cannot
-authorize unrelated neighboring work.
-
-The compatibility methods setTeleportDropsEnabled and setTeleportExpEnabled
-are deprecated aliases for local preferences. Calling them in a
-dedicated-server process does not update connected clients or the
-allowClientTeleport* server-policy gates.
-
-`ConfigManager.getConfig()` returns a defensive copy. Use
-`ConfigManager.editConfig(key, editor)` for atomic changes. The deprecated
-`skipPermissionCheck` context option is ignored.
-
-See [API Documentation](api-reference.md) for the complete 26.3 reference,
-including the current event, shape, context, and tool-rule signatures. Shape IDs
-are limited to 128 characters.
-
----
-
-## 🌟 Addon Development
-
-Want to build addon mods or integrations? You can use our API to register blocks/tools and listen to chain events.
-
----
-
-## 📋 Compatibility
-
-### Supported Mod Loaders
-- ✅ Fabric (with Fabric API)
-- ✅ Forge
-- ✅ NeoForge
-
-### Tested Mods
-- Mod Menu (Fabric)
-- Most ore/tool mods
-
-### Protection Plugin Support
-Uses `ServerPlayerGameMode#destroyBlock()` for proper integration with:
-- FTB Chunks
-- Claim plugins
-- Other protection mods
-
----
-
-## 🌿 Branching & Releases
-
-- **Branching**: Each Minecraft version uses its own branch (e.g., `26.3`).
-- **Tag format**: `<branch>-<mod_version>` (example: `26.3-1.6.9`).
-
-
-## 🐛 Issues & Contributions
-
-Found a bug or have a suggestion?
-
-- [Open an Issue](https://github.com/Mai-xiyu/OneKeyMiner/issues)
-- [Submit a Pull Request](https://github.com/Mai-xiyu/OneKeyMiner/pulls)
-
----
-
-## 📜 License
-
-This project uses the **Code Repository General License Agreement v1.2**,
-a custom non-commercial license. It is not MIT-licensed. See
-[LICENSE_EN.md](LICENSE_EN.md) or [LICENSE_CN.md](LICENSE_CN.md) for the
-complete terms, including the separate requirements for derivative and
-dependent works.
-
----
-
-## 💖 Credits
-
-- **Author**: [Mai-xiyu](https://github.com/Mai-xiyu)
-- **Project Origin**: The original OneKeyMiner had separate projects and branches for each mod loader and Minecraft version. This unified version was created to consolidate all platforms into a single codebase with completely refactored code.
-- **Special Thanks**: All contributors and testers
-
----
-
-<p align="center">
-  Made with ❤️ for the Minecraft community
-</p>
+使用 Code Repository General License Agreement v1.2。
+详见 [中文许可](LICENSE_CN.md) 和 [英文许可](LICENSE_EN.md)。

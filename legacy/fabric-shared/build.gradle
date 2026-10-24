@@ -1,0 +1,67 @@
+group = 'org.xiyu.onekeyminer'
+version = "${mod_version}-${minecraft_version}"
+base.archivesName = 'onekeyminer-fabric'
+loom.mixin.defaultRefmapName = 'onekeyminer.legacy.fabric.refmap.json'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    modImplementation 'net.fabricmc:fabric-loader:0.15.11'
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+def generatedSources = layout.buildDirectory.dir('generated/legacy-sources')
+tasks.register('prepareVersionedSources', Sync) {
+    from file('../fabric-shared/src/main/java')
+    into generatedSources
+    filteringCharset = 'UTF-8'
+    filter { line ->
+        minecraft_version == '1.16.5' ? line : line.replace('openScreen(', 'setScreen(').replace('addButton(', 'addDrawableChild(')
+    }
+}
+sourceSets.main.java.srcDirs = [generatedSources, file('../shared/src/main/java')]
+sourceSets.main.resources.srcDirs = [file('../fabric-shared/src/main/resources')]
+sourceSets.test.java.srcDir file('../shared/src/test/java')
+sourceSets.test.java.srcDir file('../fabric-shared/src/test/java')
+
+tasks.withType(JavaCompile).configureEach {
+    dependsOn tasks.named('prepareVersionedSources')
+    options.encoding = 'UTF-8'
+    options.release = java_version.toInteger()
+}
+tasks.named('sourcesJar').configure {
+    dependsOn tasks.named('prepareVersionedSources')
+}
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+tasks.withType(JavaExec).configureEach {
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(java_version.toInteger())
+    }
+}
+processResources {
+    inputs.properties(version: project.version, minecraft_version: minecraft_version, java_version: java_version, fabric_api_version: fabric_api_version)
+    filesMatching('fabric.mod.json') {
+        expand(version: project.version, minecraft_version: minecraft_version, java_version: java_version, fabric_api_version: fabric_api_version)
+    }
+}
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+tasks.withType(Jar).configureEach {
+    from file('../../LICENSE_EN.md')
+    from file('../../LICENSE_CN.md')
+}

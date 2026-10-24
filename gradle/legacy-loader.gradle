@@ -1,0 +1,71 @@
+apply plugin: 'base'
+apply plugin: 'java-base'
+
+def minecraftVersion = gradle.ext.minecraft_version
+def targetDirectory = rootProject.file("legacy/${project.name}-${minecraftVersion}")
+def launcherVersion = project.name == 'forge' && minecraftVersion == '1.12.2' ? 8 : 17
+layout.buildDirectory = rootProject.layout.projectDirectory.dir("${project.name}/build")
+
+def childTasks = [:]
+['assemble', 'check', 'clean', 'classes', 'runClient', 'runServer'].each { action ->
+    childTasks[action] = tasks.register("legacy${action.capitalize()}", Exec) {
+        group = action.startsWith('run') ? 'application' : 'build'
+        description = "Run ${action} for ${project.name} ${minecraftVersion} with its compatible toolchain."
+        usesService rootProject.legacyBuildLock
+        workingDir targetDirectory
+        doFirst {
+            def overrideHome = providers.gradleProperty("legacy_java${launcherVersion}_home").orNull ?:
+                    System.getenv("JAVA_HOME_${launcherVersion}_X64") ?: System.getenv("JAVA${launcherVersion}_HOME")
+            def javaHome = overrideHome ? file(overrideHome) : javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(launcherVersion)
+            }.get().metadata.installationPath.asFile
+            executable new File(javaHome, "bin/java${System.getProperty('os.name').startsWith('Windows') ? '.exe' : ''}")
+            environment 'JAVA_HOME', javaHome.absolutePath
+            def arguments = ['-classpath', new File(targetDirectory, 'gradle/wrapper/gradle-wrapper.jar').absolutePath,
+                             'org.gradle.wrapper.GradleWrapperMain', action,
+                             '--no-daemon', '--max-workers=1', '--no-parallel',
+                             "-Pmod_version=${rootProject.mod_version}"]
+            arguments.add('-Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64,JAVA_HOME_17_X64,JAVA_HOME_21_X64')
+            if (gradle.startParameter.offline) arguments.add('--offline')
+            if (gradle.startParameter.refreshDependencies) arguments.add('--refresh-dependencies')
+            // Preserve explicit network settings without changing global Gradle configuration.
+            System.properties.each { key, value ->
+                if (key.startsWith('http.') || key.startsWith('https.') || key.startsWith('socksProxy')
+                        || key.startsWith('org.gradle.internal.http.')) {
+                    arguments.add("-D${key}=${value}")
+                }
+            }
+            setArgs(arguments)
+        }
+    }
+}
+
+def sourceArtifact = "${rootProject.mod_id}${project.name == 'fabric' ? '-fabric' : ''}-${rootProject.mod_version}" +
+        (project.name == 'forge' && minecraftVersion == '1.12.2' ? '' : "-${minecraftVersion}")
+tasks.register('collectLegacyArtifacts', Sync) {
+    dependsOn childTasks.assemble
+    from(new File(targetDirectory, 'build/libs')) {
+        include "${sourceArtifact}.jar", "${sourceArtifact}-sources.jar"
+    }
+    into layout.buildDirectory.dir('libs')
+    doFirst {
+        if (!new File(targetDirectory, "build/libs/${sourceArtifact}.jar").isFile()) {
+            throw new GradleException("Missing production artifact: ${sourceArtifact}.jar")
+        }
+    }
+    rename { filename ->
+        def suffix = filename.endsWith('-sources.jar') ? '-sources' : ''
+        "${rootProject.mod_id}-${project.name}-${rootProject.mod_version}-${minecraftVersion}${suffix}.jar"
+    }
+}
+tasks.named('assemble') { dependsOn 'collectLegacyArtifacts' }
+tasks.named('check') {
+    dependsOn childTasks.check
+    mustRunAfter tasks.named('assemble')
+}
+childTasks.check.configure { mustRunAfter childTasks.assemble }
+tasks.named('clean') { dependsOn childTasks.clean }
+tasks.register('classes') { dependsOn childTasks.classes }
+['runClient', 'runServer'].each { action ->
+    tasks.register(action) { dependsOn childTasks[action] }
+}

@@ -59,13 +59,19 @@ def loadVersionProperties() {
 }
 loadVersionProperties()
 
+def legacyBuild = gradle.ext.has('legacy_build') && gradle.ext.legacy_build == 'true'
+if (legacyBuild) {
+    rootProject.buildFileName = 'gradle/legacy-root.gradle'
+}
 include('common')
+if (legacyBuild) project(':common').projectDir = file('legacy/shared')
 ((String) gradle.builds_for)
         .split(",")
         .collect { it.trim() }
         .findAll { !it.isEmpty() }
         .each { loader ->
             include(loader)
+            if (legacyBuild) project(":${loader}").projectDir = file("legacy/adapters/${loader}")
         }
 
 rootProject.name = 'onekeyminer'

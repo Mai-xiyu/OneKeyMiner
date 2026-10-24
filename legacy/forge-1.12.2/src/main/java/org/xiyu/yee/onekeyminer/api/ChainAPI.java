@@ -27,6 +27,22 @@ import java.util.*;
  */
 public class ChainAPI {
 
+    public static org.xiyu.onekeyminer.legacy.core.LegacyHudSettings getPreviewHudSettings() {
+        return org.xiyu.onekeyminer.legacy.core.LegacyHudPreferences.get(hudConfigPath());
+    }
+
+    public static void setPreviewHudSettings(org.xiyu.onekeyminer.legacy.core.LegacyHudSettings settings) {
+        org.xiyu.onekeyminer.legacy.core.LegacyHudPreferences.set(hudConfigPath(), settings);
+    }
+
+    public static void resetPreviewHudSettings() {
+        setPreviewHudSettings(org.xiyu.onekeyminer.legacy.core.LegacyHudSettings.defaults());
+    }
+
+    private static java.nio.file.Path hudConfigPath() {
+        return net.minecraftforge.fml.common.Loader.instance().getConfigDir().toPath().resolve("onekeyminer-hud.properties");
+    }
+
     public static List<BlockPos> computeMiningPositions(EntityPlayerMP player, WorldServer level, BlockPos startPos, IBlockState startState, ItemStack tool) {
         List<BlockPos> result = new ArrayList<>();
         if (player == null || level == null || startPos == null || startState == null || tool == null) return result;

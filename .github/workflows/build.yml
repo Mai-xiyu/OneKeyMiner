@@ -29,6 +29,10 @@ jobs:
           fi
           echo "MC_VERSION=$MC_VERSION" >> "$GITHUB_OUTPUT"
           echo "JAVA_VERSION=$JAVA_VERSION" >> "$GITHUB_OUTPUT"
+          LEGACY_BUILD="$(sed -n 's/^legacy_build=//p' "$PROPS_FILE" | tr -d '\r')"
+          RUNTIME_JAVA="$(sed -n 's/^runtime_java_version=//p' "$PROPS_FILE" | tr -d '\r')"
+          echo "LEGACY_BUILD=$LEGACY_BUILD" >> "$GITHUB_OUTPUT"
+          echo "RUNTIME_JAVA=${RUNTIME_JAVA:-$JAVA_VERSION}" >> "$GITHUB_OUTPUT"
           echo "BUILDS_FOR=$BUILDS_FOR" >> "$GITHUB_OUTPUT"
           has_loader() {
             case ",$BUILDS_FOR," in
@@ -39,6 +43,20 @@ jobs:
           echo "HAS_FABRIC=$(has_loader fabric)" >> "$GITHUB_OUTPUT"
           echo "HAS_FORGE=$(has_loader forge)" >> "$GITHUB_OUTPUT"
           echo "HAS_NEOFORGE=$(has_loader neoforge)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up legacy Java 8 toolchain
+        if: steps.props.outputs.LEGACY_BUILD == 'true'
+        uses: actions/setup-java@v5
+        with:
+          java-version: '8'
+          distribution: temurin
+
+      - name: Set up legacy Java 17 toolchain
+        if: steps.props.outputs.LEGACY_BUILD == 'true'
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
 
       - name: Set up JDK ${{ steps.props.outputs.JAVA_VERSION }}
         uses: actions/setup-java@v5

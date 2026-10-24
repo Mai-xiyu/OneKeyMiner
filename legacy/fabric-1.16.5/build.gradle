@@ -1,0 +1,4 @@
+plugins {
+    id 'fabric-loom' version '1.7.4'
+}
+apply from: '../fabric-shared/build.gradle'

@@ -1,0 +1,23 @@
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
+
+plugins {
+    id 'base'
+}
+
+// Old ForgeGradle and Loom releases require different Gradle/JDK combinations.
+// Expose the same root tasks while running those toolchains in child processes.
+abstract class LegacyBuildLock implements BuildService<BuildServiceParameters.None> {}
+ext.legacyBuildLock = gradle.sharedServices.registerIfAbsent('legacyBuildLock', LegacyBuildLock) {
+    maxParallelUsages = 1
+}
+
+tasks.named('assemble') {
+    dependsOn subprojects.findAll { it.name != 'common' }.collect { "${it.path}:assemble" }
+}
+tasks.named('check') {
+    dependsOn subprojects.collect { "${it.path}:check" }
+}
+tasks.named('clean') {
+    dependsOn subprojects.collect { "${it.path}:clean" }
+}

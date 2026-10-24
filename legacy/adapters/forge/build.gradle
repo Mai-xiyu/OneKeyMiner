@@ -1,0 +1,1 @@
+apply from: rootProject.file('gradle/legacy-loader.gradle')
