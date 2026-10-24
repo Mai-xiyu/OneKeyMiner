@@ -23,7 +23,7 @@ import java.io.File;
 public class Onekeyminer {
     public static final String MODID = "onekeyminer";
     public static final String NAME = "OneKeyMiner";
-    public static final String VERSION = "1.5.8";
+    public static final String VERSION = BuildInfo.VERSION;
     public static final Logger LOGGER = LogManager.getLogger(MODID);
 
     @Mod.Instance(MODID)

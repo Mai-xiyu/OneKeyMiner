@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "onekeyminer",
+  "version": "${version}",
+  "name": "OneKeyMiner",
+  "description": "Chain mining, interaction and planting with a configurable preview HUD.",
+  "authors": ["Mai-xiyu"],
+  "license": "LicenseRef-Code-Repository-General-License-v1.2",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["org.xiyu.onekeyminer.legacy.fabric.LegacyFabricMiner"],
+    "client": ["org.xiyu.onekeyminer.legacy.fabric.LegacyFabricClient"]
+  },
+  "mixins": ["onekeyminer.legacy.fabric.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.11",
+    "fabric": ">=${fabric_api_version}",
+    "minecraft": "${minecraft_version}",
+    "java": ">=${java_version}"
+  }
+}

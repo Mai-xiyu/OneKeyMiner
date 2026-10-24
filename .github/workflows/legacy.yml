@@ -1,0 +1,42 @@
+name: Legacy root multi-loader builds
+
+on:
+  push:
+    branches: ['1.12.2', '1.16.5', '1.18.1', '1.18.2']
+  pull_request:
+    paths: ['legacy/**', 'gradle/**', 'settings.gradle', 'gradle.properties', 'versionProperties/**', '.github/workflows/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        minecraft: ['1.12.2', '1.16.5', '1.18.1', '1.18.2']
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '8'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Build selected version from repository root
+        run: |
+          chmod +x gradlew
+          ./gradlew "-Pmc_ver=${{ matrix.minecraft }}" build --no-daemon --max-workers=1 --no-parallel
+      - uses: actions/upload-artifact@v6
+        with:
+          name: onekeyminer-${{ matrix.minecraft }}
+          path: |
+            fabric/build/libs/*.jar
+            forge/build/libs/*.jar
+            !**/*-sources.jar
+          if-no-files-found: error

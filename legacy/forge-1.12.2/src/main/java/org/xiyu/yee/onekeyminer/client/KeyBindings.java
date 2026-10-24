@@ -62,6 +62,7 @@ public class KeyBindings {
      * 使用Java Timer替代Tick事件
      */
     public static void registerClientTick() {
+        ClientRegistry.registerKeyBinding(HudConfigScreen.KEY);
         if(ClientConfig.INSTANCE.requireKeyHold.get())  Onekeyminer.LOGGER.info("初始化客户端定时器");
 
         // 取消旧定时器（如果存在）
@@ -91,6 +92,11 @@ public class KeyBindings {
     @SubscribeEvent
     public static void onKeyInput(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        if (HudConfigScreen.KEY.isPressed()) {
+            Minecraft minecraft = Minecraft.getMinecraft();
+            minecraft.displayGuiScreen(new HudConfigScreen(minecraft.currentScreen));
+            return;
+        }
         
         if (CHAIN_KEY.isPressed()) {
             Boolean requireKeyHold = ClientConfig.INSTANCE.requireKeyHold.get();

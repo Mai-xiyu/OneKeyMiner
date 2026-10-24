@@ -2,7 +2,7 @@
   {
     "modid": "onekeyminer",
     "name": "onekeyminer",
-    "version": "1.5.8",
+    "version": "@VERSION@",
     "mcversion": "1.12.2",
     "authorList": ["godxiyu"],
     "description": "One Key Miner Mod - Simplify mining, planting, and interaction\nMcmod: https://www.mcmod.cn/class/15461.html\nCurseForge: https://www.curseforge.com/minecraft/mc-mods/onekeyminer-nf\nModrinth: https://modrinth.com/mod/onekeyminer_nf\nand\nF * * K Y O U NetEase\n24-8 杨基光SB",

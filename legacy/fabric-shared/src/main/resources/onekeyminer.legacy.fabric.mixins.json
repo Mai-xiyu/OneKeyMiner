@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "package": "org.xiyu.onekeyminer.legacy.fabric.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "onekeyminer.legacy.fabric.refmap.json",
+  "mixins": ["LegacyInteractionMixin"],
+  "injectors": {"defaultRequire": 1}
+}
