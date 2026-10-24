@@ -40,7 +40,7 @@ public class FabricConfigScreen extends Screen {
                 minecraft.getConnection() != null,
                 minecraft.hasSingleplayerServer()
         );
-        this.totalPages = serverSettingsEditable ? 3 : 1;
+        this.totalPages = serverSettingsEditable ? 4 : 2;
     }
 
     @Override
@@ -61,6 +61,7 @@ public class FabricConfigScreen extends Screen {
                 case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 3: initPagePreviewHud(centerX, startY, buttonWidth, buttonHeight, spacing); break;
             }
         }
 
@@ -239,6 +240,11 @@ public class FabricConfigScreen extends Screen {
     }
 
     // === 辅助方法 ===
+
+    private void initPagePreviewHud(int x, int y, int w, int h, int s) {
+        org.xiyu.onekeyminer.preview.PreviewHudControls.addWidgets(
+                configCopy, this.width, y, this::addRenderableWidget, this::init);
+    }
 
     private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
         this.addRenderableWidget(Button.builder(
