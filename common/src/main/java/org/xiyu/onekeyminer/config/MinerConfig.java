@@ -59,6 +59,17 @@ public class MinerConfig {
     public boolean playSound = true;
     public boolean showStats = true;
 
+    /** Client-side chain preview HUD preferences. */
+    public boolean previewHudEnabled = true;
+    public int previewHudX = 6;
+    public int previewHudY = 6;
+    public float previewHudScale = 1.0f;
+    /** Background opacity in the inclusive range 0..255. */
+    public int previewHudBackgroundAlpha = 128;
+    public boolean previewHudShowShape = true;
+    public boolean previewHudShowCount = true;
+    public boolean previewHudShowMax = true;
+
     public List<String> customWhitelist = new ArrayList<>();
     public List<String> blacklist = new ArrayList<>();
     public List<String> toolWhitelist = new ArrayList<>();
@@ -118,6 +129,7 @@ public class MinerConfig {
         copy.requireExactMatch = this.requireExactMatch;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
+        copy.copyPreviewHudFrom(this);
         copy.customWhitelist = copyList(this.customWhitelist);
         copy.blacklist = copyList(this.blacklist);
         copy.toolWhitelist = copyList(this.toolWhitelist);
@@ -140,6 +152,7 @@ public class MinerConfig {
         this.shapeMode = null;
         this.teleportDrops = source.teleportDrops;
         this.teleportExp = source.teleportExp;
+        copyPreviewHudFrom(source);
     }
 
     public boolean isDropTeleportEnabled(boolean clientRequested) {
@@ -148,6 +161,17 @@ public class MinerConfig {
 
     public boolean isExperienceTeleportEnabled(boolean clientRequested) {
         return allowClientTeleportExp && clientRequested;
+    }
+
+    public void copyPreviewHudFrom(MinerConfig source) {
+        previewHudEnabled = source.previewHudEnabled;
+        previewHudX = source.previewHudX;
+        previewHudY = source.previewHudY;
+        previewHudScale = source.previewHudScale;
+        previewHudBackgroundAlpha = source.previewHudBackgroundAlpha;
+        previewHudShowShape = source.previewHudShowShape;
+        previewHudShowCount = source.previewHudShowCount;
+        previewHudShowMax = source.previewHudShowMax;
     }
 
     private static List<String> copyList(List<String> source) {
