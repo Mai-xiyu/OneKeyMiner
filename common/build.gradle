@@ -9,3 +9,11 @@ repositories {
 dependencies {
     compileOnly "org.spongepowered:mixin:0.8.5"
 }
+
+// Preview count regression tests use the mapped BlockPos type from main.
+tasks.named('compileTestJava', JavaCompile).configure {
+    classpath += sourceSets.main.compileClasspath
+}
+tasks.named('test', Test).configure {
+    classpath += sourceSets.main.runtimeClasspath
+}

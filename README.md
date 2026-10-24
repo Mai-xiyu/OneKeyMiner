@@ -230,3 +230,12 @@ Agreement v1.2**. See [LICENSE_EN.md](LICENSE_EN.md) or
 <p align="center">
   Made with ❤️ for the Minecraft community
 </p>
+
+
+## Preview HUD customization
+
+The HUD page offers a visibility switch, GUI pixel position, 50–200% scale,
+background alpha (0–255), shape/count/limit toggles, and reset. GUI positions
+use presets; arbitrary nonnegative X/Y coordinates can be set in
+`config/onekeyminer.json` or through the API. Save with Done; Cancel discards
+the screen's draft. Preferences remain editable on remote servers.
