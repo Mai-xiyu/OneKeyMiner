@@ -239,6 +239,17 @@ public class MinerConfig {
      * 自定义方块白名单
      * <p>格式: "minecraft:block_id" 或 "#minecraft:tag_id"</p>
      */
+    /** Client-side chain preview HUD preferences. */
+    public boolean previewHudEnabled = true;
+    public int previewHudX = 6;
+    public int previewHudY = 6;
+    public float previewHudScale = 1.0f;
+    /** Background opacity in the inclusive range 0..255. */
+    public int previewHudBackgroundAlpha = 128;
+    public boolean previewHudShowShape = true;
+    public boolean previewHudShowCount = true;
+    public boolean previewHudShowMax = true;
+
     public List<String> customWhitelist = new ArrayList<>();
     
     /**
@@ -292,6 +303,7 @@ public class MinerConfig {
         copy.requireExactMatch = this.requireExactMatch;
         copy.playSound = this.playSound;
         copy.showStats = this.showStats;
+        copy.copyPreviewHudFrom(this);
         copy.strictBlockMatching = this.strictBlockMatching;
         copy.hungerPerBlock = this.hungerPerBlock;
         copy.maxBlocksCreative = this.maxBlocksCreative;
@@ -311,6 +323,17 @@ public class MinerConfig {
         copy.seedBlacklist = copyList(this.seedBlacklist);
         copy.farmlandWhitelist = copyList(this.farmlandWhitelist);
         return copy;
+    }
+
+    public void copyPreviewHudFrom(MinerConfig source) {
+        previewHudEnabled = source.previewHudEnabled;
+        previewHudX = source.previewHudX;
+        previewHudY = source.previewHudY;
+        previewHudScale = source.previewHudScale;
+        previewHudBackgroundAlpha = source.previewHudBackgroundAlpha;
+        previewHudShowShape = source.previewHudShowShape;
+        previewHudShowCount = source.previewHudShowCount;
+        previewHudShowMax = source.previewHudShowMax;
     }
 
     private static <T> List<T> copyList(List<T> source) {

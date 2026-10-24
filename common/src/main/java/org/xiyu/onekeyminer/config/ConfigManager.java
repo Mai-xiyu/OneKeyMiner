@@ -186,6 +186,11 @@ public final class ConfigManager {
     private static MinerConfig normalized(MinerConfig source) {
         Objects.requireNonNull(source, "source");
         MinerConfig result = source.copy();
+        result.previewHudX = Math.max(0, result.previewHudX);
+        result.previewHudY = Math.max(0, result.previewHudY);
+        result.previewHudScale = Float.isFinite(result.previewHudScale)
+                ? Math.max(0.5f, Math.min(2, result.previewHudScale)) : 1;
+        result.previewHudBackgroundAlpha = Math.max(0, Math.min(255, result.previewHudBackgroundAlpha));
         normalizeCollections(result);
         result.maxBlocks = Math.max(1, Math.min(10_240, result.maxBlocks));
         result.maxBlocksCreative = Math.max(1, Math.min(10_240, result.maxBlocksCreative));
@@ -258,6 +263,7 @@ public final class ConfigManager {
         target.requireExactMatch = disk.requireExactMatch;
         target.playSound = disk.playSound;
         target.showStats = disk.showStats;
+        target.copyPreviewHudFrom(disk);
         copyCollections(target, disk);
     }
 

@@ -78,6 +78,16 @@
   "message.onekeyminer.mode_disabled": "Chain Mining Disabled",
   "message.onekeyminer.config_reloaded": "Config Reloaded Successfully",
 
+  "config.onekeyminer.option.preview_hud_enabled": "Preview HUD",
+  "config.onekeyminer.option.preview_hud_shape": "Preview Shape",
+  "config.onekeyminer.option.preview_hud_count": "Preview Count",
+  "config.onekeyminer.option.preview_hud_max": "Preview Limit",
+  "config.onekeyminer.option.preview_hud_scale": "Preview Scale",
+  "config.onekeyminer.option.preview_hud_alpha": "Preview Background",
+  "config.onekeyminer.option.preview_hud_x": "Preview X",
+  "config.onekeyminer.option.preview_hud_y": "Preview Y",
+  "config.onekeyminer.option.preview_hud_reset": "Reset Preview HUD",
+
   "onekeyminer.hud.preview_title": "[Chain Preview]",
   "onekeyminer.hud.shape": "Shape: %s",
   "onekeyminer.hud.count": "Blocks: %d",

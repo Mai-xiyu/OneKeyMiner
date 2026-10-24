@@ -15,6 +15,8 @@ import org.xiyu.onekeyminer.shape.ShapeRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -138,7 +140,7 @@ public class ChainPreviewManager {
                     .build();
             
             List<BlockPos> preview = shape.getPreviewPositions(ctx);
-            this.previewBlocks = preview != null ? Collections.unmodifiableList(new ArrayList<>(preview)) : Collections.emptyList();
+            previewBlocks = includeOrigin(lookingAt, preview, policy.maxBlocks());
             this.currentShapeTranslationKey = shape.getTranslationKey();
             notifyListeners();
         } catch (Exception e) {
@@ -152,6 +154,23 @@ public class ChainPreviewManager {
      * 
      * @return 不可变的方块位置列表
      */
+    /**
+     * Shapes collect derived targets; the vanilla action handles the origin.
+     * Preview consumers need the complete set, including an isolated origin.
+     * O(n) time and O(min(n, maxDerivedBlocks) + 1) space.
+     */
+    static List<BlockPos> includeOrigin(BlockPos origin, List<BlockPos> derived, int maxDerivedBlocks) {
+        if (derived == null) return Collections.emptyList();
+        Set<BlockPos> positions = new LinkedHashSet<>();
+        positions.add(origin.immutable());
+        int limit = Math.max(0, maxDerivedBlocks);
+        for (BlockPos position : derived) {
+            if (positions.size() - 1 >= limit) break;
+            if (position != null) positions.add(position.immutable());
+        }
+        return Collections.unmodifiableList(new ArrayList<>(positions));
+    }
+
     public List<BlockPos> getPreviewBlocks() {
         return previewBlocks;
     }
