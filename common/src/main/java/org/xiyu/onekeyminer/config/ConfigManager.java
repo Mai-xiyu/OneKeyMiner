@@ -155,6 +155,14 @@ public class ConfigManager {
         merged.requireExactMatch = diskConfig.requireExactMatch;
         merged.playSound = diskConfig.playSound;
         merged.showStats = diskConfig.showStats;
+        merged.previewHudEnabled = diskConfig.previewHudEnabled;
+        merged.previewHudX = diskConfig.previewHudX;
+        merged.previewHudY = diskConfig.previewHudY;
+        merged.previewHudScale = diskConfig.previewHudScale;
+        merged.previewHudBackgroundAlpha = diskConfig.previewHudBackgroundAlpha;
+        merged.previewHudShowShape = diskConfig.previewHudShowShape;
+        merged.previewHudShowCount = diskConfig.previewHudShowCount;
+        merged.previewHudShowMax = diskConfig.previewHudShowMax;
 
         if (diskConfig.preserveDurability >= 0) {
             merged.preserveDurability = diskConfig.preserveDurability;
@@ -384,6 +392,25 @@ public class ConfigManager {
             changed = true;
         } else if (config.hungerMultiplier > 10) {
             config.hungerMultiplier = 10;
+            changed = true;
+        }
+        if (!Float.isFinite(config.previewHudScale) || config.previewHudScale < 0.5f) {
+            config.previewHudScale = 0.5f;
+            changed = true;
+        } else if (config.previewHudScale > 2.0f) {
+            config.previewHudScale = 2.0f;
+            changed = true;
+        }
+        int clampedAlpha = Math.max(0, Math.min(255, config.previewHudBackgroundAlpha));
+        if (config.previewHudBackgroundAlpha != clampedAlpha) {
+            config.previewHudBackgroundAlpha = clampedAlpha;
+            changed = true;
+        }
+        int clampedX = Math.max(0, config.previewHudX);
+        int clampedY = Math.max(0, config.previewHudY);
+        if (config.previewHudX != clampedX || config.previewHudY != clampedY) {
+            config.previewHudX = clampedX;
+            config.previewHudY = clampedY;
             changed = true;
         }
         if (config.preserveDurability < 0) {

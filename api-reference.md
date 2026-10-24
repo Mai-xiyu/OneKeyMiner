@@ -511,6 +511,12 @@ validated convenience methods:
 OneKeyMinerAPI.setSelectedShape("examplemod:upward_column");
 OneKeyMinerAPI.setLocalDropTeleportRequested(true);
 OneKeyMinerAPI.setLocalExperienceTeleportRequested(true);
+
+OneKeyMinerAPI.setPreviewHudSettings(new OneKeyMinerAPI.PreviewHudSettings(
+    true, 6, 6, 1.0f, 128, true, true, true
+));
+OneKeyMinerAPI.PreviewHudSettings hud = OneKeyMinerAPI.getPreviewHudSettings();
+OneKeyMinerAPI.resetPreviewHudSettings();
 ```
 
 The teleport values above are local client preferences. The server applies its
@@ -519,6 +525,15 @@ is/setTeleportDropsEnabled and is/setTeleportExpEnabled methods remain
 binary/source compatible but are deprecated aliases for those local
 preferences. Calling them in a dedicated-server process does not affect
 connected clients and does not modify server policy.
+
+Preview HUD settings are client-local and persist in `config/onekeyminer.json`.
+`PreviewHudSettings` is an immutable snapshot. Its constructor clamps X/Y to
+nonnegative GUI pixels, scale to 0.5–2.0 (nonfinite values become 1.0), and
+background alpha to 0–255 (0 hides the background). The final three booleans
+control the shape, count, and limit lines. Disabling every line hides the panel.
+The renderer keeps the scaled panel within the current GUI viewport. These
+settings are available on the HUD configuration page even on a remote server;
+they do not change server mining policy or other players' HUDs.
 
 Use the explicit policy API on the authoritative server:
 
@@ -563,3 +578,12 @@ excessive packets are rejected server-side.
 - Algorithms in custom shapes should be bounded by `maxBlocks`, `maxDistance`
   and loaded chunks. A breadth-first shape is normally `O(V + E)` time and
   `O(V)` memory for visited candidates.
+
+### Preview count semantics
+
+`OneKeyMinerAPI.getPreviewBlocks()` and preview listeners receive unique positions
+including the crosshair/origin block. A valid isolated block therefore counts as 1.
+Shape collection still returns derived targets for the server; the configured
+`maxBlocks` bounds these additional targets, so the HUD total limit is `maxBlocks + 1`.
+Custom shapes that already return the origin do not count it twice. Clearing the
+preview (no target, key released, or disabled) still produces an empty list.

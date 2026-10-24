@@ -53,12 +53,16 @@ public class FabricConfigScreen extends Screen {
         int spacing = 24;
 
         if (!serverSettingsEditable) {
-            initClientPreferencesPage(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+            switch (currentPage) {
+                case 0: initClientPreferencesPage(centerX, startY + spacing, buttonWidth, buttonHeight, spacing); break;
+                case 1: initPagePreviewHud(centerX, startY + spacing, buttonWidth, buttonHeight, spacing); break;
+            }
         } else {
             switch (currentPage) {
                 case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 3: initPagePreviewHud(centerX, startY, buttonWidth, buttonHeight, spacing); break;
             }
         }
 
@@ -159,8 +163,13 @@ public class FabricConfigScreen extends Screen {
                 () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
     }
 
+    private void initPagePreviewHud(int x, int y, int w, int h, int s) {
+        org.xiyu.onekeyminer.preview.PreviewHudControls.addWidgets(
+                configCopy, this.width, y, this::addRenderableWidget, this::init);
+    }
+
     private int totalPages() {
-        return serverSettingsEditable ? 3 : 1;
+        return serverSettingsEditable ? 4 : 2;
     }
 
     // === 第二页：消耗设置 ===
@@ -252,6 +261,7 @@ public class FabricConfigScreen extends Screen {
     private Component getValueMessage(String key, int value) {
         return Component.translatable(key).append(": " + value);
     }
+
 
     private Component getEnumMessage(String key, String enumTranslationKey) {
         return Component.translatable(key).append(": ")

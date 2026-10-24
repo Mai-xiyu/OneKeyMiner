@@ -90,12 +90,17 @@ public class ForgeConfigScreen {
             int spacing = 24;
             
             if (!serverSettingsEditable) {
-                initClientPreferencesPage(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+                if (currentPage == 0) {
+                    initClientPreferencesPage(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+                } else {
+                    initPagePreviewHud(centerX, startY + spacing, buttonWidth, buttonHeight, spacing);
+                }
             } else {
                 switch (currentPage) {
                     case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                     case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                     case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 3: initPagePreviewHud(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 }
             }
             
@@ -201,8 +206,13 @@ public class ForgeConfigScreen {
                     () -> configCopy.teleportExp, v -> configCopy.teleportExp = v);
         }
 
+        private void initPagePreviewHud(int x, int y, int w, int h, int s) {
+            org.xiyu.onekeyminer.preview.PreviewHudControls.addWidgets(
+                    configCopy, this.width, y, this::addRenderableWidget, this::init);
+        }
+
         private int totalPages() {
-            return serverSettingsEditable ? 3 : 1;
+            return serverSettingsEditable ? 4 : 2;
         }
         
         // === 第二页：消耗设置 ===

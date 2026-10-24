@@ -19,6 +19,7 @@ public final class RemoteConfigPolicy {
         merged.shapeMode = null;
         merged.teleportDrops = edited.teleportDrops;
         merged.teleportExp = edited.teleportExp;
+        merged.copyPreviewHudFrom(edited);
         return merged;
     }
 }

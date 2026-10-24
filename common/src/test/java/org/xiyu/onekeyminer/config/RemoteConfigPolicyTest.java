@@ -29,6 +29,14 @@ final class RemoteConfigPolicyTest {
         edited.shapeMode = MinerConfig.ShapeMode.CUBE;
         edited.teleportDrops = true;
         edited.teleportExp = true;
+        edited.previewHudEnabled = false;
+        edited.previewHudX = 93;
+        edited.previewHudY = 17;
+        edited.previewHudScale = 1.5f;
+        edited.previewHudBackgroundAlpha = 0;
+        edited.previewHudShowShape = false;
+        edited.previewHudShowCount = false;
+        edited.previewHudShowMax = false;
 
         MinerConfig merged = RemoteConfigPolicy.mergeClientPreferences(current, edited);
 
@@ -38,5 +46,14 @@ final class RemoteConfigPolicyTest {
         assertNull(merged.shapeMode);
         assertTrue(merged.teleportDrops);
         assertTrue(merged.teleportExp);
+        assertFalse(merged.previewHudEnabled);
+        assertEquals(93, merged.previewHudX);
+        assertEquals(17, merged.previewHudY);
+        assertEquals(1.5f, merged.previewHudScale);
+        assertEquals(0, merged.previewHudBackgroundAlpha);
+        assertFalse(merged.previewHudShowShape);
+        assertFalse(merged.previewHudShowCount);
+        assertFalse(merged.previewHudShowMax);
+        assertTrue(current.previewHudEnabled);
     }
 }
