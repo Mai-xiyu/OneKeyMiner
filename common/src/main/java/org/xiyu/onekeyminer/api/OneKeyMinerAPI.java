@@ -1434,6 +1434,64 @@ public final class OneKeyMinerAPI {
         CONFIG_REGISTRATIONS = ConfigRegistrations.empty();
     }
 
+    /** Returns a defensive snapshot of the client preview HUD settings. */
+    public static PreviewHudSettings getPreviewHudSettings() {
+        MinerConfig config = ConfigManager.getConfig();
+        return new PreviewHudSettings(
+                config.previewHudEnabled,
+                config.previewHudX,
+                config.previewHudY,
+                config.previewHudScale,
+                config.previewHudBackgroundAlpha,
+                config.previewHudShowShape,
+                config.previewHudShowCount,
+                config.previewHudShowMax
+        );
+    }
+
+    /** Applies and persists client preview HUD settings. */
+    public static void setPreviewHudSettings(PreviewHudSettings settings) {
+        Objects.requireNonNull(settings, "settings");
+        ConfigManager.editConfig("previewHud", config -> {
+            config.previewHudEnabled = settings.enabled();
+            config.previewHudX = settings.x();
+            config.previewHudY = settings.y();
+            config.previewHudScale = settings.scale();
+            config.previewHudBackgroundAlpha = settings.backgroundAlpha();
+            config.previewHudShowShape = settings.showShape();
+            config.previewHudShowCount = settings.showCount();
+            config.previewHudShowMax = settings.showMax();
+        });
+    }
+
+    /** Restores the default preview HUD settings. */
+    public static void resetPreviewHudSettings() {
+        setPreviewHudSettings(PreviewHudSettings.defaults());
+    }
+
+    /** Immutable client preview HUD settings exposed to add-on mods. */
+    public record PreviewHudSettings(
+            boolean enabled,
+            int x,
+            int y,
+            float scale,
+            int backgroundAlpha,
+            boolean showShape,
+            boolean showCount,
+            boolean showMax
+    ) {
+        public PreviewHudSettings {
+            x = Math.max(0, x);
+            y = Math.max(0, y);
+            scale = Float.isFinite(scale) ? Math.max(0.5f, Math.min(2.0f, scale)) : 1.0f;
+            backgroundAlpha = Math.max(0, Math.min(255, backgroundAlpha));
+        }
+
+        public static PreviewHudSettings defaults() {
+            return new PreviewHudSettings(true, 6, 6, 1.0f, 128, true, true, true);
+        }
+    }
+
     /**
      * 重新加载 API 数据
      *
