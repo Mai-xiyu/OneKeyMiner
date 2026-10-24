@@ -51,7 +51,7 @@ public class ForgeConfigScreen {
         private final MinerConfig configCopy;
         private final boolean serverSettingsEditable;
         private int currentPage = 0;
-        private final int totalPages = 3;
+        private final int totalPages = 4;
         
         protected SimpleConfigScreen(Screen parent) {
             super(Component.translatable("config.onekeyminer.title"));
@@ -94,6 +94,7 @@ public class ForgeConfigScreen {
                 case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
                 case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                    case 3: initPagePreviewHud(centerX, startY, buttonWidth, buttonHeight, spacing); break;
             }
             
             // === 底部导航栏 ===
@@ -281,6 +282,11 @@ public class ForgeConfigScreen {
          * @param getter 获取当前值的 Supplier
          * @param setter 设置新值的 Consumer
          */
+        private void initPagePreviewHud(int x, int y, int w, int h, int s) {
+            org.xiyu.onekeyminer.preview.PreviewHudControls.addWidgets(
+                    configCopy, this.width, y, this::addRenderableWidget, this::init);
+        }
+
         private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter) {
             Button optionButton = Button.builder(
                 getBoolMessage(key, getter.get()),

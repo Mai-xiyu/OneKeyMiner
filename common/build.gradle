@@ -1,28 +1,5 @@
-buildscript {
-    repositories {
-        maven { url "https://repo.spongepowered.org/repository/maven-public/" }
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    dependencies {
-        classpath "org.spongepowered:vanillagradle:0.2.2"
-    }
-}
-
-if (gradle.ext.minecraft_version == "1.21.11") {
-    apply plugin: "java"
-    apply plugin: "org.spongepowered.gradle.vanilla"
-
-    minecraft {
-        version gradle.ext.minecraft_version
-    }
-
-    def mcConfig = configurations.findByName("minecraft")
-    if (mcConfig != null) {
-        configurations.compileOnly.extendsFrom(mcConfig)
-    }
-} else {
-    apply plugin: "unimined-common"
+plugins {
+    id 'unimined-common'
 }
 
 repositories {
@@ -42,4 +19,9 @@ tasks.withType(Test).configureEach {
 
 tasks.named("compileTestJava").configure {
     enabled = true
+    classpath += sourceSets.main.compileClasspath
+}
+
+tasks.named("test", Test).configure {
+    classpath += sourceSets.main.runtimeClasspath
 }

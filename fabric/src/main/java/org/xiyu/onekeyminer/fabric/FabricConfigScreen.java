@@ -31,7 +31,7 @@ public class FabricConfigScreen extends Screen {
     private final MinerConfig configCopy;
     private final boolean serverSettingsEditable;
     private int currentPage = 0;
-    private final int totalPages = 3;
+    private final int totalPages = 4;
 
     public FabricConfigScreen(Screen parent) {
         super(Component.translatable("config.onekeyminer.title"));
@@ -59,6 +59,7 @@ public class FabricConfigScreen extends Screen {
             case 0: initPageGeneral(centerX, startY, buttonWidth, buttonHeight, spacing); break;
             case 1: initPageConsumption(centerX, startY, buttonWidth, buttonHeight, spacing); break;
             case 2: initPageAdvanced(centerX, startY, buttonWidth, buttonHeight, spacing); break;
+                case 3: initPagePreviewHud(centerX, startY, buttonWidth, buttonHeight, spacing); break;
         }
 
         // === 底部导航栏 ===
@@ -219,6 +220,11 @@ public class FabricConfigScreen extends Screen {
     }
 
     // === 辅助方法 ===
+
+    private void initPagePreviewHud(int x, int y, int w, int h, int s) {
+        org.xiyu.onekeyminer.preview.PreviewHudControls.addWidgets(
+                configCopy, this.width, y, this::addRenderableWidget, this::init);
+    }
 
     private void addBoolButton(int x, int y, int w, int h, String key, Supplier<Boolean> getter, Consumer<Boolean> setter, boolean editable) {
         Button optionButton = Button.builder(

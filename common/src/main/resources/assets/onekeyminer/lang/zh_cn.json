@@ -78,6 +78,16 @@
   "key.categories.onekeyminer": "OneKeyMiner",
   "category.onekeyminer": "OneKeyMiner",
 
+  "config.onekeyminer.option.preview_hud_enabled": "显示连锁预览",
+  "config.onekeyminer.option.preview_hud_shape": "显示预览形状",
+  "config.onekeyminer.option.preview_hud_count": "显示预览数量",
+  "config.onekeyminer.option.preview_hud_max": "显示预览上限",
+  "config.onekeyminer.option.preview_hud_scale": "预览缩放",
+  "config.onekeyminer.option.preview_hud_alpha": "预览背景透明度",
+  "config.onekeyminer.option.preview_hud_x": "预览 X 坐标",
+  "config.onekeyminer.option.preview_hud_y": "预览 Y 坐标",
+  "config.onekeyminer.option.preview_hud_reset": "重置预览窗口",
+
   "onekeyminer.hud.preview_title": "连锁预览",
   "onekeyminer.hud.shape": "形状：%s",
   "onekeyminer.hud.count": "方块：%s",
